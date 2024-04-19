@@ -70,6 +70,14 @@ https://github.com/williamboman/mason-lspconfig.nvim
 
 https://github.com/neovim/nvim-lspconfig
 
+#### none-ls
+
+Use Neovim as a language server to inject LSP diagnostics, code actions, and more via Lua.
+
+N.B. You'll need to manually install stylua via `:Mason`
+
+https://github.com/nvimtools/none-ls.nvim
+
 ## WezTerm
 
 Cross-platform terminal emulator and multiplexer.
