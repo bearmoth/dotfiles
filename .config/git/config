@@ -1,10 +1,7 @@
 [user]
 	email = "7753727+bearmoth@users.noreply.github.com"
 	name = "Phil Davies"
-	signingkey = ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHIuwJL9HK93dzqoGqAuw+y3+iJwFPeSCVzIOtaujaA7
-[gpg]
-	format = ssh
-[gpg "ssh"]
-	program = /Applications/1Password.app/Contents/MacOS/op-ssh-sign
-[commit]
-	gpgsign = true
+  signingkey = ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHIuwJL9HK93dzqoGqAuw+y3+iJwFPeSCVzIOtaujaA7
+
+[includeIf "gitdir:~/Dev/primeslice/"]
+  path = config.primeslice
