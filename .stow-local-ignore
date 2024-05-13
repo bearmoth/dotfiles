@@ -24,5 +24,4 @@ _darcs
 
 # custom ignored files/directories
 ^/docs
-^/resources
 ^/scripts
