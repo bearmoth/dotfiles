@@ -1,0 +1,133 @@
+#!/bin/bash
+
+clear
+
+# Version control and package management
+
+echo "Installing version control and package management tools..."
+
+## Homebrew
+echo -n "  - Homebrew: ";
+if command -v brew &> /dev/null
+then
+  echo "DONE"
+else
+  /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+  echo "DONE"
+fi
+
+## Git
+echo -n "  - Git: ";
+if command -v git &> /dev/null
+then
+  echo "DONE"
+else
+  # on Macos, git is installed with Xcode Command Line Tools
+  git --version
+  echo "DONE"
+fi
+
+## GitHub CLI
+echo -n "  - GitHub CLI: ";
+if command -v gh &> /dev/null
+then
+  echo "DONE"
+else
+  brew install gh
+  echo "DONE"
+fi
+
+# check if gh is authenticated, otherwise log in
+echo
+echo -n "Checking GitHub CLI authentication... "
+if gh auth status | grep -q "Logged in to github.com"
+then
+  echo "authenticated"
+else
+  echo "unauthenticated"
+  echo "Please authenticate GitHub CLI"
+  gh auth login
+fi
+
+# Terminal and shell
+
+echo "Installing terminal and shell tools..."
+
+## zsh
+echo -n "  - Zsh: ";
+if command -v zsh &> /dev/null
+then
+  echo "DONE"
+else
+  brew install zsh
+  echo "DONE"
+fi
+
+## oh-my-zsh
+echo -n "  - oh-my-zsh: ";
+if [ -d "$HOME/.oh-my-zsh" ]
+then
+  echo "DONE"
+else
+  sh -c "$(curl -fsSL https://raw.github.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
+  echo "DONE"
+fi
+
+## powerlevel10k
+echo -n "  - powerlevel10k: ";
+if [ -d "$HOME/.oh-my-zsh/custom/themes/powerlevel10k" ]
+then
+  echo "DONE"
+else
+  git clone --depth=1 https://github.com/romkatv/powerlevel10k.git ${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}/themes/powerlevel10k
+  echo "DONE"
+fi
+
+## GitHub CLI Copilot
+echo -n "  - GitHub CLI Copilot: ";
+if gh extension list | grep copilot &> /dev/null
+then
+  echo "DONE"
+else
+  gh extension install github/gh-copilot
+  echo "DONE"
+fi
+
+## WezTerm
+echo -n "  - WezTerm: ";
+if command -v wezterm &> /dev/null
+then
+  echo "DONE"
+else
+  brew install --cask wezterm
+  brew install wezterm
+  echo "DONE"
+fi
+
+## Stow
+echo -n "  - Stow: ";
+if command -v stow &> /dev/null
+then
+  echo "DONE"
+else
+  brew install stow
+  echo "DONE"
+fi
+
+## NeoVim
+echo -n "  - NeoVim: ";
+if command -v nvim &> /dev/null
+then
+  echo "DONE"
+else
+  brew install neovim
+  echo "DONE"
+fi
+
+# Configure
+
+echo "Installing dotfiles..."
+cd "$(git rev-parse --show-toplevel)"
+stow .
+
+echo "Done!"

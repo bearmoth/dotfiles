@@ -21,3 +21,8 @@ _darcs
 ^/README.*
 ^/LICENSE.*
 ^/COPYING
+
+# custom ignored files/directories
+^/docs
+^/resources
+^/scripts

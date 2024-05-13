@@ -1,84 +1,91 @@
 # Dotfiles
 
-## Git
+Personal environment setup for [@Bearmoth](https://github.com/bearmoth).
+
+Installs commonly used tools and then sets up dotfiles with `stow`.
+
+## Usage
+
+### MacOS
+
+```sh
+./scripts/setup-macos
+```
+
+## Tools
+
+
+### Git
 
 Distributed version control system.
 
 https://git-scm.com/b
 
-## NeoVim
+### NeoVim
 
 Refactor of Vim for hipsters.
 
 https://github.com/neovim/neovim
 
-### Plugins
+#### Plugins
 
-#### Lazy
+##### Lazy
 
 Lazy is a plugin manager for NeoVim.
 
 https://github.com/folke/lazy.nvim
 
-#### Catppuccin
+##### Catppuccin
 
 Catppuccin is a color scheme for NeoVim.
 
 https://github.com/catppuccin/nvim
 
-#### Telescope
+##### Telescope
 
 Telescope is a fuzzy finder for NeoVim. It provides functionality such as finding files and live grepping through code.
 
 https://github.com/nvim-telescope/telescope.nvim
 
-#### Telescope-ui-select
+##### Telescope-ui-select
 
 Sets `vim.ui.select` to telescope.
 
 https://github.com/nvim-telescope/telescope-ui-select.nvim
 
-#### Treesitter
+##### Treesitter
 
 Treesitter is a parser generator tool which can create syntax trees for source code.
 
 https://github.com/nvim-treesitter/nvim-treesitter/
 
-#### Neo-tree
+##### Neo-tree
 
 A file browser plugin for NeoVim.
 
 https://github.com/nvim-neo-tree/neo-tree.nvim
 
-#### Lualine
+##### Lualine
 
 Lualine is a NeoVim statusline written in Lua.
 
 https://github.com/nvim-lualine/lualine.nvim
 
-#### Mason
+##### Mason
 
 Mason is a NeoVim plugin that allows you to easily manage external editor tooling such as LSP service, DAP services, linters, and formatters through a single interface.
 
 https://github.com/williamboman/mason.nvim
 
-#### mason-lspconfig
+##### mason-lspconfig
 
 https://github.com/williamboman/mason-lspconfig.nvim
 
-#### nvim-lspconfig
+##### nvim-lspconfig
 
 https://github.com/neovim/nvim-lspconfig
 
-#### none-ls
-
-Use Neovim as a language server to inject LSP diagnostics, code actions, and more via Lua.
-
-N.B. You'll need to manually install stylua via `:Mason`
-
-https://github.com/nvimtools/none-ls.nvim
-
-## WezTerm
+# ## WezTerm
 
 Cross-platform terminal emulator and multiplexer.
 
