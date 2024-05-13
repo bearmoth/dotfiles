@@ -1,4 +1,4 @@
 local wezterm = require 'wezterm';
 return {
-    font = wezterm.font("MesloLGS NF"),
+  font = wezterm.font("MesloLGS Nerd Font")
 }
