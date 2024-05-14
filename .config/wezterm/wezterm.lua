@@ -1,5 +1,5 @@
-local wezterm = require 'wezterm';
+local wezterm = require("wezterm")
 return {
-  font = wezterm.font("MesloLGS Nerd Font"),
-  color_scheme = "Catppuccin Mocha",
+	font = wezterm.font("MesloLGS NF"),
+	color_scheme = "Catppuccin Mocha",
 }
