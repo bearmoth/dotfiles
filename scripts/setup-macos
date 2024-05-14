@@ -108,6 +108,15 @@ else
 	echo "DONE"
 fi
 
+## ripgrep
+echo -n "  - ripgrep: "
+if command -v rg &>/dev/null; then
+	echo "DONE"
+else
+	brew install ripgrep
+	echo "DONE"
+fi
+
 ## Stow
 echo -n "  - Stow: "
 if command -v stow &>/dev/null; then
