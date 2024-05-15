@@ -1,5 +1,5 @@
 local wezterm = require("wezterm")
 return {
-	font = wezterm.font("MesloLGS NF"),
+	font = wezterm.font("JetBrains Mono", { weight = "DemiBold" }),
 	color_scheme = "Catppuccin Mocha",
 }
