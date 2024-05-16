@@ -1,12 +1,22 @@
+[fetch]
+	prune = true
+
+[pull]
+	rebase = true
+	prune = true
+	preserveMerges = true
+
 [user]
 	email = "7753727+bearmoth@users.noreply.github.com"
 	name = "Phil Davies"
-  signingkey = ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHIuwJL9HK93dzqoGqAuw+y3+iJwFPeSCVzIOtaujaA7
+	signingkey = ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHIuwJL9HK93dzqoGqAuw+y3+iJwFPeSCVzIOtaujaA7
 
 [includeIf "gitdir:~/Dev/primeslice/"]
-  path = config.primeslice
+	path = config.primeslice
+
 [oh-my-zsh]
 	git-commit-alias = b1c5315a5fbc33624525e434ddbaec3bb30030e2
+
 [alias]
 	build = "!a() {\nlocal _scope _attention _message\nwhile [ $# -ne 0 ]; do\ncase $1 in\n  -s | --scope )\n    if [ -z $2 ]; then\n      echo \"Missing scope!\"\n      return 1\n    fi\n    _scope=\"$2\"\n    shift 2\n    ;;\n  -a | --attention )\n    _attention=\"!\"\n    shift 1\n    ;;\n  * )\n    _message=\"${_message} $1\"\n    shift 1\n    ;;\nesac\ndone\ngit commit -m \"build${_scope:+(${_scope})}${_attention}:${_message}\"\n}; a"
 	chore = "!a() {\nlocal _scope _attention _message\nwhile [ $# -ne 0 ]; do\ncase $1 in\n  -s | --scope )\n    if [ -z $2 ]; then\n      echo \"Missing scope!\"\n      return 1\n    fi\n    _scope=\"$2\"\n    shift 2\n    ;;\n  -a | --attention )\n    _attention=\"!\"\n    shift 1\n    ;;\n  * )\n    _message=\"${_message} $1\"\n    shift 1\n    ;;\nesac\ndone\ngit commit -m \"chore${_scope:+(${_scope})}${_attention}:${_message}\"\n}; a"
