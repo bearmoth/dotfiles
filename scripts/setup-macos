@@ -108,6 +108,15 @@ else
 	echo "DONE"
 fi
 
+## lazygit
+echo -n "  - lazygit: "
+if command -v lazygit &>/dev/null; then
+	echo "DONE"
+else
+	brew install lazygit
+	echo "DONE"
+fi
+
 ## ripgrep
 echo -n "  - ripgrep: "
 if command -v rg &>/dev/null; then
@@ -142,4 +151,3 @@ cd "$(git rev-parse --show-toplevel)"
 stow .
 
 echo "Done!"
-
