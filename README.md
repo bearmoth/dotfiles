@@ -51,6 +51,10 @@ Refactor of Vim for hipsters.
 
 https://github.com/neovim/neovim
 
+#### Neogit
+
+An interactive Git interface.
+
 ### powerlevel10k
 
 A Zsh theme.
