@@ -113,7 +113,7 @@ alias vim='nvim'
 alias oldvim='vim'
 alias vimdiff='nvim -d'
 
-alias cat='bat'
+alias cat='bat --theme="base16-256"'
 
 alias ls='lsd'
 alias ll='ls -l'
