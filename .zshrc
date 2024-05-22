@@ -113,6 +113,10 @@ alias vim='nvim'
 alias oldvim='vim'
 alias vimdiff='nvim -d'
 
+alias cat='bat'
+
+alias aws_unset="unset AWS_ACCESS_KEY_ID && unset AWS_SECRET_ACCESS_KEY && unset AWS_SESSION_TOKEN"
+
 # SSH keys
 #eval "$(ssh-agent -s)"
 #ssh-add --apple-use-keychain ~/.ssh/id_ed25519
@@ -123,7 +127,5 @@ alias vimdiff='nvim -d'
 
 # Source helper scripts
 source ~/Dev/primeslice/backend/master/config.zshrc
-
-alias aws_unset="unset AWS_ACCESS_KEY_ID && unset AWS_SECRET_ACCESS_KEY && unset AWS_SESSION_TOKEN"
 
 eval "$(gh copilot alias -- zsh)"
