@@ -56,6 +56,12 @@ A preconfigured NeoVim setup. Many of the default settings and features match my
 
 https://www.lazyvim.org/
 
+### lsd
+
+A modern replacement for ls.
+
+https://github.com/lsd-rs/lsd
+
 ### NeoVim
 
 Refactor of Vim for hipsters.

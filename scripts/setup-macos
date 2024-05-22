@@ -126,6 +126,15 @@ else
 	echo "DONE"
 fi
 
+## lsd
+echo -n "  - lsd: "
+if command -v lsd &>/dev/null; then
+	echo "DONE"
+else
+	brew install lsd
+	echo "DONE"
+fi
+
 ## NeoVim
 echo -n "  - NeoVim: "
 if command -v nvim &>/dev/null; then

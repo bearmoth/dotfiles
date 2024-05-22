@@ -115,6 +115,12 @@ alias vimdiff='nvim -d'
 
 alias cat='bat'
 
+alias ls='lsd'
+alias ll='ls -l'
+alias la='ls -a'
+alias llla='ls -la'
+alias lt='ls --tree'
+
 alias aws_unset="unset AWS_ACCESS_KEY_ID && unset AWS_SECRET_ACCESS_KEY && unset AWS_SESSION_TOKEN"
 
 # SSH keys
