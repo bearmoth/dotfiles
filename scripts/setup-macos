@@ -90,12 +90,12 @@ fi
 #
 echo "Installing CLI tools..."
 
-## GitHub CLI Copilot
-echo -n "  - GitHub CLI Copilot: "
-if gh extension list | grep copilot &>/dev/null; then
+## bat
+echo -n "  - bat: "
+if command -v bat &>/dev/null; then
 	echo "DONE"
 else
-	gh extension install github/gh-copilot
+	brew install bat
 	echo "DONE"
 fi
 
@@ -108,12 +108,30 @@ else
 	echo "DONE"
 fi
 
+## GitHub CLI Copilot
+echo -n "  - GitHub CLI Copilot: "
+if gh extension list | grep copilot &>/dev/null; then
+	echo "DONE"
+else
+	gh extension install github/gh-copilot
+	echo "DONE"
+fi
+
 ## lazygit
 echo -n "  - lazygit: "
 if command -v lazygit &>/dev/null; then
 	echo "DONE"
 else
 	brew install lazygit
+	echo "DONE"
+fi
+
+## NeoVim
+echo -n "  - NeoVim: "
+if command -v nvim &>/dev/null; then
+	echo "DONE"
+else
+	brew install neovim
 	echo "DONE"
 fi
 
@@ -132,15 +150,6 @@ if command -v stow &>/dev/null; then
 	echo "DONE"
 else
 	brew install stow
-	echo "DONE"
-fi
-
-## NeoVim
-echo -n "  - NeoVim: "
-if command -v nvim &>/dev/null; then
-	echo "DONE"
-else
-	brew install neovim
 	echo "DONE"
 fi
 
