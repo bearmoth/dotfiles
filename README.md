@@ -14,6 +14,17 @@ Installs commonly used tools and then sets up dotfiles with `stow`.
 
 ## Tools
 
+### bat
+
+A modern `cat` replacement.
+
+https://github.com/sharkdp/bat
+
+### fzf
+
+A general-purpose command-line fuzzy finder.
+
+https://github.com/junegunn/fzf
 
 ### Git
 
@@ -51,17 +62,19 @@ Refactor of Vim for hipsters.
 
 https://github.com/neovim/neovim
 
-#### Neogit
+#### Plugins
+
+##### Neogit
 
 An interactive Git interface.
 
-### powerlevel10k
+### Ripgrep
 
-A Zsh theme.
+A faster grep
 
-https://github.com/romkatv/powerlevel10k
+https://github.com/BurntSushi/ripgrep
 
-### stow
+### Stow
 
 A symlink farm manager.
 
@@ -78,3 +91,12 @@ https://wezfurlong.org/wezterm/index.html
 A shell emulator.
 
 https://www.zsh.org/
+
+## Themes
+
+### powerlevel10k
+
+A Zsh theme.
+
+https://github.com/romkatv/powerlevel10k
+
