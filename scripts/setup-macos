@@ -126,6 +126,15 @@ else
 	echo "DONE"
 fi
 
+## k9s
+echo -n "  - k9s: "
+if command -v k9s &>/dev/null; then
+	echo "DONE"
+else
+	brew install k9s
+	echo "DONE"
+fi
+
 ## lsd
 echo -n "  - lsd: "
 if command -v lsd &>/dev/null; then

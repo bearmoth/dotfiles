@@ -50,6 +50,12 @@ A package manager for macOS.
 
 https://brew.sh/
 
+### k9s
+
+Kubernetes cli management tool.
+
+https://k9scli.io/
+
 ### LazyVim
 
 A preconfigured NeoVim setup. Many of the default settings and features match my personal preference, plus it's super easy to set up!
