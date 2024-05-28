@@ -162,6 +162,15 @@ else
 	echo "DONE"
 fi
 
+## Zoxide
+echo -n "  - Zoxide: "
+if command -v z &>/dev/null; then
+	echo "DONE"
+else
+	brew install zoxide
+	echo "DONE"
+fi
+
 # Configure
 
 echo "Configuring dotfiles..."

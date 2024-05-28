@@ -92,6 +92,12 @@ Cross-platform terminal emulator and multiplexer.
 
 https://wezfurlong.org/wezterm/index.html
 
+### Zoxide
+
+A "smarter" cd command.
+
+https://github.com/ajeetdsouza/zoxide
+
 ### Zsh
 
 A shell emulator.
