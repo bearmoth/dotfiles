@@ -173,7 +173,7 @@ fi
 
 ## Zoxide
 echo -n "  - Zoxide: "
-if command -v z &>/dev/null; then
+if command -v zoxide &>/dev/null; then
 	echo "DONE"
 else
 	brew install zoxide
