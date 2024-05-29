@@ -171,6 +171,15 @@ else
 	echo "DONE"
 fi
 
+## tmux
+echo -n "  - tmux: "
+if command -v tmux &>/dev/null; then
+	echo "DONE"
+else
+	brew install tmux
+	echo "DONE"
+fi
+
 ## Zoxide
 echo -n "  - Zoxide: "
 if command -v zoxide &>/dev/null; then
