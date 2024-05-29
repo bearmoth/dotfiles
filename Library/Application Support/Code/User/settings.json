@@ -4,5 +4,7 @@
     },
     "terminal.integrated.defaultProfile.osx": "zsh",
     "terminal.integrated.fontFamily": "MesloLGS NF",
-    "editor.tabSize": 2
+    "editor.tabSize": 2,
+    "github.copilot.editor.enableAutoCompletions": true,
+    "githubPullRequests.pullBranch": "never"
 }
