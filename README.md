@@ -18,61 +18,61 @@ Installs commonly used tools and then sets up dotfiles with `stow`.
 
 A modern `cat` replacement.
 
-https://github.com/sharkdp/bat
+<https://github.com/sharkdp/bat>
 
 ### fzf
 
 A general-purpose command-line fuzzy finder.
 
-https://github.com/junegunn/fzf
+<https://github.com/junegunn/fzf>
 
 ### Git
 
 Distributed version control system.
 
-https://git-scm.com/
+<https://git-scm.com/>
 
 ### GitHub CLI
 
 A CLI tool for executing commands against GitHub repositories.
 
-https://cli.github.com/
+<https://cli.github.com/>
 
 #### Plugins
 
 ##### Copilot
 
-https://docs.github.com/en/copilot/github-copilot-in-the-cli
+<https://docs.github.com/en/copilot/github-copilot-in-the-cli>
 
 ### Homebrew
 
 A package manager for macOS.
 
-https://brew.sh/
+<https://brew.sh/>
 
 ### k9s
 
 Kubernetes cli management tool.
 
-https://k9scli.io/
+<https://k9scli.io/>
 
 ### LazyVim
 
 A preconfigured NeoVim setup. Many of the default settings and features match my personal preference, plus it's super easy to set up!
 
-https://www.lazyvim.org/
+<https://www.lazyvim.org/>
 
 ### lsd
 
 A modern replacement for ls.
 
-https://github.com/lsd-rs/lsd
+<https://github.com/lsd-rs/lsd>
 
 ### NeoVim
 
 Refactor of Vim for hipsters.
 
-https://github.com/neovim/neovim
+<https://github.com/neovim/neovim>
 
 #### Plugins
 
@@ -84,31 +84,37 @@ An interactive Git interface.
 
 A faster grep
 
-https://github.com/BurntSushi/ripgrep
+<https://github.com/BurntSushi/ripgrep>
 
 ### Stow
 
 A symlink farm manager.
 
-https://www.gnu.org/software/stow/
+<https://www.gnu.org/software/stow/>
+
+### tmux
+
+A terminal multiplexer.
+
+<https://github.com/tmux/tmux/wiki>
 
 ### WezTerm
 
 Cross-platform terminal emulator and multiplexer.
 
-https://wezfurlong.org/wezterm/index.html
+<https://wezfurlong.org/wezterm/index.html>
 
 ### Zoxide
 
 A "smarter" cd command.
 
-https://github.com/ajeetdsouza/zoxide
+<https://github.com/ajeetdsouza/zoxide>
 
 ### Zsh
 
 A shell emulator.
 
-https://www.zsh.org/
+<https://www.zsh.org/>
 
 ## Themes
 
@@ -116,5 +122,4 @@ https://www.zsh.org/
 
 A Zsh theme.
 
-https://github.com/romkatv/powerlevel10k
-
+<https://github.com/romkatv/powerlevel10k>
