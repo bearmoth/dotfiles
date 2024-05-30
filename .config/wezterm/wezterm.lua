@@ -1,9 +1,12 @@
 local wezterm = require("wezterm")
 
 -- The colour scheme name
--- Second choice: "Afterglow",
--- Third choice: "Catppuccin Mocha",
+-- Second choice: "Catppuccin Mocha",
+-- Third choice: "Afterglow",
 local scheme = "Breeze (Gogh)"
+-- temporarily set theme to Catppuccin until I find a way to make Breeze consistent across WezTerm, Nvim, Tmux, etc
+scheme = "Catppuccin Mocha"
+
 -- Obtain the definition of the color scheme
 local scheme_def = wezterm.color.get_builtin_schemes()[scheme]
 
