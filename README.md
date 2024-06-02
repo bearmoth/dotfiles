@@ -68,7 +68,7 @@ A modern replacement for ls.
 
 <https://github.com/lsd-rs/lsd>
 
-### NeoVim
+### Neovim
 
 Refactor of Vim for hipsters.
 
@@ -91,12 +91,6 @@ A faster grep
 A symlink farm manager.
 
 <https://www.gnu.org/software/stow/>
-
-### tmux
-
-A terminal multiplexer.
-
-<https://github.com/tmux/tmux/wiki>
 
 ### WezTerm
 
