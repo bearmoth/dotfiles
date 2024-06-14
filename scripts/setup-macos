@@ -99,6 +99,15 @@ else
 	echo "DONE"
 fi
 
+## direnv
+echo -n "  - direnv: "
+if command -v direnv &>/dev/null; then
+	echo "DONE"
+else
+	brew install direnv
+	echo "DONE"
+fi
+
 ## fzf
 echo -n "  - fzf: "
 if command -v fzf &>/dev/null; then

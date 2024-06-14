@@ -20,6 +20,10 @@ A modern `cat` replacement.
 
 <https://github.com/sharkdp/bat>
 
+### direnv
+
+Augment an existing shell with features that can load and unload environment variables depending on the current directory.
+
 ### fzf
 
 A general-purpose command-line fuzzy finder.
