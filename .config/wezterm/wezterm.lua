@@ -3,6 +3,7 @@ local wezterm = require("wezterm")
 -- The colour scheme name
 -- Alternative themes I like, "Breeze (Gogh)" "Afterglow", "Catppuccin Mocha"
 local scheme = "nord"
+-- scheme = "Breeze (Gogh)"
 
 -- Obtain the definition of the color scheme
 local scheme_def = wezterm.color.get_builtin_schemes()[scheme]
