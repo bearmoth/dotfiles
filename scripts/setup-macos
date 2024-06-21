@@ -180,6 +180,15 @@ else
 	echo "DONE"
 fi
 
+## wget
+echo -n "  - wget: "
+if command -v wget &>/dev/null; then
+	echo "DONE"
+else
+	brew install wget
+	echo "DONE"
+fi
+
 ## Zoxide
 echo -n "  - Zoxide: "
 if command -v zoxide &>/dev/null; then

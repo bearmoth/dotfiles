@@ -96,6 +96,12 @@ A symlink farm manager.
 
 <https://www.gnu.org/software/stow/>
 
+### wget
+
+Retrieve files from the web using HTTP, HTTPS, FTP and FTPS.
+
+<https://www.gnu.org/software/wget/>
+
 ### WezTerm
 
 Cross-platform terminal emulator and multiplexer.
