@@ -1,11 +1,13 @@
 return {
-  -- A darker, slightly less minimalist version of Nord
-  {
-    "AlexvZyl/nordic.nvim",
-    lazy = false,
-    priority = 1000,
-    config = function()
-      require("nordic").load()
-    end,
-  },
+  "catppuccin/nvim",
+  lazy = false,
+  name = "catppuccin",
+  priority = 1000,
+  config = function()
+    require("catppuccin").setup({
+      flavour = "mocha",
+      transparent_background = true,
+    })
+    vim.cmd.colorscheme("catppuccin")
+  end,
 }
