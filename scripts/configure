@@ -1,0 +1,11 @@
+#!/bin/bash
+
+# Link config files
+
+## WARNING: this will reset all configurations to the latest committed version!
+echo
+echo "Configuring dotfiles..."
+cd "$(git rev-parse --show-toplevel)"
+stow . --adopt
+git restore .
+echo "Done!"
