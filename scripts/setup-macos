@@ -204,4 +204,8 @@ echo "Configuring dotfiles..."
 cd "$(git rev-parse --show-toplevel)"
 stow .
 
+echo "Configuring local zsh config"
+echo >>~/.zshrc.local
+echo "git config --global gpg.ssh.program /Applications/1Password.app/Contents/MacOS/op-ssh-sign" >>~/.zshrc.local
+
 echo "Done!"
