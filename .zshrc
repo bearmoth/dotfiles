@@ -130,6 +130,7 @@ alias aws_unset="unset AWS_ACCESS_KEY_ID && unset AWS_SECRET_ACCESS_KEY && unset
 # SSH keys
 #eval "$(ssh-agent -s)"
 #ssh-add --apple-use-keychain ~/.ssh/id_ed25519
+git config --global gpg.ssh.allowedSignersFile ~/.ssh/allowed_signers
 
 # Source PowerLevel10k
 # To customize prompt, run `p10k configure` or edit ~/.p10k.zsh.
@@ -140,9 +141,6 @@ eval "$(gh copilot alias -- zsh)"
 export NVM_DIR="$HOME/.nvm"
 [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
 [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
-
-# Source helper scripts
-source ~/Dev/primeslice/backend/master/config.zshrc
 
 # Local env settings
 source ~/.zshrc.local
