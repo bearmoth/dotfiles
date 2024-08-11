@@ -141,6 +141,6 @@ source ~/.zshrc.local
 # Custom plugins may be added to $ZSH_CUSTOM/plugins/
 # Example format: plugins=(rails git textmate ruby lighthouse)
 # Add wisely, as too many plugins slow down shell startup.
-plugins=(direnv gh git git-commit fzf nvm ripgrep zoxide)
+plugins=(direnv gh git git-commit fzf nvm zoxide)
 
 source $ZSH/oh-my-zsh.sh
