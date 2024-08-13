@@ -58,6 +58,7 @@ return {
 	color_scheme = scheme,
 
 	colors = {
+		background = "rgba(38 43 52, 75%)",
 		tab_bar = {
 			active_tab = {
 				bg_color = scheme_def.background,
@@ -95,8 +96,4 @@ return {
 		split_nav("resize", "k"),
 		split_nav("resize", "l"),
 	},
-
-	window_background_opacity = 0.80,
-	win32_system_backdrop = "Acrylic",
-	macos_window_background_blur = 20,
 }
