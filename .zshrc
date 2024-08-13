@@ -95,29 +95,6 @@ export EDITOR=nvim
 # Compilation flags
 # export ARCHFLAGS="-arch x86_64"
 
-# Set personal aliases, overriding those provided by oh-my-zsh libs,
-# plugins, and themes. Aliases can be placed here, though oh-my-zsh
-# users are encouraged to define aliases within the ZSH_CUSTOM folder.
-# For a full list of active aliases, run `alias`.
-#
-# Example aliases
-# alias zshconfig="mate ~/.zshrc"
-# alias ohmyzsh="mate ~/.oh-my-zsh"
-alias vi='nvim'
-alias vim='nvim'
-alias oldvim='vim'
-alias vimdiff='nvim -d'
-
-alias cat='bat'
-
-alias ls='lsd'
-alias ll='ls -l'
-alias la='ls -a'
-alias llla='ls -la'
-alias lt='ls --tree'
-
-alias aws_unset="unset AWS_ACCESS_KEY_ID && unset AWS_SECRET_ACCESS_KEY && unset AWS_SESSION_TOKEN"
-
 # SSH keys
 #eval "$(ssh-agent -s)"
 #ssh-add --apple-use-keychain ~/.ssh/id_ed25519
@@ -144,3 +121,19 @@ source ~/.zshrc.local
 plugins=(direnv gh git git-commit fzf nvm zoxide)
 
 source $ZSH/oh-my-zsh.sh
+
+# Aliases
+alias ls='lsd'
+alias ll='ls -l'
+alias la='ls -a'
+alias llla='ls -la'
+alias lt='ls --tree'
+
+alias vi='nvim'
+alias vim='nvim'
+alias oldvim='vim'
+alias vimdiff='nvim -d'
+
+alias cat='bat'
+
+alias aws_unset="unset AWS_ACCESS_KEY_ID && unset AWS_SECRET_ACCESS_KEY && unset AWS_SESSION_TOKEN"
