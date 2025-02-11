@@ -1,0 +1,4 @@
+# PATH 
+export PATH=$HOME/bin:/usr/local/bin:$PATH
+
+source $CONFIG/zsh/oh-my-zsh.sh
