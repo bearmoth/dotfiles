@@ -1,4 +1,6 @@
-# PATH 
+# Misc environment variables 
 export PATH=$HOME/bin:/usr/local/bin:$PATH
+CONFIG="$HOME/.config"
 
 source $CONFIG/zsh/oh-my-zsh.sh
+source $CONFIG/zsh/bat.sh
