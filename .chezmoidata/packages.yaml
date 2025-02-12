@@ -4,3 +4,4 @@ packages:
       - "zsh"
       - "bat"
     casks:
+      - "wezterm"
