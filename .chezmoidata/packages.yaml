@@ -12,5 +12,6 @@ packages:
       - "k9s"
       - "lazygit"
       - "neovim"
+      - "ripgrep"
     casks:
       - "wezterm"
