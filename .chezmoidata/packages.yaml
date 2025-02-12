@@ -4,5 +4,6 @@ packages:
       - "zsh"
       - "bat"
       - "git"
+      - "gh"
     casks:
       - "wezterm"
