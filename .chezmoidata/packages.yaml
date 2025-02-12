@@ -5,5 +5,6 @@ packages:
       - "bat"
       - "git"
       - "gh"
+      - "neovim"
     casks:
       - "wezterm"
