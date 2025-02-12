@@ -1,0 +1,4 @@
+[user]
+	email = "phil@easygo.io"
+	name = "Phil Davies"
+  signingkey = ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHIuwJL9HK93dzqoGqAuw+y3+iJwFPeSCVzIOtaujaA7

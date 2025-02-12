@@ -3,5 +3,6 @@ packages:
     brews:
       - "zsh"
       - "bat"
+      - "git"
     casks:
       - "wezterm"
