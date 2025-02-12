@@ -14,5 +14,6 @@ packages:
       - "neovim"
       - "ripgrep"
       - "wget"
+      - "zoxide"
     casks:
       - "wezterm"
