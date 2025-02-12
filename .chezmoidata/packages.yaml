@@ -5,6 +5,7 @@ packages:
       - "bat"
       - "git"
       - "curl"
+      - "direnv"
       - "gh"
       - "neovim"
     casks:
