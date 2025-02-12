@@ -6,6 +6,7 @@ packages:
       - "git"
       - "curl"
       - "direnv"
+      - "fd"
       - "gh"
       - "neovim"
     casks:
