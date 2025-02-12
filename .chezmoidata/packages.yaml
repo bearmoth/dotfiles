@@ -13,5 +13,6 @@ packages:
       - "lazygit"
       - "neovim"
       - "ripgrep"
+      - "wget"
     casks:
       - "wezterm"
