@@ -10,6 +10,7 @@ packages:
       - "fzf"
       - "gh"
       - "k9s"
+      - "lazygit"
       - "neovim"
     casks:
       - "wezterm"
