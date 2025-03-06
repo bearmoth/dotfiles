@@ -1,5 +1,9 @@
 #!/bin/bash
 
+if ! command -v gh &>/dev/null; then
+  exit 0
+fi
+
 # Install github copilot extension
 if ! (gh extension list | grep copilot) &>/dev/null; then
   # Authenticate github
