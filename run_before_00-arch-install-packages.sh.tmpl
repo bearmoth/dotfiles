@@ -1,0 +1,6 @@
+{{ if eq .osid "linux-arch" -}}
+#!/bin/bash
+
+PACKAGES="{{ join " " .packages.arch.pacman }}"
+sudo pacman -S $PACKAGES
+{{ end -}}
