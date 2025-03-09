@@ -1,6 +1,7 @@
 {{ if eq .osid "linux-arch" -}}
 #!/bin/bash
 
-PACKAGES="{{ join " " .packages.arch.pacman }}"
-sudo pacman -S $PACKAGES
+brew bundle --file=/dev/stdin <<EOF
+{{ range .packages.darwin.brews -}}
+pacman -Qi {{ . }} &>/dev/null || sudo pacman -S --noconfirm {{ . }}
 {{ end -}}
