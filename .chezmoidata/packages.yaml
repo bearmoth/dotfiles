@@ -32,4 +32,5 @@ packages:
       - zoxide
       - zsh
     casks:
+      - aerospace
       - wezterm
