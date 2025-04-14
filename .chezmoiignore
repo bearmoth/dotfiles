@@ -1,6 +1,7 @@
 # Docs
 *.md
 **/*.md
+docs/
 
 # Oh My Zsh
 .oh-my-zsh/cache/
