@@ -3,10 +3,9 @@ local wezterm = require("wezterm")
 -- The colour scheme name
 -- Alternative themes I like, "Breeze (Gogh)" "Afterglow", "Catppuccin Mocha"
 local scheme = "nord"
--- scheme = "Breeze (Gogh)"
 
 -- Obtain the definition of the color scheme
-local scheme_def = wezterm.color.get_builtin_schemes()[scheme]
+-- local scheme_def = wezterm.color.get_builtin_schemes()[scheme]
 
 local function is_vim(pane)
 	-- this is set by the plugin, and unset on ExitPre in Neovim
@@ -57,12 +56,17 @@ return {
 	font = wezterm.font("JetBrains Mono", { weight = "DemiBold" }),
 	color_scheme = scheme,
 
+	macos_window_background_blur = 85,
+
 	colors = {
-		background = "rgba(38 43 52, 75%)",
+
+		background = "rgba(59 64 79 35%)",
+		foreground = "rgb(255, 255, 255)",
+
 		tab_bar = {
 			active_tab = {
-				bg_color = scheme_def.background,
-				fg_color = scheme_def.foreground,
+				bg_color = "rgb(59 64 79)",
+				fg_color = "rgb(220 220 220)",
 			},
 		},
 	},
