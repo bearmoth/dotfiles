@@ -9,7 +9,9 @@ source $CONFIG/zsh/direnv.sh
 source $CONFIG/zsh/gh-copilot.sh
 source $CONFIG/zsh/lazygit.sh
 source $CONFIG/zsh/neovim.sh
+{{ if eq .osid "darwin" -}}
 source $CONFIG/zsh/wezterm.sh
+{{ end -}}
 source $CONFIG/zsh/zoxide.sh
 
 if [ -f $HOME/.zshrc.local ]; then
