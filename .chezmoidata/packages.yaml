@@ -5,15 +5,17 @@ packages:
       - curl
       - direnv
       - fd
-      # - fzf
-      # - github-cli
+      - fzf
+      - github-cli
       - git
-      # - k9s
-      # - lazygit
+      - k9s
+      - lazygit
       - neovim
       - ripgrep
+      - ttf-nerd-fonts-symbols-mono
       - wget
-      # - zoxide
+      - wezterm
+      - zoxide
       - zsh
   darwin:
     brews:
