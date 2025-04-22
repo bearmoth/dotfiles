@@ -1,6 +1,5 @@
 # Misc environment variables 
 export PATH=$HOME/bin:/usr/local/bin:$PATH
-source $HOME/.local/bin/env
 CONFIG="$HOME/.config"
 
 source $CONFIG/zsh/oh-my-zsh.sh
@@ -18,3 +17,5 @@ source $CONFIG/zsh/zoxide.sh
 if [ -f $HOME/.zshrc.local ]; then
   source $HOME/.zshrc.local
 fi
+
+source $HOME/.local/bin/env
