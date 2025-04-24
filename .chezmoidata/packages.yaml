@@ -4,6 +4,7 @@ packages:
       - bat
       - curl
       - direnv
+      - docker
       - fd
       - fzf
       - github-cli
@@ -35,4 +36,5 @@ packages:
       - zsh
     casks:
       - aerospace
+      - docker
       - wezterm
