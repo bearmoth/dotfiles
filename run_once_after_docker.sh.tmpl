@@ -1,0 +1,8 @@
+{{ if eq .osid "linux-arch" -}}
+#!/bin/bash
+
+echo "Enabling docker..."
+sudo systemctl enable docker.service
+echo "Reloading daemon..."
+sudo systemctl daemon-reload
+{{ end -}}
