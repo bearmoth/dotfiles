@@ -5,6 +5,7 @@ packages:
       - curl
       - direnv
       - docker
+        docker-compose
       - fd
       - fzf
       - github-cli
