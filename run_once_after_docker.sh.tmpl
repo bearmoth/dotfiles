@@ -5,4 +5,7 @@ echo "Enabling docker..."
 sudo systemctl enable docker.service
 echo "Reloading daemon..."
 sudo systemctl daemon-reload
+sudo groupadd docker
+sudo usermod -aG docker $USER
+newgrp docker
 {{ end -}}
