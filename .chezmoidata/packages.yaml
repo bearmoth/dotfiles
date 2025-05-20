@@ -8,6 +8,7 @@ packages:
         docker-compose
       - fd
       - fzf
+      - ghostty
       - github-cli
       - git
       - k9s
@@ -38,4 +39,5 @@ packages:
     casks:
       - aerospace
       - docker
+      - ghostty
       - wezterm
