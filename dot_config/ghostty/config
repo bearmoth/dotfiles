@@ -1,0 +1,27 @@
+# Reload config:
+# Linux: `ctrl+shift+,`
+# MacOS: `cmd+shift+,`
+
+# Window splits
+keybind = ctrl+a>\=new_split:left
+keybind = ctrl+a>shift+\=new_split:right
+keybind = ctrl+a>-=new_split:down
+keybind = ctrl+a>shift+-=new_split:up
+
+keybind = ctrl+a>d=close_surface
+
+keybind = ctrl+a>h=goto_split:left
+keybind = ctrl+a>l=goto_split:right
+keybind = ctrl+a>j=goto_split:down
+keybind = ctrl+a>k=goto_split:up
+
+keybind = ctrl+a>left=resize_split:left,10
+keybind = ctrl+a>right=resize_split:right,10
+keybind = ctrl+a>up=resize_split:down,10
+keybind = ctrl+a>down=resize_split:up,20
+
+keybind = ctrl+a>z=toggle_split_zoom
+keybind = ctrl+a>x=equalize_splits
+
+
+keybind = global:ctrl+alt+super+shift+grave_accent=toggle_quick_terminal
