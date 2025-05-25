@@ -2,6 +2,10 @@
 # Linux: `ctrl+shift+,`
 # MacOS: `cmd+shift+,`
 
+# Theme
+background-blur = 50
+background-opacity = 0.85
+
 # Window splits
 keybind = ctrl+a>\=new_split:left
 keybind = ctrl+a>shift+\=new_split:right
