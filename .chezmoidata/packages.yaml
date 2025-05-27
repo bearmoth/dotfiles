@@ -16,6 +16,7 @@ packages:
       - neovim
       - ripgrep
       - ttf-nerd-fonts-symbols-mono
+      - waybar
       - wget
       - wezterm
       - zoxide

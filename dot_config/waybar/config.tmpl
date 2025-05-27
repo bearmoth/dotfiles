@@ -1,0 +1,65 @@
+{{ if eq .osid "linux-arch" -}}
+[
+  {
+    "battery": {
+      "format": "<span foreground='#A6E3A1'>{icon} </span>{capacity}%",
+      "format-alt": "<span foreground='#B1E3AD'>{icon} </span>{time}",
+      "format-charging": "<span foreground='#B1E3AD'>{icon} </span>{capacity}%",
+      "format-critical": "<span foreground='#E38C8F'>{icon} </span>{capacity}%",
+      "format-full": "<span foreground='#B1E3AD'>  </span>{capacity}%",
+      "format-icons": [
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      "format-plugged": "<span foreground='#B1E3AD'>{icon} </span>{capacity}%",
+      "format-warning": "<span foreground='#B1E3AD'>{icon} </span>{capacity}%",
+      "states": {
+        "critical": 15,
+        "warning": 30
+      },
+      "tooltip-format": "{time}"
+    },
+    "clock": {
+      "timezone": "Australia/Sydney"
+    },
+    "hyprland/workspaces": {
+      "all-outputs": true,
+      "disable-scroll": true,
+      "format": "{name}: {icon}",
+      "format-icons": {
+        "active": "",
+        "default": "",
+        "special": "S"
+      },
+      "persistent-workspaces": {
+        "*": 4
+      },
+      "show-special": true,
+      //"special-visibile-only": true,
+      "warp-on-scroll": false
+    },
+    "layer": "top",
+    "modules-center": [
+      "hyprland/window"
+    ],
+    "modules-left": [
+      "hyprland/workspaces"
+    ],
+    "modules-right": [
+      "network",
+      "battery"
+      //"clock"
+    ],
+    "network": {
+      "format-disconnected": "Disconnected ⚠",
+      "format-ethernet": "",
+      "format-wifi": "",
+      "tooltip-format-wifi": "Signal Strength: {signalStrength}%"
+    },
+    "position": "top"
+  }
+]
+{{ end -}}
