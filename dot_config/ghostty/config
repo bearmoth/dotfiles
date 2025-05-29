@@ -29,3 +29,8 @@ keybind = ctrl+a>x=equalize_splits
 
 
 keybind = global:ctrl+alt+super+shift+grave_accent=toggle_quick_terminal
+
+# Unbind default mappings
+keybind = super+d=unbind
+keybind = super+shift+w=unbind
+keybind = super+alt+w=unbind
