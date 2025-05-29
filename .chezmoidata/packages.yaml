@@ -8,6 +8,7 @@ packages:
         docker-compose
       - fd
       - fzf
+      - fish
       - ghostty
       - github-cli
       - git
@@ -27,6 +28,7 @@ packages:
       - direnv
       - fd
       - fzf
+      - fish
       - gh
       - git
       - k9s
