@@ -1,0 +1,30 @@
+{{ if eq .osid "linux-arch" -}}
+#!/bin/bash
+
+{{ range .packages.arch.pacman -}}
+pacman -Qi {{ . }} &>/dev/null || sudo pacman -S --noconfirm {{ . }}
+{{ end -}}
+{{ end -}}
+
+
+{{ if eq .osid "darwin" -}}
+#!/bin/bash
+
+brew bundle --file=/dev/stdin <<EOF
+{{ range .packages.darwin.brews -}}
+brew {{ . | quote }}
+{{ end -}}
+{{ range .packages.darwin.casks -}}
+cask {{ . | quote }}
+{{ end -}}
+EOF
+{{ end -}}
+
+
+{{ if eq .osid "linux-fedora" -}}
+#!/bin/bash
+set -euo pipefail
+
+{{ $pkgs := .packages.fedora.dnf }}
+sudo dnf install -y {{ $pkgs | join " " }}
+{{ end -}}

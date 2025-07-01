@@ -17,5 +17,6 @@ chezmoi update
 ## OS Support
 
 - [x] macOS Sequoia [_AArch64_]
+- [x] Fedora [_x86-64_]
 - [ ] Arch (desktop) [_x86-64_] (WIP)
 - [ ] Ubuntu (minimal) [_x86-64_] (Coming... at some point?)

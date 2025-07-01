@@ -5,13 +5,13 @@ packages:
       - curl
       - direnv
       - docker
-        docker-compose
+      - docker-compose
       - fd
       - fzf
       - fish
       - ghostty
-      - github-cli
       - git
+      - github-cli
       - k9s
       - lazygit
       - neovim
@@ -44,3 +44,22 @@ packages:
       - docker
       - ghostty
       - wezterm
+  fedora:
+    copr:
+      - atim/lazygit
+    dnf:
+      - bat
+      - curl
+      - direnv
+      - fd
+      - fzf
+      - fish
+      - ghostty
+      - git
+      - gh
+      - lazygit
+      - k9s
+      - neovim
+      - ripgrep
+      - wget
+      - zoxide

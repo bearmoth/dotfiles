@@ -1,0 +1,52 @@
+{{ if eq .osid "linux-arch" -}}
+#!/bin/bash
+
+####################
+# Setup Arch Repos
+####################
+{{ end -}}
+
+
+{{ if eq .osid "darwin" -}}
+#!/bin/bash
+
+####################
+# Setup MacOS Repos
+####################
+
+set -euo pipefail
+
+if ! command -v brew &>/dev/null; then
+  /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+fi
+{{ end -}}
+
+
+{{ if eq .osid "linux-fedora" -}}
+#!/bin/bash
+
+####################
+# Setup Fedora Repos
+####################
+
+set -euo pipefail
+
+# Terra
+if dnf repolist --all | grep -q terra; then
+  echo "Terra repo already present"
+else
+  echo "Terra repo missing, adding it"
+  sudo dnf install --nogpgcheck --repofrompath 'terra,https://repos.fyralabs.com/terra$releasever' terra-release
+fi
+
+# Copr
+{{ $copr_repos := .packages.fedora.copr }}
+for repo in {{ $copr_repos | join " " }}; do
+  if ! sudo dnf copr list | grep -q "$repo"; then
+    echo "Enabling Copr: $repo"
+    sudo dnf copr enable -y "$repo"
+  else
+    echo "Copr already enabled: $repo"
+  fi
+done
+{{ end -}}
