@@ -24,6 +24,7 @@ packages:
       - zsh
   darwin:
     brews:
+      - 1password-cli
       - bat
       - curl
       - direnv
@@ -49,6 +50,7 @@ packages:
       - atim/lazygit
     dnf:
       - 1password
+      - 1password-cli
       - bat
       - curl
       - direnv
