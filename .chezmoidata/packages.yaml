@@ -48,6 +48,7 @@ packages:
     copr:
       - atim/lazygit
     dnf:
+      - 1password
       - bat
       - curl
       - direnv
