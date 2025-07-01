@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "browsers.extension.enabled": true,
+  "security.autolock.minutes": 60,
+  "security.authenticatedUnlock.enabled": true,
+  "developers.cliSharedLockState.enabled": true,
+  "authTags": {
+    "browsers.extension.enabled": "GvPxH68YUUOMohMpaWpQj66uh4puUwg14ARC1myVzFE",
+    "developers.cliSharedLockState.enabled": "pgnlOdCFPP1DiNYs2CJ5Vj9cj3AgNHndhU5+mP09WnI",
+    "security.authenticatedUnlock.enabled": "QQVZN/+Es7X0Wj26Xefu5NHxxUkAAaK5/ansxFX9F+o",
+    "security.autolock.minutes": "k4at359lB1uNAoh34UKU3j+yU9qpzyq+fSVQmqVs38A"
+  }
+}
