@@ -52,6 +52,7 @@ packages:
       - 1password
       - 1password-cli
       - bat
+      - code
       - curl
       - direnv
       - fd

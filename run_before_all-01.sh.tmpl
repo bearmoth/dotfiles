@@ -31,6 +31,8 @@ fi
 
 set -euo pipefail
 
+CHECK_UPDATE=false
+
 # Add 1Password repository
 if dnf repolist --enabled | grep -q 1password; then
   echo "1Password repo already present"
@@ -38,14 +40,7 @@ else
   echo "1Password repo missing, adding it"
   sudo rpm --import https://downloads.1password.com/linux/keys/1password.asc
   sudo sh -c 'echo -e "[1password]\nname=1Password Stable Channel\nbaseurl=https://downloads.1password.com/linux/rpm/stable/\$basearch\nenabled=1\ngpgcheck=1\nrepo_gpgcheck=1\ngpgkey=\"https://downloads.1password.com/linux/keys/1password.asc\"" > /etc/yum.repos.d/1password.repo'
-fi
-
-# Terra
-if dnf repolist --enabled | grep -q terra; then
-  echo "Terra repo already present"
-else
-  echo "Terra repo missing, adding it"
-  sudo dnf install --nogpgcheck --repofrompath 'terra,https://repos.fyralabs.com/terra$releasever' terra-release
+  CHECK_UPDATE=true
 fi
 
 # Copr
@@ -54,8 +49,34 @@ for repo in {{ $copr_repos | join " " }}; do
   if ! sudo dnf copr list | grep -q "$repo"; then
     echo "Enabling Copr: $repo"
     sudo dnf copr enable -y "$repo"
+    CHECK_UPDATE=true
   else
     echo "Copr already enabled: $repo"
   fi
 done
+
+# Terra repository
+if dnf repolist --enabled | grep -q terra; then
+  echo "Terra repo already present"
+else
+  echo "Terra repo missing, adding it"
+  sudo dnf install --nogpgcheck --repofrompath 'terra,https://repos.fyralabs.com/terra$releasever' terra-release
+  CHECK_UPDATE=true
+fi
+
+# Visual Studio Code repository
+if dnf repolist --enabled | grep -q code; then
+  echo "Visual Studio Code repo already present"
+else
+  echo "Visual Studio Code repo missing, adding it"
+  sudo rpm --import https://packages.microsoft.com/keys/microsoft.asc
+  echo -e "[code]\nname=Visual Studio Code\nbaseurl=https://packages.microsoft.com/yumrepos/vscode\nenabled=1\nautorefresh=1\ntype=rpm-md\ngpgcheck=1\ngpgkey=https://packages.microsoft.com/keys/microsoft.asc" | sudo tee /etc/yum.repos.d/vscode.repo > /dev/null
+  CHECK_UPDATE=true
+fi
+
+if $CHECK_UPDATE == true; then
+  echo "Checking DNF for updates"
+  dnf check-update
+fi
+
 {{ end -}}
