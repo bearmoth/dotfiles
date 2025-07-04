@@ -1,0 +1,7 @@
+{{ if eq .osid "darwin" -}}
+# Set up Homebrew environment early
+eval (/opt/homebrew/bin/brew shellenv)
+
+# Add VS Code to PATH
+set -gx PATH "/Applications/Visual Studio Code.app/Contents/Resources/app/bin" $PATH
+{{ end -}}
