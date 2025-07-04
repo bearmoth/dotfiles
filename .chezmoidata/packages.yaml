@@ -24,7 +24,6 @@ packages:
       - zsh
   darwin:
     brews:
-      - 1password-cli
       - bat
       - curl
       - direnv
@@ -43,6 +42,7 @@ packages:
     casks:
       - aerospace
       - docker
+      - 1password-cli
       - ghostty
       - wezterm
   fedora:
