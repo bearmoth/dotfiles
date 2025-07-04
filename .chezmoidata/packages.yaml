@@ -40,7 +40,6 @@ packages:
       - zoxide
       - zsh
     casks:
-      - aerospace
       - docker
       - 1password-cli
       - ghostty
