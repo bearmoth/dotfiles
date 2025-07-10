@@ -49,6 +49,7 @@ packages:
     dnf:
       - 1password
       - 1password-cli
+
       - bat
       - code
       - curl
@@ -59,6 +60,10 @@ packages:
       - ghostty
       - git
       - gh
+
+      - gnome-shell-extension-pop-shell
+      - xprop
+
       - lazygit
       - k9s
       - neovim
