@@ -6,6 +6,9 @@
 background-blur = 50
 background-opacity = 0.85
 
+window-padding-x = 5
+window-padding-y = 5
+
 # Window splits
 keybind = ctrl+a>\=new_split:left
 keybind = ctrl+a>shift+\=new_split:right
@@ -34,3 +37,6 @@ keybind = global:ctrl+alt+super+shift+grave_accent=toggle_quick_terminal
 keybind = super+d=unbind
 keybind = super+shift+w=unbind
 keybind = super+alt+w=unbind
+
+# Mouse
+mouse-hide-while-typing = true
