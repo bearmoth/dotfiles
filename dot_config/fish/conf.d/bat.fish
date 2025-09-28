@@ -1,3 +1,3 @@
-abbr --add cat bat
+abbr cat bat
 
 set -x PAGER bat
