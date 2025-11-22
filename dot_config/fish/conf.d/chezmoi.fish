@@ -1,0 +1,1 @@
+alias chezmoi="~/bin/chezmoi"

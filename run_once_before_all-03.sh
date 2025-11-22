@@ -1,6 +1,6 @@
 #!/bin/bash
 
-if ! command -v brew &>/dev/null; then
+if ! command -v nix &>/dev/null; then
   echo "Installing Nix..."
   curl -fsSL https://install.determinate.systems/nix | sh -s -- install --determinate
 else
