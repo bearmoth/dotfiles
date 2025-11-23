@@ -1,1 +1,1 @@
-alias chezmoi="~/bin/chezmoi"
+alias chezmoi="~/.local/bin/chezmoi"
