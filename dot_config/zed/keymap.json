@@ -28,10 +28,37 @@
 
   // Tab Navigation
   {
-    "context": "Workspace || (Editor && vim_mode == normal)",
+    "context": "(Workspace || (Editor && vim_mode == normal)) && !macos",
     "bindings": {
-      "alt-shift-h": ["tab_switcher::Toggle", { "select_last": true }],
-      "alt-shift-l": "tab_switcher::Toggle"
+      "alt-shift-h": [
+        "tab_switcher::Toggle",
+        {
+          "select_last": true
+        }
+      ],
+      "alt-shift-l": [
+        "tab_switcher::Toggle",
+        {
+          "select_last": false
+        }
+      ]
+    }
+  },
+  {
+    "context": "(Workspace || (Editor && vim_mode == normal)) && macos",
+    "bindings": {
+      "cmd-shift-h": [
+        "tab_switcher::Toggle",
+        {
+          "select_last": true
+        }
+      ],
+      "super-shift-l": [
+        "tab_switcher::Toggle",
+        {
+          "select_last": false
+        }
+      ]
     }
   },
 
