@@ -42,6 +42,7 @@ packages:
     casks:
       - 1password-cli
       - ghostty
+      - karabiner-elements
       - wezterm
   fedora:
     copr:
