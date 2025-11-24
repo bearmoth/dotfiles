@@ -1,45 +1,44 @@
 {
-  "profiles": [
-    {
-      "complex_modifications": {
-        "parameters": { "basic.to_if_held_down_threshold_milliseconds": 200 },
-        "rules": [
-          {
-            "manipulators": [
-              {
-                "description": "Change caps_lock to command+control+option+shift.",
-                "from": {
-                  "key_code": "caps_lock",
-                  "modifiers": { "optional": ["any"] }
-                },
-                "to_if_alone": [{ "key_code": "escape" }],
-                "to_if_held_down": [
-                  {
-                    "key_code": "left_shift",
-                    "modifiers": ["left_command", "left_control", "left_option"]
-                  }
-                ],
-                "type": "basic"
-              }
-            ]
-          }
-        ]
-      },
-      "devices": [
+    "profiles": [
         {
-          "identifiers": {
-            "is_keyboard": true,
-            "is_pointing_device": true,
-            "product_id": 18,
-            "vendor_id": 13807
-          },
-          "ignore": false
+            "complex_modifications": {
+                "parameters": { "basic.to_if_held_down_threshold_milliseconds": 150 },
+                "rules": [
+                    {
+                        "manipulators": [
+                            {
+                                "description": "Change caps_lock to command+control+option+shift.",
+                                "from": {
+                                    "key_code": "caps_lock",
+                                    "modifiers": { "optional": ["any"] }
+                                },
+                                "to_if_alone": [{ "key_code": "escape" }],
+                                "to_if_held_down": [
+                                    {
+                                        "key_code": "left_shift",
+                                        "modifiers": ["left_command", "left_control", "left_option"]
+                                    }
+                                ],
+                                "type": "basic"
+                            }
+                        ]
+                    }
+                ]
+            },
+            "devices": [
+                {
+                    "identifiers": {
+                        "is_keyboard": true,
+                        "is_pointing_device": true,
+                        "product_id": 18,
+                        "vendor_id": 13807
+                    },
+                    "ignore": false
+                }
+            ],
+            "name": "Default profile",
+            "selected": true,
+            "virtual_hid_keyboard": { "keyboard_type_v2": "ansi" }
         }
-      ],
-      "name": "Default profile",
-      "selected": true,
-      "virtual_hid_keyboard": { "keyboard_type_v2": "ansi" }
-    }
-  ]
+    ]
 }
-
