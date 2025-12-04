@@ -28,7 +28,7 @@
 
   // Tab Navigation
   {
-    "context": "(Workspace || (Editor && vim_mode == normal)) && os != macos",
+    "context": "(Workspace || (Editor && vim_mode != insert && vim_mode != visual)) && os != macos",
     "bindings": {
       "alt-shift-h": [
         "tab_switcher::Toggle",
@@ -45,7 +45,7 @@
     }
   },
   {
-    "context": "(Workspace || (Editor && vim_mode == normal)) && os == macos",
+    "context": "(Workspace || (Editor && vim_mode != insert && vim_mode != visual)) && os == macos",
     "bindings": {
       "cmd-shift-h": [
         "tab_switcher::Toggle",
