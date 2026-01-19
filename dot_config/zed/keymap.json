@@ -13,8 +13,8 @@
       "ctrl-h": "workspace::ActivatePaneLeft",
       "ctrl-j": "workspace::ActivatePaneDown",
       "ctrl-k": "workspace::ActivatePaneUp",
-      "ctrl-l": "workspace::ActivatePaneRight"
-    }
+      "ctrl-l": "workspace::ActivatePaneRight",
+    },
   },
 
   // Editor Pane Management
@@ -22,44 +22,44 @@
     "context": "Editor && vim_mode == normal",
     "bindings": {
       "space |": "pane::SplitRight",
-      "space -": "pane::SplitDown"
-    }
+      "space -": "pane::SplitDown",
+    },
+  },
+
+  // Project Pane
+  {
+    "context": "Editor && vim_mode == normal",
+    "bindings": {
+      "space e": "pane::RevealInProjectPanel",
+    },
+  },
+
+  // Git Pane
+  {
+    "context": "Editor && vim_mode == normal",
+    "bindings": {
+      "space g e": "git_panel::ToggleFocus",
+    },
   },
 
   // Tab Navigation
   {
-    "context": "(Workspace || (Editor && vim_mode != insert && vim_mode != visual)) && os != macos",
+    "context": "Pane && os == macos",
     "bindings": {
-      "alt-shift-h": [
-        "tab_switcher::Toggle",
-        {
-          "select_last": true
-        }
-      ],
-      "alt-shift-l": [
-        "tab_switcher::Toggle",
-        {
-          "select_last": false
-        }
-      ]
-    }
+      // "cmd-{": "pane::ActivatePreviousItem",
+      // "cmd-}": "pane::ActivateNextItem",
+      "ctrl-alt-cmd-shift-h": "pane::ActivatePreviousItem",
+      "ctrl-alt-cmd-shift-l": "pane::ActivateNextItem",
+    },
   },
   {
-    "context": "(Workspace || (Editor && vim_mode != insert && vim_mode != visual)) && os == macos",
+    "context": "SettingsWindow && os == macos",
     "bindings": {
-      "cmd-shift-h": [
-        "tab_switcher::Toggle",
-        {
-          "select_last": true
-        }
-      ],
-      "super-shift-l": [
-        "tab_switcher::Toggle",
-        {
-          "select_last": false
-        }
-      ]
-    }
+      // "cmd-{": "settings_editor::FocusPreviousFile",
+      // "cmd-}": "settings_editor::FocusNextFile",
+      "ctrl-alt-cmd-shift-h": "settings_editor::FocusPreviousFile",
+      "ctrl-alt-cmd-shift-l": "settings_editor::FocusNextFile",
+    },
   },
 
   // Editor Tab Management
@@ -69,15 +69,15 @@
       "space w d": "pane::CloseAllItems", // Neovim: close window
 
       "space b d": "pane::CloseActiveItem", // Neovim: close buffer
-      "space b shift-d": "pane::ReopenClosedItem" // Neovim: reopen buffer
-    }
+      "space b shift-d": "pane::ReopenClosedItem", // Neovim: reopen buffer
+    },
   },
 
   // Override defaults
   {
     "context": "(Editor && vim_mode == insert) || TabSwitcher",
     "bindings": {
-      "ctrl-h": "editor::Backspace"
-    }
-  }
+      "ctrl-h": "editor::Backspace",
+    },
+  },
 ]

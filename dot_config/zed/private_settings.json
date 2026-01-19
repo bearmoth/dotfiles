@@ -7,27 +7,33 @@
 // custom settings, run `zed: open default settings` from the
 // command palette (cmd-shift-p / ctrl-shift-p)
 {
+  "buffer_font_family": ".ZedMono",
+  "colorize_brackets": true,
+  "git_panel": {
+    "tree_view": true,
+  },
   "agent": {
     "always_allow_tool_actions": true,
     "default_profile": "write",
     "default_model": {
       "provider": "copilot_chat",
-      "model": "gpt-5.1"
+      "model": "claude-sonnet-4.5",
     },
-    "model_parameters": []
+    "model_parameters": [],
   },
   "vim_mode": true,
   "base_keymap": "VSCode",
   "icon_theme": {
     "mode": "system",
     "light": "Zed (Default)",
-    "dark": "Zed (Default)"
+    "dark": "Zed (Default)",
   },
   "ui_font_size": 16,
   "buffer_font_size": 15,
   "theme": {
     "mode": "dark",
     "light": "Ayu Light",
-    "dark": "Ayu Dark"
-  }
+    "dark": "Ayu Dark",
+  },
+  "which_key": { "enabled": true },
 }
