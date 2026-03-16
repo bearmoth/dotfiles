@@ -6,6 +6,10 @@
 // To see the default key bindings run `zed: open default keymap`
 // from the command palette.
 [
+  /////////////////////////////////////////////////////////////////////////////
+  // PANES
+  /////////////////////////////////////////////////////////////////////////////
+
   // Pane Navigation
   {
     "context": "Workspace || (Editor && vim_mode == normal)",
@@ -14,6 +18,11 @@
       "ctrl-j": "workspace::ActivatePaneDown",
       "ctrl-k": "workspace::ActivatePaneUp",
       "ctrl-l": "workspace::ActivatePaneRight",
+
+      "ctrl-shift-h": "workspace::MovePaneLeft",
+      "ctrl-shift-j": "workspace::MovePaneDown",
+      "ctrl-shift-k": "workspace::MovePaneUp",
+      "ctrl-shift-l": "workspace::MovePaneRight",
     },
   },
 
@@ -22,23 +31,48 @@
     "context": "Editor && vim_mode == normal",
     "bindings": {
       "space |": "pane::SplitRight",
-      "space -": "pane::SplitDown",
+      "space \\": "pane::SplitLeft",
+      "space -": "pane::SplitUp",
+      "space _": "pane::SplitDown",
     },
   },
 
-  // Project Pane
+  // Toggle Docks
+  {
+    "context": "Editor && vim_mode == normal",
+    "bindings": {
+      "space p h": "workspace::ToggleLeftDock",
+      "space p l": "workspace::ToggleRightDock",
+    },
+  },
+
+  // Project Panel
   {
     "context": "Editor && vim_mode == normal",
     "bindings": {
       "space e": "pane::RevealInProjectPanel",
     },
   },
+  {
+    "context": "ProjectPanel",
+    "bindings": {
+      "space e": "project_panel::ToggleFocus",
+    },
+  },
 
-  // Git Pane
+  // Git Panel
   {
     "context": "Editor && vim_mode == normal",
     "bindings": {
       "space g e": "git_panel::ToggleFocus",
+    },
+  },
+
+  // Terminal Panel
+  {
+    "context": "Workspace",
+    "bindings": {
+      "ctrl-/": "terminal_panel::Toggle",
     },
   },
 
@@ -70,6 +104,7 @@
 
       "space b d": "pane::CloseActiveItem", // Neovim: close buffer
       "space b shift-d": "pane::ReopenClosedItem", // Neovim: reopen buffer
+      "space b o": "pane::CloseOtherItems", // Neovim: close other buffers
     },
   },
 
