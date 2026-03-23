@@ -1,0 +1,4 @@
+cheats:
+  paths:
+    - $HOME/.local/share/navi/cheats
+    - $HOME/.local/share/navi/work-cheats

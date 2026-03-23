@@ -14,6 +14,7 @@ packages:
       - github-cli
       - k9s
       - lazygit
+      - navi
       - neovim
       - ripgrep
       - ttf-nerd-fonts-symbols-mono
@@ -34,6 +35,7 @@ packages:
       - git
       - k9s
       - lazygit
+      - navi
       - neovim
       - ripgrep
       - wget
@@ -67,6 +69,7 @@ packages:
 
       - lazygit
       - k9s
+      - navi
       - neovim
       - ripgrep
       - wget
