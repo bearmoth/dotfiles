@@ -26,3 +26,14 @@ end
 if status is-interactive && set --query nvm_default_version && ! set --query nvm_current_version
     nvm use --silent $nvm_default_version
 end
+
+function _nvm_auto_use --on-variable PWD
+    if status is-interactive
+        for file in .nvmrc .node-version
+            if test -f $file
+                nvm use --silent
+                return
+            end
+        end
+    end
+end

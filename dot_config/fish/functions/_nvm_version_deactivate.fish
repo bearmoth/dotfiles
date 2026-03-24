@@ -1,4 +1,5 @@
-function _nvm_version_activate --argument-names ver
-    set --global --export nvm_current_version $ver
-    set --prepend PATH $nvm_data/$ver/bin
+function _nvm_version_deactivate --argument-names ver
+    test "$nvm_current_version" = "$ver" && set --erase nvm_current_version
+    set --local index (contains --index -- $nvm_data/$ver/bin $PATH) &&
+        set --erase PATH[$index]
 end
