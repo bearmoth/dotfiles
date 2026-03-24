@@ -12,6 +12,7 @@ packages:
       - ghostty
       - git
       - github-cli
+      - go-task
       - k9s
       - lazygit
       - navi
@@ -33,6 +34,7 @@ packages:
       - fish
       - gh
       - git
+      - go-task
       - k9s
       - lazygit
       - navi
@@ -41,6 +43,8 @@ packages:
       - wget
       - zoxide
       - zsh
+    taps:
+      - go-task/tap/go-task
     casks:
       - 1password-cli
       - ghostty
@@ -52,7 +56,6 @@ packages:
     dnf:
       - 1password
       - 1password-cli
-
       - bat
       - code
       - curl
@@ -63,14 +66,13 @@ packages:
       - ghostty
       - git
       - gh
-
       - gnome-shell-extension-pop-shell
       - xprop
-
       - lazygit
       - k9s
       - navi
       - neovim
       - ripgrep
+      - task
       - wget
       - zoxide

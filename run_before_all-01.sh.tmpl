@@ -43,6 +43,15 @@ else
   CHECK_UPDATE=true
 fi
 
+# Add Task repository
+if dnf repolist --enabled | grep -q task; then
+  echo "Task repo already present"
+else
+  echo "Task repo missing, adding it"
+  curl -1sLf 'https://dl.cloudsmith.io/public/task/task/setup.rpm.sh' | sudo -E bash
+  CHECK_UPDATE=true
+fi
+
 # Copr
 {{ $copr_repos := .packages.fedora.copr }}
 for repo in {{ $copr_repos | join " " }}; do
