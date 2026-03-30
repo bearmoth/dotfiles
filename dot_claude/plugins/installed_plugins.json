@@ -1,0 +1,70 @@
+{
+  "version": 2,
+  "plugins": {
+    "obsidian@obsidian-skills": [
+      {
+        "scope": "user",
+        "installPath": "/Users/phil/.claude/plugins/cache/obsidian-skills/obsidian/1.0.1",
+        "version": "1.0.1",
+        "installedAt": "2026-03-29T23:40:14.155Z",
+        "lastUpdated": "2026-03-29T23:40:14.155Z",
+        "gitCommitSha": "bb9ec95e1b59c3471bd6fd77a78a4042430bfac3"
+      }
+    ],
+    "skill-creator@claude-plugins-official": [
+      {
+        "scope": "user",
+        "installPath": "/Users/phil/.claude/plugins/cache/claude-plugins-official/skill-creator/unknown",
+        "version": "unknown",
+        "installedAt": "2026-03-29T23:52:08.510Z",
+        "lastUpdated": "2026-03-29T23:52:08.510Z"
+      }
+    ],
+    "claude-md-management@claude-plugins-official": [
+      {
+        "scope": "user",
+        "installPath": "/Users/phil/.claude/plugins/cache/claude-plugins-official/claude-md-management/1.0.0",
+        "version": "1.0.0",
+        "installedAt": "2026-03-29T23:53:36.039Z",
+        "lastUpdated": "2026-03-29T23:53:36.039Z"
+      }
+    ],
+    "security-guidance@claude-plugins-official": [
+      {
+        "scope": "user",
+        "installPath": "/Users/phil/.claude/plugins/cache/claude-plugins-official/security-guidance/unknown",
+        "version": "unknown",
+        "installedAt": "2026-03-29T23:53:50.971Z",
+        "lastUpdated": "2026-03-29T23:53:50.971Z"
+      }
+    ],
+    "claude-code-setup@claude-plugins-official": [
+      {
+        "scope": "user",
+        "installPath": "/Users/phil/.claude/plugins/cache/claude-plugins-official/claude-code-setup/1.0.0",
+        "version": "1.0.0",
+        "installedAt": "2026-03-29T23:54:01.432Z",
+        "lastUpdated": "2026-03-29T23:54:01.432Z"
+      }
+    ],
+    "explanatory-output-style@claude-plugins-official": [
+      {
+        "scope": "user",
+        "installPath": "/Users/phil/.claude/plugins/cache/claude-plugins-official/explanatory-output-style/1.0.0",
+        "version": "1.0.0",
+        "installedAt": "2026-03-29T23:54:15.607Z",
+        "lastUpdated": "2026-03-29T23:54:15.607Z"
+      }
+    ],
+    "superpowers@claude-plugins-official": [
+      {
+        "scope": "user",
+        "installPath": "/Users/phil/.claude/plugins/cache/claude-plugins-official/superpowers/5.0.6",
+        "version": "5.0.6",
+        "installedAt": "2026-03-30T00:02:52.210Z",
+        "lastUpdated": "2026-03-30T00:02:52.210Z",
+        "gitCommitSha": "eafe962b18f6c5dc70fb7c8cc7e83e61f4cdde06"
+      }
+    ]
+  }
+}
