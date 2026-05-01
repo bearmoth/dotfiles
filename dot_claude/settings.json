@@ -1,7 +1,18 @@
 {
+  "env": {
+    "CLAUDE_CODE_FILE_READ_MAX_OUTPUT_TOKENS": "100000"
+  },
   "attribution": {
     "commit": "",
     "pr": ""
+  },
+  "permissions": {
+    "defaultMode": "auto"
+  },
+  "model": "opusplan",
+  "statusLine": {
+    "type": "command",
+    "command": "bash ~/.claude/statusline-command.sh"
   },
   "enabledPlugins": {
     "obsidian@obsidian-skills": true,
@@ -20,7 +31,6 @@
       }
     }
   },
-  "env": {
-    "CLAUDE_CODE_FILE_READ_MAX_OUTPUT_TOKENS": 100000
-  }
+  "skipAutoPermissionPrompt": true,
+  "advisorModel": "opus"
 }

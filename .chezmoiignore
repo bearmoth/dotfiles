@@ -3,6 +3,9 @@
 **/*.md
 docs/
 
+# Exceptions — specific .md files that should be managed
+!.claude/CLAUDE.md
+
 # Oh My Zsh
 .oh-my-zsh/cache/
 .oh-my-zsh/**/*.zwc
