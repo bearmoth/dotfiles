@@ -1,29 +1,4 @@
 packages:
-  arch:
-    pacman:
-      - bat
-      - curl
-      - direnv
-      - docker
-      - docker-compose
-      - fd
-      - fzf
-      - fish
-      - ghostty
-      - git
-      - github-cli
-      - go-task
-      - k9s
-      - lazygit
-      - navi
-      - neovim
-      - ripgrep
-      - ttf-nerd-fonts-symbols-mono
-      - waybar
-      - wget
-      - wezterm
-      - zoxide
-      - zsh
   darwin:
     brews:
       - bat

@@ -1,12 +1,3 @@
-{{ if eq .osid "linux-arch" -}}
-#!/bin/bash
-
-{{ range .packages.arch.pacman -}}
-pacman -Qi {{ . }} &>/dev/null || sudo pacman -S --noconfirm {{ . }}
-{{ end -}}
-{{ end -}}
-
-
 {{ if eq .osid "darwin" -}}
 #!/bin/bash
 
