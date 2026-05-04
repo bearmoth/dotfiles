@@ -1,11 +1,12 @@
-{{ if eq .osid "linux-arch" -}}
+{{ if eq .chezmoi.os "linux" -}}
 #!/bin/bash
+set -euo pipefail
 
-echo "Enabling docker..."
-sudo systemctl enable docker.service
-echo "Reloading daemon..."
-sudo systemctl daemon-reload
-sudo groupadd docker
-sudo usermod -aG docker $USER
-newgrp docker
+command -v docker >/dev/null || exit 0
+
+if ! getent group docker >/dev/null 2>&1; then
+  sudo groupadd docker
+fi
+sudo usermod -aG docker "$USER"
+sudo systemctl enable --now docker
 {{ end -}}

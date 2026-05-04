@@ -1,0 +1,9 @@
+{{ if eq .chezmoi.os "linux" -}}
+#!/bin/bash
+set -euo pipefail
+
+command -v zed >/dev/null && exit 0
+
+echo "Installing Zed..."
+curl -f https://zed.dev/install.sh | sh
+{{ end -}}

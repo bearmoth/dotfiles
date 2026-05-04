@@ -25,6 +25,7 @@ packages:
       - ghostty
       - karabiner-elements
       - wezterm
+      - zed
   fedora:
     copr:
       - atim/lazygit
