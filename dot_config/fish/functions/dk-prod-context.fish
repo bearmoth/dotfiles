@@ -1,5 +1,5 @@
 function dk-prod-context
-    warpctx stake-preprod-denmark
+    warpctx stake-denmark
 
     assume stake-denmark-pre-prod/StakeEngineerEngagementRole
     kubectx stake-production-denmark

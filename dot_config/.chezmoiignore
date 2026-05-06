@@ -1,3 +1,6 @@
 {{ if ne .osid "darwin" -}}
 private_karabiner/
 {{ end -}}
+
+# Karabiner-Elements rotates automatic_backups itself
+private_karabiner/private_automatic_backups/

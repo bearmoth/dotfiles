@@ -3,5 +3,9 @@
 {{-   $osid = printf "%s-%s" .chezmoi.os .chezmoi.osRelease.id -}}
 {{- end -}}
 
+{{- $workHostnames := list "MacBook-Pro" -}}
+{{- $isWork := has .chezmoi.hostname $workHostnames -}}
+
 data:
   osid: {{ $osid | quote }}
+  isWork: {{ $isWork }}

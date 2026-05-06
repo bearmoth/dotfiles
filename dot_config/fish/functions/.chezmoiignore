@@ -1,0 +1,4 @@
+{{ if not .isWork -}}
+*-context.fish
+assume-refresh.fish
+{{ end -}}
