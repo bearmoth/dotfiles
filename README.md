@@ -39,3 +39,16 @@ Templates use the `osid` variable, synthesised in `.chezmoi.yaml.tmpl` as `{os}`
 ```
 
 Run `chezmoi data` to inspect all available template variables.
+
+## Machine Identity (`isWork`)
+
+Some files (work AWS context functions, `assume-refresh.fish`) are only deployed on work machines. This is controlled by the `isWork` boolean in `.chezmoi.yaml.tmpl`, which is set by matching the machine's hostname against an allowlist:
+
+```
+{{- $workHostnames := list "MacBook-Pro" -}}
+{{- $isWork := has .chezmoi.hostname $workHostnames -}}
+```
+
+**To add a new work machine**: add its hostname to the `list` in `.chezmoi.yaml.tmpl`, then run `chezmoi init` on that machine to re-render `~/.config/chezmoi/chezmoi.yaml`.
+
+Check the hostname with `hostname` or `chezmoi data | grep hostname`.
