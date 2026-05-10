@@ -1,0 +1,9 @@
+[[plugin.deps]]
+use = "yazi-rs/plugins:zoxide"
+rev = "1db18bb"
+hash = "99aa06d3014798d86001c324468d497f"
+
+[[flavor.deps]]
+use = "yazi-rs/flavors:catppuccin-mocha"
+rev = "0670801"
+hash = "7dfe41c9c3d9be76da8a844263d0bbed"

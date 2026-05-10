@@ -1,0 +1,23 @@
+% git
+
+# Fetch latest refs
+git fetch --all --prune
+
+% git, worktree
+
+# Create new branch as worktree
+git worktree add -b <new_branch> ../<new_branch> <base_branch> && cd ../<new_branch>
+
+# Checkout remote branch as worktree TODO: improve/fi
+sh -c 'rb="<remote_branch>"; echo "$rb"
+
+# Delete git worktree
+git worktree remove <worktree>
+
+# Delete current git worktree
+git worktree remove <current_worktree>
+
+$ base_branch: git branch -r | grep -v HEAD | sed 's|^[^/]*/||' | awk '{print $NF}'
+$ remote_branch: git branch -r | grep -v HEAD | awk '{print $NF}'
+$ worktree: git worktree list | grep -v '(bare)' | tail -n +2 | awk '{print $1}'
+$ current_worktree: sh -c 'git rev-parse --show-toplevel'

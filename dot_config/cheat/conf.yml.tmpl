@@ -1,0 +1,22 @@
+---
+editor: nvim
+colorize: true
+style: monokai
+formatter: terminal256
+pager: bat
+
+cheatpaths:
+  - name: community
+    path: {{ .chezmoi.homeDir }}/.config/cheat/cheatsheets/community
+    tags: [ community ]
+    readonly: true
+
+  - name: personal
+    path: {{ .chezmoi.homeDir }}/.config/cheat/cheatsheets/personal
+    tags: [ personal ]
+    readonly: false
+
+  - name: work
+    path: {{ .chezmoi.homeDir }}/.config/cheat/cheatsheets/work
+    tags: [ work ]
+    readonly: false

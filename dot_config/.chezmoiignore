@@ -13,3 +13,11 @@ dconf/
 # fish_variables is managed by fish's universal variable system at runtime,
 # not a hand-maintained dotfile. conf.d files handle PATH and env setup.
 fish/fish_variables
+
+# yazi flavors are managed by `ya pkg install` at bootstrap time
+yazi/flavors/
+
+# cheat community sheets are cloned by run_once_install-cheat-community.sh
+# work sheets are machine-local, not tracked
+cheat/cheatsheets/community/
+cheat/cheatsheets/work/

@@ -1,0 +1,5 @@
+[manager]
+prepend_keymap = [
+    { on = "z", run = "plugin zoxide", desc = "Jump to a directory using zoxide" },
+    { on = "Z", run = "plugin zoxide --args=CWD", desc = "Jump to a subdirectory using zoxide" },
+]

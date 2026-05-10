@@ -1,0 +1,44 @@
+---
+tags: [ personal, terminal, files ]
+---
+
+# Yazi — terminal file manager
+
+## Launch
+    yy        # open yazi and cd to wherever you quit (shell wrapper)
+    yazi      # open yazi, return to original directory on quit
+
+## Navigation
+    h / l     # parent / enter directory (or open file)
+    j / k     # down / up
+    H / L     # back / forward in history
+    g g       # jump to top
+    G         # jump to bottom
+    .         # toggle hidden files
+
+## Jump
+    z         # zoxide jump (fuzzy, uses your zoxide history)
+    Z         # zoxide jump scoped to current directory
+
+## Selection & operations
+    Space     # select/deselect file
+    v         # visual (bulk select)
+    y         # yank (copy)
+    x         # cut
+    p         # paste
+    d         # trash
+    D         # delete permanently
+    a         # create file or directory (trailing / = directory)
+    r         # rename
+
+## Search
+    /         # filter files in current directory
+    s         # search file contents (requires ripgrep)
+    S         # search filenames (requires fd)
+
+## Open
+    Enter     # open with default opener (nvim for text, open/xdg-open otherwise)
+    o         # open with custom picker
+
+## Theme
+    Catppuccin Mocha (matches bat, ghostty)
