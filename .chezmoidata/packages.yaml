@@ -3,6 +3,7 @@ packages:
     brews:
       - bat
       - cheat
+      - glow
       - curl
       - direnv
       - fd
@@ -36,6 +37,7 @@ packages:
       - 1password-cli
       - bat
       - cheat
+      - glow
       - code
       - curl
       - direnv
