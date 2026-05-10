@@ -15,13 +15,14 @@ tags: [ personal, reference ]
     cheat -e <sheet>                 # create or edit a personal sheet
 
 ## Sheet strategy
-# Personal sheets override community sheets of the same name — but community
-# isn't gone, just deprioritised. Use --tag=community to reach it.
-#
-# Good personal sheet = only what's yours: your workflow, your config choices,
-# things you'd otherwise forget. Don't duplicate community content. Signpost it:
-#
-#     # Standard reference: cheat <tool> --tag=community
-#
-# For tools you rarely touch personally, skip the personal sheet entirely
-# and let the community version serve.
+
+Personal sheets override community sheets of the same name — but community
+isn't gone, just deprioritised. Use `--tag=community` to reach it.
+
+Good personal sheet = only what's yours: your workflow, your config choices,
+things you'd otherwise forget. Don't duplicate community content. Signpost it:
+
+    # Standard reference: cheat <tool> --tag=community
+
+For tools you rarely touch personally, skip the personal sheet entirely
+and let the community version serve.
