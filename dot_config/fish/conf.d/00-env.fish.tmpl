@@ -1,4 +1,4 @@
 {{- range $k, $v := .env }}
 set -gx {{ $k }} {{ $v | quote }}
 {{- end }}
-fish_add_path $XDG_BIN_HOME
+set -gx PATH $XDG_BIN_HOME $PATH

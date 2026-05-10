@@ -4,3 +4,12 @@ private_karabiner/
 
 # Karabiner-Elements rotates automatic_backups itself
 private_karabiner/private_automatic_backups/
+
+# dconf is a Linux/GNOME runtime database — never apply on macOS
+{{ if ne .chezmoi.os "linux" -}}
+dconf/
+{{ end -}}
+
+# fish_variables is managed by fish's universal variable system at runtime,
+# not a hand-maintained dotfile. conf.d files handle PATH and env setup.
+fish/fish_variables
