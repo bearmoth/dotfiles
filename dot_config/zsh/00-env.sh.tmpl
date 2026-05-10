@@ -1,0 +1,4 @@
+{{- range $k, $v := .env }}
+export {{ $k }}={{ $v | quote }}
+{{- end }}
+export PATH="$XDG_BIN_HOME:$PATH"
