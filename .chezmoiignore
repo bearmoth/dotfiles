@@ -14,3 +14,6 @@ docs/
 .claude.json
 .claude/plugins/installed_plugins.json
 .claude/plugins/known_marketplaces.json
+
+# Fish universal variables — managed by run_onchange_after_tide_config.sh, not synced directly
+.config/fish/fish_variables
