@@ -10,32 +10,31 @@ window-padding-x = 5
 window-padding-y = 5
 
 # Splits — mirror LazyVim mnemonics (<leader>- and <leader>|)
-# Hyper = Caps Lock (tap=Escape, hold=Ctrl+Alt+Shift+Super)
-keybind = ctrl+alt+shift+super+minus=new_split:down
-keybind = ctrl+alt+shift+super+backslash=new_split:right
-keybind = ctrl+alt+shift+super+w=close_surface
+# Hyper = Caps Lock (tap=Escape, hold=Ctrl+Alt+Super)
+keybind = ctrl+alt+super+minus=new_split:down
+keybind = ctrl+alt+super+backslash=new_split:right
+keybind = ctrl+alt+super+w=close_surface
 
 # Navigation — Ctrl+hjkl is reserved by smart-splits.nvim inside nvim;
 # Hyper+hjkl is the terminal-level equivalent with zero conflict.
-keybind = ctrl+alt+shift+super+h=goto_split:left
-keybind = ctrl+alt+shift+super+j=goto_split:down
-keybind = ctrl+alt+shift+super+k=goto_split:up
-keybind = ctrl+alt+shift+super+l=goto_split:right
+keybind = ctrl+alt+super+h=goto_split:left
+keybind = ctrl+alt+super+j=goto_split:down
+keybind = ctrl+alt+super+k=goto_split:up
+keybind = ctrl+alt+super+l=goto_split:right
 
-# Resize — arrows are reserved for OS-level window management (Raycast/WM).
-# Bracket pairs and comma/period give four directional bindings without Shift
-# (Shift is already in Hyper, so Hyper+Shift+X ≡ Hyper+X — can't stack it).
-keybind = ctrl+alt+shift+super+bracketleft=resize_split:left,10
-keybind = ctrl+alt+shift+super+bracketright=resize_split:right,10
-keybind = ctrl+alt+shift+super+comma=resize_split:up,10
-keybind = ctrl+alt+shift+super+period=resize_split:down,10
+# Resize — Hyper = 3-mod (Ctrl+Alt+Super), so Shift is a free layer modifier.
+# Hyper+Shift+hjkl is distinct from Hyper+hjkl, mirroring LazyVim's resize pattern.
+keybind = ctrl+alt+shift+super+h=resize_split:left,10
+keybind = ctrl+alt+shift+super+j=resize_split:down,10
+keybind = ctrl+alt+shift+super+k=resize_split:up,10
+keybind = ctrl+alt+shift+super+l=resize_split:right,10
 
 # Pane management
-keybind = ctrl+alt+shift+super+z=toggle_split_zoom
-keybind = ctrl+alt+shift+super+equal=equalize_splits
+keybind = ctrl+alt+super+z=toggle_split_zoom
+keybind = ctrl+alt+super+equal=equalize_splits
 
 # Quick terminal (global hotkey — works even when Ghostty is not focused)
-keybind = global:ctrl+alt+shift+super+grave_accent=toggle_quick_terminal
+keybind = global:ctrl+alt+super+grave_accent=toggle_quick_terminal
 
 {{ if eq .chezmoi.os "darwin" -}}
 # Unbind macOS-specific defaults that conflict with expected behaviour
