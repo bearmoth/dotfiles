@@ -22,12 +22,13 @@ keybind = ctrl+alt+shift+super+j=goto_split:down
 keybind = ctrl+alt+shift+super+k=goto_split:up
 keybind = ctrl+alt+shift+super+l=goto_split:right
 
-# Resize — Hyper already includes Shift, so stacking Shift+h would collide.
-# Arrow keys for resize keep the directional mnemonic without modifier conflict.
-keybind = ctrl+alt+shift+super+left=resize_split:left,10
-keybind = ctrl+alt+shift+super+down=resize_split:down,10
-keybind = ctrl+alt+shift+super+up=resize_split:up,10
-keybind = ctrl+alt+shift+super+right=resize_split:right,10
+# Resize — arrows are reserved for OS-level window management (Raycast/WM).
+# Bracket pairs and comma/period give four directional bindings without Shift
+# (Shift is already in Hyper, so Hyper+Shift+X ≡ Hyper+X — can't stack it).
+keybind = ctrl+alt+shift+super+bracketleft=resize_split:left,10
+keybind = ctrl+alt+shift+super+bracketright=resize_split:right,10
+keybind = ctrl+alt+shift+super+comma=resize_split:up,10
+keybind = ctrl+alt+shift+super+period=resize_split:down,10
 
 # Pane management
 keybind = ctrl+alt+shift+super+z=toggle_split_zoom
