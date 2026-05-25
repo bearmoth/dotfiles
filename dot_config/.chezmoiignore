@@ -2,6 +2,10 @@
 private_karabiner/
 {{ end -}}
 
+{{ if ne .chezmoi.os "linux" -}}
+keyd/
+{{ end -}}
+
 # Karabiner-Elements rotates automatic_backups itself
 private_karabiner/private_automatic_backups/
 

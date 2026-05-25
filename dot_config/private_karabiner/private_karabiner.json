@@ -2,23 +2,23 @@
   "profiles": [
     {
       "complex_modifications": {
-        "parameters": { "basic.to_if_held_down_threshold_milliseconds": 125 },
         "rules": [
           {
             "manipulators": [
               {
-                "description": "Hyper key",
+                "description": "Hyper key (tap=Escape, hold=Hyper; zero-latency)",
                 "from": {
                   "key_code": "caps_lock",
                   "modifiers": { "optional": ["any"] }
                 },
-                "to_if_alone": [{ "key_code": "escape" }],
-                "to_if_held_down": [
+                "to": [
                   {
                     "key_code": "left_shift",
-                    "modifiers": ["left_command", "left_control", "left_option"]
+                    "modifiers": ["left_command", "left_control", "left_option"],
+                    "lazy": true
                   }
                 ],
+                "to_if_alone": [{ "key_code": "escape" }],
                 "type": "basic"
               }
             ]

@@ -1,0 +1,20 @@
+{{ if eq .chezmoi.os "linux" -}}
+#!/bin/bash
+set -euo pipefail
+
+# Install keyd if missing
+if ! command -v keyd >/dev/null 2>&1; then
+  echo "keyd not found. Install it first:"
+  echo "  Debian/Ubuntu: sudo apt install keyd"
+  echo "  Arch:          sudo pacman -S keyd"
+  echo "  Fedora:        sudo dnf install keyd"
+  exit 1
+fi
+
+echo "Installing keyd config..."
+sudo mkdir -p /etc/keyd
+sudo cp ~/.config/keyd/default.conf /etc/keyd/default.conf
+sudo systemctl enable --now keyd
+sudo keyd reload
+echo "keyd config installed and reloaded."
+{{ end -}}

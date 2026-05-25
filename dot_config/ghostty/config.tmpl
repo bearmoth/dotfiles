@@ -1,0 +1,47 @@
+# Reload config:
+# Linux: `ctrl+shift+,`
+# MacOS: `cmd+shift+,`
+
+# Theme
+background-blur = 50
+background-opacity = 0.85
+
+window-padding-x = 5
+window-padding-y = 5
+
+# Splits — mirror LazyVim mnemonics (<leader>- and <leader>|)
+# Hyper = Caps Lock (tap=Escape, hold=Ctrl+Alt+Shift+Super)
+keybind = ctrl+alt+shift+super+minus=new_split:down
+keybind = ctrl+alt+shift+super+backslash=new_split:right
+keybind = ctrl+alt+shift+super+w=close_surface
+
+# Navigation — Ctrl+hjkl is reserved by smart-splits.nvim inside nvim;
+# Hyper+hjkl is the terminal-level equivalent with zero conflict.
+keybind = ctrl+alt+shift+super+h=goto_split:left
+keybind = ctrl+alt+shift+super+j=goto_split:down
+keybind = ctrl+alt+shift+super+k=goto_split:up
+keybind = ctrl+alt+shift+super+l=goto_split:right
+
+# Resize — Hyper already includes Shift, so stacking Shift+h would collide.
+# Arrow keys for resize keep the directional mnemonic without modifier conflict.
+keybind = ctrl+alt+shift+super+left=resize_split:left,10
+keybind = ctrl+alt+shift+super+down=resize_split:down,10
+keybind = ctrl+alt+shift+super+up=resize_split:up,10
+keybind = ctrl+alt+shift+super+right=resize_split:right,10
+
+# Pane management
+keybind = ctrl+alt+shift+super+z=toggle_split_zoom
+keybind = ctrl+alt+shift+super+equal=equalize_splits
+
+# Quick terminal (global hotkey — works even when Ghostty is not focused)
+keybind = global:ctrl+alt+shift+super+grave_accent=toggle_quick_terminal
+
+{{ if eq .chezmoi.os "darwin" -}}
+# Unbind macOS-specific defaults that conflict with expected behaviour
+keybind = super+d=unbind
+keybind = super+shift+w=unbind
+keybind = super+alt+w=unbind
+{{ end -}}
+
+# Mouse
+mouse-hide-while-typing = true
