@@ -52,3 +52,9 @@ Some files (work AWS context functions, `assume-refresh.fish`) are only deployed
 **To add a new work machine**: add its hostname to the `list` in `.chezmoi.yaml.tmpl`, then run `chezmoi init` on that machine to re-render `~/.config/chezmoi/chezmoi.yaml`.
 
 Check the hostname with `hostname` or `chezmoi data | grep hostname`.
+
+## Keybindings
+
+Full cross-OS keymap reference (Ghostty splits, AeroSpace, Linux WM, collision analysis, activation gate): [`docs/keybindings.md`](docs/keybindings.md)
+
+Quick terminal lookup: `cheat keymaps`

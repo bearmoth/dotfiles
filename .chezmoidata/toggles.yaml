@@ -1,0 +1,2 @@
+features:
+  aerospace: false # opt-in per machine: set [data.features] aerospace = true in ~/.config/chezmoi/chezmoi.toml

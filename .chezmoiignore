@@ -6,6 +6,11 @@ docs/
 # Exceptions — specific .md files that should be managed
 !.claude/CLAUDE.md
 
+# AeroSpace: macOS-only AND opt-in via features.aerospace (defense-in-depth double gate)
+{{ if or (ne .chezmoi.os "darwin") (not .features.aerospace) -}}
+.config/aerospace
+{{ end -}}
+
 # Oh My Zsh
 .oh-my-zsh/cache/
 .oh-my-zsh/**/*.zwc

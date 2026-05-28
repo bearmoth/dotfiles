@@ -1,0 +1,43 @@
+---
+tags: [ personal, keyboard, reference ]
+---
+
+# keymaps — keyboard shortcut reference
+
+## Ghostty splits  (Hyper = Caps Lock held = Ctrl+Alt+Cmd)
+
+    Hyper + |          new split right
+    Hyper + -          new split down
+    Hyper + hjkl       navigate between splits
+    Hyper + Shift+hjkl resize split
+    Hyper + w          close split
+    Hyper + z          zoom / unzoom split
+    Hyper + =          equalize splits
+    Hyper + `          toggle quick terminal (global)
+
+## AeroSpace windows  (Option = ⌥)
+
+    Option + hjkl          focus window left/down/up/right
+    Option + Shift+hjkl    move window left/down/up/right
+    Option + 1..9          switch to workspace N
+    Option + Shift+1..9    move window to workspace N
+    Option + Tab           previous workspace (toggle)
+    Option + /             toggle layout: tiles ↔ accordion
+    Option + ,             toggle orientation: horizontal ↔ vertical
+    Option + f             fullscreen toggle
+    Option + Shift+Space   float ↔ tile current window
+    Option + Esc           pause/resume AeroSpace daemon
+    Option + Shift+;       enter service mode (reload config, etc.)
+
+## Linux WM — future  (Super = ⊞ / same physical position as Option)
+
+    Super + hjkl           focus window  (Hyprland / Pop Shell)
+    Super + Shift+hjkl     move window
+    Super + 1..9           switch workspace
+    Super + Shift+1..9     move window to workspace
+
+## Notes
+
+- Hyper and Option namespaces never overlap — no toggle needed for coexistence.
+- Option+Left/Right is intentionally NOT bound to AeroSpace (preserves word navigation).
+- See docs/keybindings.md in the dotfiles repo for rationale and collision analysis.

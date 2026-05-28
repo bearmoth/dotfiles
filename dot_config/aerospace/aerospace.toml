@@ -1,0 +1,129 @@
+# AeroSpace tiling WM config
+# Modifier: alt = Option (⌥) on Mac — chosen for physical-position parity with Linux Super key
+# (Option is 2nd-from-left on Mac keyboard; Super is 2nd-from-left on PC keyboard.)
+# This file is deployed only when chezmoi's features.aerospace = true AND os = darwin.
+#
+# Hyper (Ctrl+Alt+Cmd) namespace is owned entirely by Ghostty splits — no overlap here.
+# Option+Left/Right is intentionally NOT bound here to preserve word navigation in text fields.
+
+start-at-login = true
+after-login-command = []
+after-startup-command = []
+
+enable-normalization-flatten-containers = true
+enable-normalization-opposite-orientation-for-nested-containers = true
+
+accordion-padding = 30
+
+default-root-container-layout = 'tiles'
+default-root-container-orientation = 'auto'
+
+key-mapping.preset = 'qwerty'
+
+[gaps]
+inner.horizontal = 6
+inner.vertical = 6
+outer.left = 6
+outer.right = 6
+outer.top = 6
+outer.bottom = 6
+
+[mode.main.binding]
+
+# Focus window
+alt-h = 'focus left'
+alt-j = 'focus down'
+alt-k = 'focus up'
+alt-l = 'focus right'
+
+# Move window
+alt-shift-h = 'move left'
+alt-shift-j = 'move down'
+alt-shift-k = 'move up'
+alt-shift-l = 'move right'
+
+# Switch workspace
+alt-1 = 'workspace 1'
+alt-2 = 'workspace 2'
+alt-3 = 'workspace 3'
+alt-4 = 'workspace 4'
+alt-5 = 'workspace 5'
+alt-6 = 'workspace 6'
+alt-7 = 'workspace 7'
+alt-8 = 'workspace 8'
+alt-9 = 'workspace 9'
+
+# Move window to workspace
+alt-shift-1 = 'move-node-to-workspace 1'
+alt-shift-2 = 'move-node-to-workspace 2'
+alt-shift-3 = 'move-node-to-workspace 3'
+alt-shift-4 = 'move-node-to-workspace 4'
+alt-shift-5 = 'move-node-to-workspace 5'
+alt-shift-6 = 'move-node-to-workspace 6'
+alt-shift-7 = 'move-node-to-workspace 7'
+alt-shift-8 = 'move-node-to-workspace 8'
+alt-shift-9 = 'move-node-to-workspace 9'
+
+# Previous workspace toggle
+alt-tab = 'workspace-back-and-forth'
+
+# Layout: toggle tiles ↔ accordion
+alt-slash = 'layout tiles accordion'
+
+# Layout: toggle orientation (horizontal ↔ vertical) within current layout type
+alt-comma = 'layout h_tiles v_tiles h_accordion v_accordion'
+
+# Fullscreen
+alt-f = 'fullscreen'
+
+# Float / tile toggle for current window
+alt-shift-space = 'layout floating tiling'
+
+# Daemon pause — for screen-sharing, demos, or troubleshooting
+alt-esc = 'enable toggle'
+
+# Enter service mode (reload config, flatten tree, etc.)
+alt-shift-semicolon = 'mode service'
+
+[mode.service.binding]
+# Exit service mode back to main
+esc = ['reload-config', 'mode main']
+
+# Flatten workspace layout tree
+r = ['flatten-workspace-tree', 'mode main']
+
+# Close all windows except focused
+backspace = ['close-all-windows-but-current', 'mode main']
+
+# Join with adjacent container (merge splits)
+alt-shift-h = ['join-with left', 'mode main']
+alt-shift-j = ['join-with down', 'mode main']
+alt-shift-k = ['join-with up', 'mode main']
+alt-shift-l = ['join-with right', 'mode main']
+
+# Float-by-default app exceptions
+# These apps tile badly: popups, utility windows, floating pickers.
+
+[[on-window-detected]]
+if.app-id = 'com.1password.1password'
+run = 'layout floating'
+
+[[on-window-detected]]
+if.app-id = 'com.apple.systempreferences'
+run = 'layout floating'
+
+[[on-window-detected]]
+if.app-id = 'com.apple.calculator'
+run = 'layout floating'
+
+[[on-window-detected]]
+if.app-id = 'com.apple.ActivityMonitor'
+run = 'layout floating'
+
+[[on-window-detected]]
+if.app-id = 'org.pqrs.Karabiner-Elements.Settings'
+run = 'layout floating'
+
+[[on-window-detected]]
+if.app-id = 'com.raycast.macos'
+run = 'layout floating'
