@@ -1,0 +1,7 @@
+{{ if and (eq .chezmoi.os "darwin") .features.aerospace -}}
+#!/bin/bash
+# AeroSpace auto-generates ~/.aerospace.toml on first launch if no config exists.
+# We manage the config at ~/.config/aerospace/aerospace.toml instead.
+# Remove the auto-generated file to avoid the "ambiguous config" error.
+rm -f "$HOME/.aerospace.toml"
+{{ end -}}
