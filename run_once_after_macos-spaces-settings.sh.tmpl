@@ -1,0 +1,17 @@
+{{ if eq .chezmoi.os "darwin" -}}
+#!/bin/bash
+# Configure macOS Mission Control / Spaces to work correctly alongside AeroSpace.
+# AeroSpace manages virtual workspaces on a single macOS Space — these settings
+# prevent macOS from fighting it by teleporting windows or reordering Spaces.
+
+# Do NOT auto-rearrange Spaces based on recent use — AeroSpace owns workspace order.
+defaults write com.apple.dock "mru-spaces" -bool false
+
+# Do NOT jump to a Space when switching to an app — AeroSpace owns window focus.
+# Without this, Cmd+Tab causes macOS to teleport you to whichever Space the app
+# window lives on, completely bypassing AeroSpace workspace switching.
+defaults write NSGlobalDomain "AppleSpacesSwitchOnActivate" -bool false
+
+# Restart Dock to apply Spaces-related settings (Dock owns the Spaces preference domain).
+killall Dock
+{{ end -}}
