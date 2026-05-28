@@ -36,8 +36,12 @@ outer.bottom = 6
 
 [mode.main.binding]
 
-# App launch
-ctrl-alt-cmd-t = 'exec-and-forget open -na Ghostty'
+# App focus-or-launch (focus existing window, launch fresh if not running)
+ctrl-alt-cmd-t = 'exec-and-forget open -a Ghostty'
+ctrl-alt-cmd-b = 'exec-and-forget open -a "Google Chrome"'
+ctrl-alt-cmd-n = 'exec-and-forget open -a Obsidian'
+ctrl-alt-cmd-s = 'exec-and-forget open -a Slack'
+ctrl-alt-cmd-v = 'exec-and-forget open -a "Visual Studio Code"'
 
 # Focus window
 alt-h = 'focus left'
