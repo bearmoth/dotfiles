@@ -95,14 +95,37 @@ Option (⌥) modifier throughout.
 | Key | Action |
 |---|---|
 | `Esc` | Reload config + exit service mode |
-| `r` | Flatten workspace layout tree |
-| `Backspace` | Close all windows except focused |
-| `Shift + h/j/k/l` | Join focused container with neighbour (merge splits) |
+| `r` | Flatten workspace layout tree — the "reset everything" key |
+| `Shift + h/j/k/l` | Join focused container with neighbour (merge containers) |
+
+> Service mode is a leader-key layer where every keypress runs a command immediately. Keep bindings here conservative — accidental keypresses have no undo.
 
 ### Preserved (NOT bound to AeroSpace)
 
 - `Option + Left / Right` → word navigation in any text field (browser URL bars, editors, terminals)
 - `Hyper + anything` → Ghostty only
+
+### Behaviour notes
+
+**`Option+f` is AeroSpace fullscreen, not macOS fullscreen.**
+AeroSpace's `fullscreen` command zooms the focused window to fill the entire workspace within AeroSpace's layout — it does not invoke macOS native fullscreen (the green button / `Cmd+Ctrl+F`). If a window enters macOS native fullscreen, AeroSpace loses control of it entirely. Exit macOS native fullscreen with `Cmd+Ctrl+F` or the green button.
+
+**`Cmd+H` (hide) is safe.** `automatically-unhide-macos-hidden-apps = true` is set in the config — AeroSpace will automatically unhide an app the moment it focuses one of its windows. Hide and switch away freely.
+
+**`Cmd+M` (minimise) breaks the layout.** Minimise sends the window to the Dock and removes it from AeroSpace's layout tree. AeroSpace cannot recover minimised windows automatically. If you accidentally minimise, click the window in the Dock to restore it, then use service mode `r` to flatten and re-tile.
+
+**The layout is a tree, not a grid.** Moving a window "into" another creates a nested container (a split within a split), which causes unequal sizes. Service mode `r` (`flatten-workspace-tree`) collapses the entire tree back to a flat row — always safe to run when the layout looks wrong.
+
+**macOS Spaces must be collapsed to one.** AeroSpace manages virtual workspaces on a single macOS Space. Multiple Spaces cause AeroSpace to lose windows and produce erratic jumping behaviour. The `run_once_after_macos-spaces-settings.sh.tmpl` script disables the two worst offenders (`mru-spaces` and `AppleSpacesSwitchOnActivate`) but you must manually delete extra Spaces in Mission Control.
+
+### Recovery sequence
+
+When confused about current state:
+
+1. `Option+Shift+;` → `r` — flatten layout, back to clean even split
+2. `Option+f` — exit AeroSpace fullscreen if a window is zoomed
+3. `Cmd+Ctrl+F` — exit macOS native fullscreen if AeroSpace can't see the window
+4. Reopen any window that disappeared (it was likely minimised — check the Dock)
 
 Config file: `dot_config/aerospace/aerospace.toml`
 
@@ -155,7 +178,7 @@ chezmoi apply --remove   # --remove required: chezmoi doesn't delete ignored fil
 killall AeroSpace
 ```
 
-**Note:** Turn off "Automatically rearrange Spaces based on most recent use" in System Settings → Desktop & Dock → Mission Control. AeroSpace manages workspace order; the macOS auto-rearrange fights it.
+**Note:** `chezmoi apply` runs `run_once_after_macos-spaces-settings.sh.tmpl` which automatically disables the two macOS settings that conflict with AeroSpace (`mru-spaces` and `AppleSpacesSwitchOnActivate`). You must still manually delete extra Spaces in Mission Control (swipe up → hover Space → click ×) until only one remains.
 
 ---
 

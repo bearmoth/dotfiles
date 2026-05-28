@@ -24,10 +24,23 @@ tags: [ personal, keyboard, reference ]
     Option + Tab           previous workspace (toggle)
     Option + /             toggle layout: tiles ↔ accordion
     Option + ,             toggle orientation: horizontal ↔ vertical
-    Option + f             fullscreen toggle
+    Option + f             AeroSpace fullscreen (zoom within workspace — NOT macOS fullscreen)
     Option + Shift+Space   float ↔ tile current window
     Option + Esc           pause/resume AeroSpace daemon
-    Option + Shift+;       enter service mode (reload config, etc.)
+    Option + Shift+;       enter service mode
+
+### Service mode  (after Option+Shift+;)
+
+    Esc                    reload config + exit service mode
+    r                      flatten layout tree (reset all splits) ← the "undo everything" key
+    Shift+hjkl             join window with neighbour (merge containers)
+
+## Recovery — when confused
+
+    Option + Shift+;  →  r       flatten layout tree, back to clean even split
+    Option + f                   exit AeroSpace fullscreen (NOT macOS fullscreen)
+    Cmd + Ctrl + F               exit macOS native fullscreen (green button mode)
+    Cmd + Space → reopen app     if a window disappeared (was minimised — avoid minimise)
 
 ## Linux WM — future  (Super = ⊞ / same physical position as Option)
 
@@ -40,4 +53,6 @@ tags: [ personal, keyboard, reference ]
 
 - Hyper and Option namespaces never overlap — no toggle needed for coexistence.
 - Option+Left/Right is intentionally NOT bound to AeroSpace (preserves word navigation).
+- Cmd+H (hide) is safe — AeroSpace auto-unhides on next focus.
+- Cmd+M (minimise) removes the window from the layout tree — avoid it.
 - See docs/keybindings.md in the dotfiles repo for rationale and collision analysis.
