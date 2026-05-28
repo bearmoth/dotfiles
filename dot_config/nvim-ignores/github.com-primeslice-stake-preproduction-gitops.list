@@ -1,0 +1,17 @@
+# neo-tree personal hides — primeslice/stake-preproduction-gitops
+# Nothing is active. Uncomment lines to hide, or add your own.
+#
+# NAMES — exact match against a directory or file name anywhere in the tree:
+# (these go into neo-tree's hide_by_name)
+#
+# .terraform
+# charts
+#
+# PATTERNS — Lua string patterns (not globs), matched against the full path:
+# A substring like /base/ hides any path containing that segment.
+# (these go into neo-tree's hide_by_pattern)
+#
+# /base/
+# /crds/
+#
+# Toggle everything off temporarily with Shift+H in the sidebar.

@@ -1,0 +1,19 @@
+# neo-tree personal hides — primeslice/backend
+# Nothing is active. Uncomment lines to hide, or add your own.
+#
+# NAMES — exact match against a directory or file name anywhere in the tree:
+# (these go into neo-tree's hide_by_name)
+#
+# node_modules
+# vendor
+# .terraform
+#
+# PATTERNS — Lua string patterns (not globs), matched against the full path:
+# A substring like /migrations/ hides any path containing that segment.
+# (these go into neo-tree's hide_by_pattern)
+#
+# /migrations/
+# /generated/
+# /fixtures/
+#
+# Toggle everything off temporarily with Shift+H in the sidebar.
