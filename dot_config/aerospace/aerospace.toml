@@ -98,9 +98,6 @@ esc = ['reload-config', 'mode main']
 # Flatten workspace layout tree
 r = ['flatten-workspace-tree', 'mode main']
 
-# Close all windows except focused
-backspace = ['close-all-windows-but-current', 'mode main']
-
 # Join with adjacent container (merge splits)
 alt-shift-h = ['join-with left', 'mode main']
 alt-shift-j = ['join-with down', 'mode main']
