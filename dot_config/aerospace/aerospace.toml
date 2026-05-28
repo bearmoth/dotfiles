@@ -36,6 +36,9 @@ outer.bottom = 6
 
 [mode.main.binding]
 
+# App launch
+ctrl-alt-cmd-t = 'exec-and-forget open -na Ghostty'
+
 # Focus window
 alt-h = 'focus left'
 alt-j = 'focus down'
