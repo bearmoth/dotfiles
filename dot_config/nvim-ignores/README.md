@@ -17,10 +17,14 @@ git remote get-url origin
 
 One entry per line. Lines starting with `#` are comments.
 
-- Exact name: goes into neo-tree's `hide_by_name` (exact match against entry name)
-- Lua string pattern (contains `/` or `*`): goes into neo-tree's `hide_by_pattern`
-  (note: neo-tree uses Lua pattern matching, not glob — `/generated/` hides any path
-  containing that substring)
+- Exact name (no `/` or `*`): goes into neo-tree's `hide_by_name` — exact match
+  against entry name, anywhere in the tree. `accounting` hides any dir/file with
+  that name.
+- Glob pattern (contains `/` or `*`): goes into neo-tree's `hide_by_pattern` —
+  matched against the full absolute path. **Always prefix with `*`** so the pattern
+  matches as a path suffix rather than an exact full path.
+  `*/backend/services/accounting` hides that specific subtree.
+  `*/accounting` hides any path ending in `accounting`.
 
 ```
 # github.com-easygo-monorepo.list

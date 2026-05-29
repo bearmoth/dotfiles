@@ -8,13 +8,13 @@
 # vendor
 # .terraform
 #
-# PATTERNS — Lua string patterns (not globs), matched against the full path:
-# A substring like /migrations/ hides any path containing that segment.
+# PATTERNS — glob-style, matched against the full absolute path:
+# Prefix with * so the pattern matches as a path suffix, not an exact path.
 # (these go into neo-tree's hide_by_pattern)
 #
-# /migrations/
-# /generated/
-# /fixtures/
+# */migrations
+# */generated
+# */fixtures
 #
 # Toggle everything off temporarily with Shift+H in the sidebar.
-/backend/services/accounting
+*/backend/services/accounting

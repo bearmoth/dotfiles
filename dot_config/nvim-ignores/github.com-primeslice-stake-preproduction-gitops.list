@@ -7,11 +7,11 @@
 # .terraform
 # charts
 #
-# PATTERNS — Lua string patterns (not globs), matched against the full path:
-# A substring like /base/ hides any path containing that segment.
+# PATTERNS — glob-style, matched against the full absolute path:
+# Prefix with * so the pattern matches as a path suffix, not an exact path.
 # (these go into neo-tree's hide_by_pattern)
 #
-# /base/
-# /crds/
+# */base
+# */crds
 #
 # Toggle everything off temporarily with Shift+H in the sidebar.
