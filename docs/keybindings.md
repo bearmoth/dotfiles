@@ -36,6 +36,22 @@ AeroSpace binds **per-chord**, not per-modifier. So `Option+hjkl` and `Option+1.
 
 ---
 
+## App launch
+
+Hyper (`Ctrl+Alt+Cmd`) + letter. Focuses the existing window if the app is already running; launches it if not. Defined in `dot_config/aerospace/aerospace.toml` via `exec-and-forget open -a`.
+
+| Chord | App |
+|---|---|
+| `Hyper + t` | Ghostty |
+| `Hyper + b` | Google Chrome |
+| `Hyper + n` | Obsidian |
+| `Hyper + s` | Slack |
+| `Hyper + v` | Visual Studio Code |
+
+> These use `open -a` (not `-na`). `open -a` activates the existing process, preventing orphaned app instances. On macOS, if the app is already open, it raises the most recent window.
+
+---
+
 ## Ghostty splits
 
 Hyper = Caps Lock (hold). Tap Caps Lock alone = Escape.

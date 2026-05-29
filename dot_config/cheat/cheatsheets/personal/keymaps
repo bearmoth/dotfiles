@@ -4,6 +4,14 @@ tags: [ personal, keyboard, reference ]
 
 # keymaps — keyboard shortcut reference
 
+## App launch  (Hyper = Ctrl+Alt+Cmd — focus existing or launch fresh)
+
+    Hyper + t          Ghostty
+    Hyper + b          Google Chrome
+    Hyper + n          Obsidian
+    Hyper + s          Slack
+    Hyper + v          VS Code
+
 ## Ghostty splits  (Hyper = Caps Lock held = Ctrl+Alt+Cmd)
 
     Hyper + |          new split right
