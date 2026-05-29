@@ -17,3 +17,4 @@
 # /fixtures/
 #
 # Toggle everything off temporarily with Shift+H in the sidebar.
+/backend/services/accounting

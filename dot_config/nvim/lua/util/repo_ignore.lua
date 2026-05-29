@@ -37,7 +37,7 @@ function M.entries_for(path)
     line = line:match("^%s*(.-)%s*$")
     if line ~= "" and not line:match("^#") then
       if line:match("[/*]") then
-        table.insert(patterns, line)
+        table.insert(patterns, (line:gsub("/$", "")))  -- neo-tree paths never have trailing /
       else
         table.insert(names, line)
       end
