@@ -1,0 +1,11 @@
+{{ if and (eq .chezmoi.os "darwin") .features.aerospace -}}
+#!/bin/bash
+# Re-runs whenever aerospace.toml changes.
+# config hash: {{ include "dot_config/aerospace/aerospace.toml" | sha256sum }}
+set -euo pipefail
+
+command -v aerospace >/dev/null 2>&1 || exit 0
+
+echo "Reloading AeroSpace config..."
+aerospace reload-config
+{{ end -}}

@@ -3,7 +3,10 @@
 # (Option is 2nd-from-left on Mac keyboard; Super is 2nd-from-left on PC keyboard.)
 # This file is deployed only when chezmoi's features.aerospace = true AND os = darwin.
 #
-# Hyper (Ctrl+Alt+Cmd) namespace is owned entirely by Ghostty splits — no overlap here.
+# Hyper (Ctrl+Alt+Cmd) namespace is owned entirely by Ghostty/herdr panes — no overlap here.
+# Plain Option (this file's modifier) owns all system-level concerns instead: window
+# focus/move/workspace AND app focus-or-launch both live here, since both fire globally
+# regardless of what's focused — only Ghostty/herdr-local actions need Hyper.
 # Option+Left/Right is intentionally NOT bound here to preserve word navigation in text fields.
 
 start-at-login = true
@@ -37,11 +40,11 @@ outer.bottom = 6
 [mode.main.binding]
 
 # App focus-or-launch (focus existing window, launch fresh if not running)
-ctrl-alt-cmd-t = 'exec-and-forget open -a Ghostty'
-ctrl-alt-cmd-b = 'exec-and-forget open -a "Google Chrome"'
-ctrl-alt-cmd-n = 'exec-and-forget open -a Obsidian'
-ctrl-alt-cmd-s = 'exec-and-forget open -a Slack'
-ctrl-alt-cmd-v = 'exec-and-forget open -a "Visual Studio Code"'
+alt-t = 'exec-and-forget open -a Ghostty'
+alt-b = 'exec-and-forget open -a "Google Chrome"'
+alt-s = 'exec-and-forget open -a Slack'
+alt-v = 'exec-and-forget open -a "Visual Studio Code"'
+alt-n = 'exec-and-forget open -a Obsidian'
 
 # Focus window
 alt-h = 'focus left'
