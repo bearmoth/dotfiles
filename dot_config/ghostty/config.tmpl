@@ -11,35 +11,91 @@ window-padding-y = 8
 
 # Splits — mirror LazyVim mnemonics (<leader>- and <leader>|)
 ## Hyper = Caps Lock (tap=Escape, hold=Ctrl+Alt+Super)
-keybind = ctrl+alt+super+minus=new_split:down
-keybind = ctrl+alt+super+backslash=new_split:right
-keybind = ctrl+alt+super+w=close_surface
+## Split creation and pane navigation/close are unbound here so
+## Hyper+minus/backslash/w and Hyper+hjkl pass through to herdr's own
+## split_horizontal/split_vertical/close_pane and focus_pane_* bindings
+## (dot_config/herdr/config.toml.tmpl) instead of Ghostty consuming them
+## for its own splits/surface. Tab actions moved off Hyper entirely — see
+## the "Tabs" section below.
 
 ## Navigation — Ctrl+hjkl is reserved by smart-splits.nvim inside nvim;
 ## Hyper+hjkl is the terminal-level equivalent with zero conflict.
-## Pane navigation itself is unbound here so Hyper+hjkl passes through to
-## herdr's own focus_pane_* bindings (dot_config/herdr/config.toml) instead
-## of Ghostty consuming it for its own splits.
+## Resize also moved to herdr (resize_mode on Hyper+r) — see
+## dot_config/herdr/config.toml.
 
-## Resize — Hyper = 3-mod (Ctrl+Alt+Super), so Shift is a free layer modifier.
-## Hyper+Shift+hjkl is distinct from Hyper+hjkl, mirroring LazyVim's resize pattern.
-keybind = ctrl+alt+shift+super+h=resize_split:left,10
-keybind = ctrl+alt+shift+super+j=resize_split:down,10
-keybind = ctrl+alt+shift+super+k=resize_split:up,10
-keybind = ctrl+alt+shift+super+l=resize_split:right,10
-
-## Pane management
-keybind = ctrl+alt+super+z=toggle_split_zoom
+## Pane management — zoom moved to herdr (Hyper+z = herdr pane zoom, see
+## dot_config/herdr/config.toml.tmpl); equalize stays (Ghostty splits only)
 keybind = ctrl+alt+super+equal=equalize_splits
 
 # Quick terminal (global hotkey — works even when Ghostty is not focused)
 keybind = global:ctrl+alt+super+grave_accent=toggle_quick_terminal
 
+## Tabs — Ghostty's own native tab bar is unused (herdr owns tabs instead).
+## Ghostty's default tab-create/close keys are unbound below so they reach
+## herdr's new_tab/close_pane (dot_config/herdr/config.toml.tmpl). herdr's
+## tab CYCLING is on super+[ / super+] (printable, so Ghostty forwards them;
+## no Ghostty defaults on the plain-bracket chords). Ctrl+Tab was abandoned:
+## Tab is non-printable, so no Ghostty unbind variant (plain,
+## unconsumed:+ignore, unconsumed:+unbind) can forward it to herdr —
+## verified empirically 2026-07-13. Ctrl+Tab stays unbound anyway just to
+## keep Ghostty's own tab-cycling off.
+keybind = ctrl+tab=unbind
+keybind = ctrl+shift+tab=unbind
+
 {{ if eq .chezmoi.os "darwin" -}}
-# Unbind macOS-specific defaults that conflict with expected behaviour
+# Unbind macOS-specific defaults that conflict with expected behaviour.
+# NOTE: super+shift+w is deliberately NOT unbound — Ghostty's default
+# close_window stays as the escape hatch for closing a Ghostty window when
+# no herdr client is attached (Cmd+W belongs to herdr's close_tab; herdr
+# server and panes survive a window close).
 keybind = super+d=unbind
-keybind = super+shift+w=unbind
 keybind = super+alt+w=unbind
+keybind = super+t=unbind
+keybind = super+w=unbind
+keybind = super+shift+[=unbind
+keybind = super+shift+]=unbind
+# super+[/] default to goto_split — released for herdr's tab cycling
+keybind = super+[=unbind
+keybind = super+]=unbind
+# Cmd+1..9 default to goto_tab/last_tab — released so they reach herdr's
+# switch_workspace (Cmd+Shift+1..9 = focus_agent has no Ghostty default).
+# Each digit is bound under TWO key names (codepoint `1` and physical
+# `digit_1`) and unbind only matches the named form, so both are needed.
+keybind = super+1=unbind
+keybind = super+2=unbind
+keybind = super+3=unbind
+keybind = super+4=unbind
+keybind = super+5=unbind
+keybind = super+6=unbind
+keybind = super+7=unbind
+keybind = super+8=unbind
+keybind = super+9=unbind
+keybind = super+digit_1=unbind
+keybind = super+digit_2=unbind
+keybind = super+digit_3=unbind
+keybind = super+digit_4=unbind
+keybind = super+digit_5=unbind
+keybind = super+digit_6=unbind
+keybind = super+digit_7=unbind
+keybind = super+digit_8=unbind
+keybind = super+digit_9=unbind
+{{ end -}}
+
+{{ if eq .chezmoi.os "linux" -}}
+# Unbind Linux-specific defaults that conflict with expected behaviour
+keybind = ctrl+t=unbind
+keybind = ctrl+w=unbind
+# Alt+1..9 goto_tab defaults (if present on this build) — released so the
+# digits reach herdr's switch_workspace/focus_agent
+keybind = alt+1=unbind
+keybind = alt+2=unbind
+keybind = alt+3=unbind
+keybind = alt+4=unbind
+keybind = alt+5=unbind
+keybind = alt+6=unbind
+keybind = alt+7=unbind
+keybind = alt+8=unbind
+keybind = alt+9=unbind
 {{ end -}}
 
 # Cursor trail + focus indicator (shaders pipeline in order)
@@ -48,8 +104,4 @@ custom-shader = shaders/focus_indicator.glsl
 
 # Mouse
 mouse-hide-while-typing = true
-
-# Tabs
-## Rename Tab Title
-keybind = ctrl+alt+super+r=prompt_tab_title
 
