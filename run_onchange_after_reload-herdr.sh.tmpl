@@ -1,0 +1,10 @@
+#!/bin/bash
+# Re-runs whenever herdr's config.toml changes.
+# config hash: {{ include "dot_config/herdr/config.toml.tmpl" | sha256sum }}
+set -euo pipefail
+
+command -v herdr >/dev/null 2>&1 || exit 0
+herdr status server 2>/dev/null | grep -q "^status: running" || exit 0
+
+echo "Reloading herdr config..."
+herdr server reload-config

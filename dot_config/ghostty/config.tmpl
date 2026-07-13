@@ -17,10 +17,9 @@ keybind = ctrl+alt+super+w=close_surface
 
 ## Navigation — Ctrl+hjkl is reserved by smart-splits.nvim inside nvim;
 ## Hyper+hjkl is the terminal-level equivalent with zero conflict.
-keybind = ctrl+alt+super+h=goto_split:left
-keybind = ctrl+alt+super+j=goto_split:down
-keybind = ctrl+alt+super+k=goto_split:up
-keybind = ctrl+alt+super+l=goto_split:right
+## Pane navigation itself is unbound here so Hyper+hjkl passes through to
+## herdr's own focus_pane_* bindings (dot_config/herdr/config.toml) instead
+## of Ghostty consuming it for its own splits.
 
 ## Resize — Hyper = 3-mod (Ctrl+Alt+Super), so Shift is a free layer modifier.
 ## Hyper+Shift+hjkl is distinct from Hyper+hjkl, mirroring LazyVim's resize pattern.
