@@ -1,0 +1,10 @@
+{{ if eq .chezmoi.os "linux" -}}
+#!/bin/bash
+set -euo pipefail
+
+# Re-run weekly: {{ now.Year }}-W{{ div now.YearDay 7 }}
+command -v herdr >/dev/null 2>&1 || exit 0
+
+echo "Checking for Herdr updates..."
+herdr update
+{{ end -}}

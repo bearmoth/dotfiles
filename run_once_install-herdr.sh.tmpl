@@ -1,0 +1,9 @@
+{{ if eq .chezmoi.os "linux" -}}
+#!/bin/bash
+set -euo pipefail
+
+command -v herdr >/dev/null && exit 0
+
+echo "Installing Herdr..."
+curl -fsSL https://herdr.dev/install.sh | sh
+{{ end -}}

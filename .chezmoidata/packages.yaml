@@ -12,6 +12,7 @@ packages:
       - gh
       - git
       - go-task
+      - herdr
       - k9s
       - lazygit
       - navi
