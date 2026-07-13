@@ -31,6 +31,8 @@
       }
     }
   },
-  "skipAutoPermissionPrompt": true,
-  "advisorModel": "opus"
+  "advisorModel": "opus",
+  "tui": "fullscreen",
+  "skipWorkflowUsageWarning": true,
+  "skipAutoPermissionPrompt": true
 }
