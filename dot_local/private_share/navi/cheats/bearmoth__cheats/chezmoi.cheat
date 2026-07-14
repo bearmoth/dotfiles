@@ -1,0 +1,92 @@
+% chezmoi
+
+# Check system for potential problems
+chezmoi doctor
+
+# Show status of targets (pending adds/modifications/deletes)
+chezmoi status
+
+# Preview changes chezmoi would make to the destination directory
+chezmoi diff
+
+# Apply changes to the destination directory
+chezmoi apply
+
+# Apply changes verbosely, without prompting
+chezmoi apply -v
+
+# Pull latest from the remote and apply changes
+chezmoi update
+
+# Launch a shell in the source directory
+chezmoi cd
+
+# Run git in the source directory
+chezmoi git <git_args>
+
+% chezmoi, add
+
+# Add an existing file, directory, or symlink to the source state
+chezmoi add <target>
+
+# Re-add modified files to the source state
+chezmoi re-add
+
+% chezmoi, edit
+
+# Edit the source state of a target and apply
+chezmoi edit <target>
+
+# Edit the source state of a target without applying
+chezmoi edit --no-apply <target>
+
+# Edit the chezmoi configuration file
+chezmoi edit-config
+
+% chezmoi, merge
+
+# Perform a three-way merge between destination, source, and target state
+chezmoi merge <target>
+
+# Perform a three-way merge for every modified file
+chezmoi merge-all
+
+% chezmoi, remove
+
+# Remove a target from the source state and destination directory
+chezmoi forget <target>
+
+# Permanently delete a target from source state, destination directory, and state
+chezmoi destroy <target>
+
+% chezmoi, list
+
+# List the managed entries in the destination directory
+chezmoi managed
+
+# List unmanaged files in the destination directory
+chezmoi unmanaged
+
+# Print ignored targets
+chezmoi ignored
+
+% chezmoi, template
+
+# Print the target contents of a file, script, or symlink
+chezmoi cat <target>
+
+# Print the template data available to templates
+chezmoi data
+
+# Execute a given template string
+chezmoi execute-template <template_string>
+
+% chezmoi, config
+
+# Print the current configuration file
+chezmoi cat-config
+
+# Dump configuration values
+chezmoi dump-config
+
+$ target: chezmoi managed
