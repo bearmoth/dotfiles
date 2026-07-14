@@ -1,0 +1,10 @@
+% gh, dash, pr, pull request, review, github
+
+# Open interactive GitHub PR/issue dashboard (gh-dash)
+gh dash
+
+# Open GitHub PR/issue dashboard with a specific config file
+gh dash --config <config_file>
+
+# Open GitHub PR/issue dashboard with debug logging (writes debug.log)
+gh dash --debug

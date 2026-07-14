@@ -77,7 +77,13 @@ defaults:
                 hidden: true
     refetchIntervalMinutes: 30
 keybindings: {}
+{{- if .isWork }}
+repoPaths:
+    primeslice/*: {{ .chezmoi.homeDir }}/Dev/primeslice/*
+    primeslice/backend: {{ .chezmoi.homeDir }}/Dev/primeslice/stake/pull-requests
+{{- else }}
 repoPaths: {}
+{{- end }}
 theme:
     ui:
         sectionsShowCount: true

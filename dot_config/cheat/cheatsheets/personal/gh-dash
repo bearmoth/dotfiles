@@ -1,0 +1,59 @@
+---
+tags: [ personal, github ]
+---
+
+# gh-dash — GitHub PR/issue dashboard
+
+## Launch
+    gh dash                          # opens dashboard (your config: defaults to PRs view)
+    gh dash --config <file>          # use a specific config file
+    gh dash --debug                  # writes debug.log
+
+## Global
+    ?         # toggle help
+    /         # search (edit current section's query, Enter to run)
+    r / R     # refresh section / refresh all sections
+    s         # switch PRs view <-> Issues view
+    q         # quit
+
+## Navigation
+    j / k     # down / up
+    h / l     # previous / next section
+    g / G     # first / last item
+
+## Selected PR
+    a / A     # assign / unassign
+    c         # comment
+    C         # checkout locally (needs repoPaths set in config)
+    d         # view diff (uses pager.diff, default less)
+    e         # expand description
+    m         # merge
+    u         # update branch
+    v         # approve (prefills comment from defaults.prApproveComment, "LGTM")
+    w         # watch checks (desktop notification on pass/fail)
+    W         # mark ready for review
+    x / X     # close / reopen
+
+## Selected Issue
+    a / A     # assign / unassign
+    c         # comment
+    C         # checkout branch (needs repoPaths set in config)
+    x / X     # close / reopen
+
+## Any selected item
+    o         # open on github.com
+    y / Y     # copy number / copy URL
+
+## Preview pane
+    p / P     # toggle pane / toggle position (right <-> bottom)
+    [ / ]     # previous / next tab
+    ctrl+d/u  # page down / up
+
+## Your config notes
+- Sections: My PRs, Needs My Review, Involved (same pattern for issues)
+- repoPaths (work machine only): primeslice/* wildcard, plus an explicit
+  override for primeslice/backend -> the stake/pull-requests worktree, since
+  the repo folder is a worktree tree (master/bau/current-work/etc.) rather
+  than a plain checkout named after the repo. Checkout (C) lands PRs there,
+  not on master, so in-progress worktrees stay untouched.
+- Home machine: repoPaths is empty — add entries there if/when needed.
