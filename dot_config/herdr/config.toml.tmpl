@@ -12,13 +12,16 @@ delivery = "herdr"
 show_agent_labels_on_pane_borders = false
 
 [keys]
-# Direct Hyper bindings — reserved for high-frequency actions only
-# (ctrl+alt+super = Hyper, see dot_config/ghostty/config.tmpl). Everything
-# else (goto, rename_tab, toggle_sidebar, rename_workspace, new_workspace,
-# etc.) stays on herdr's default prefix (ctrl+b) bindings — occasional
-# actions don't need a direct chord, and it avoids the hidden-Shift-companion
-# landmine (see project-keyboard-setup memory). switch_workspace/focus_agent
-# are the deliberate exceptions — kept as a quick-jump pair.
+# Hyper is the single "herdr modifier" — pane, tab, workspace, and agent
+# actions all live here (ctrl+alt+super, see dot_config/ghostty/config.tmpl).
+# Collapsing what used to be split across Hyper/Cmd/Alt removes the
+# cognitive cost of remembering which layer a given herdr action was on;
+# Cmd/Alt on the OS side goes back to being purely Ghostty/system-native.
+# Since Hyper is the identical chord on both OSes, none of these need
+# per-OS templating. Only truly occasional actions (goto, toggle_sidebar,
+# rename_workspace's sibling close_tab, worktrees, etc.) stay on herdr's
+# default prefix (ctrl+b) bindings — see the frequency line in
+# docs/keybindings.md.
 focus_pane_left = "ctrl+alt+super+h"
 focus_pane_down = "ctrl+alt+super+j"
 focus_pane_up = "ctrl+alt+super+k"
@@ -29,23 +32,6 @@ close_pane = "ctrl+alt+super+w"
 resize_mode = "ctrl+alt+super+r"
 zoom = "ctrl+alt+super+z"
 
-# Workspace/agent quick-jump — OS-native digit convention (Cmd mac / Alt
-# linux), mirroring how browsers use Cmd/Alt+digit for tab jumps. Shift
-# layer selects agents instead of workspaces. Ghostty's default Cmd+1..9
-# goto_tab bindings are unbound in its config so the digits reach herdr.
-switch_workspace = "{{ if eq .chezmoi.os "darwin" }}super+1..9{{ else }}alt+1..9{{ end }}"
-focus_agent = "{{ if eq .chezmoi.os "darwin" }}super+shift+1..9{{ else }}alt+shift+1..9{{ end }}"
-
-# Tab cycling — Cmd+[/] (mac) / Alt+[/] (linux), keeping ALL tab actions on
-# the OS-native layer. Cmd+H/L was the first choice but macOS's Hide-app
-# menu shortcut intercepts Cmd+H before Ghostty sees it. Browser-style
-# Ctrl+Tab / Ctrl+PageUp both dead-end too: Tab is non-printable so Ghostty
-# can't forward it (verified 2026-07-13), and page keys aren't in herdr's
-# key vocabulary. Brackets are printable, so they work. Ghostty's default
-# super+[/] (goto_split) are unbound in its config to let these through.
-previous_tab = "{{ if eq .chezmoi.os "darwin" }}super+[{{ else }}alt+[{{ end }}"
-next_tab = "{{ if eq .chezmoi.os "darwin" }}super+]{{ else }}alt+]{{ end }}"
-
 # Swap panes — Hyper+Shift layer of the hjkl nav bindings. swap_pane_* are
 # valid config keys despite being absent from `herdr --default-config`
 # (found in the binary's TOML field list; reload-config accepts them).
@@ -54,14 +40,20 @@ swap_pane_down = "ctrl+alt+shift+super+j"
 swap_pane_up = "ctrl+alt+shift+super+k"
 swap_pane_right = "ctrl+alt+shift+super+l"
 
-# Tab new/close follow each OS's native convention (Cmd on mac / Ctrl on
-# linux) — the only herdr bindings needing templating. Ghostty's own
-# defaults for these chords are unbound in config.tmpl so they pass through
-# here. Pane close is Hyper+w (above); tab close is the OS convention.
-new_tab = "{{ if eq .chezmoi.os "darwin" }}super+t{{ else }}ctrl+t{{ end }}"
-close_tab = "{{ if eq .chezmoi.os "darwin" }}super+w{{ else }}ctrl+w{{ end }}"
+# Tabs. close_tab is deliberately NOT bound here — closing a tab's last
+# pane already auto-closes the tab (verified via herdr pane/tab API
+# 2026-07-14), so Hyper+w covers the common case one pane at a time. A
+# dedicated one-shot "nuke this whole tab" stays on herdr's own default
+# prefix+shift+x, as the escape hatch for multi-pane tabs.
+new_tab = "ctrl+alt+super+t"
+rename_tab = "ctrl+alt+super+shift+t"
+previous_tab = "ctrl+alt+super+["
+next_tab = "ctrl+alt+super+]"
 
-# New workspace — Shift pairs with "bigger container" (tab=Cmd+T,
-# workspace=Cmd+Shift+N). Deliberately NOT Cmd+N, which stays Ghostty's
-# new-OS-window shortcut.
-new_workspace = "{{ if eq .chezmoi.os "darwin" }}super+shift+n{{ else }}alt+shift+n{{ end }}"
+# Workspaces and agents — digit layer mirrors browser Cmd/Alt+digit tab
+# jumps, just moved onto Hyper. Shift layer selects agents instead of
+# workspaces.
+switch_workspace = "ctrl+alt+super+1..9"
+focus_agent = "ctrl+alt+super+shift+1..9"
+new_workspace = "ctrl+alt+super+n"
+rename_workspace = "ctrl+alt+super+shift+n"

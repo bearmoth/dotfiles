@@ -30,35 +30,33 @@ keybind = ctrl+alt+super+equal=equalize_splits
 # Quick terminal (global hotkey — works even when Ghostty is not focused)
 keybind = global:ctrl+alt+super+grave_accent=toggle_quick_terminal
 
-## Tabs — Ghostty's own native tab bar is unused (herdr owns tabs instead).
-## Ghostty's default tab-create/close keys are unbound below so they reach
-## herdr's new_tab/close_pane (dot_config/herdr/config.toml.tmpl). herdr's
-## tab CYCLING is on super+[ / super+] (printable, so Ghostty forwards them;
-## no Ghostty defaults on the plain-bracket chords). Ctrl+Tab was abandoned:
-## Tab is non-printable, so no Ghostty unbind variant (plain,
-## unconsumed:+ignore, unconsumed:+unbind) can forward it to herdr —
-## verified empirically 2026-07-13. Ctrl+Tab stays unbound anyway just to
-## keep Ghostty's own tab-cycling off.
+## Tabs/workspaces/agents all moved onto Hyper (dot_config/herdr/config.toml.tmpl)
+## — Cmd(mac)/Alt(linux) no longer carry any herdr action. Ghostty's own
+## native tab bar and splits are unused (herdr owns both), so the Cmd/Alt/Ctrl
+## chords below are unbound purely to keep Ghostty's unused native tab/split
+## system from firing by accident — nothing here is "freed up for herdr"
+## anymore. Ctrl+Tab was abandoned as a herdr chord: Tab is non-printable, so
+## no Ghostty unbind variant (plain, unconsumed:+ignore, unconsumed:+unbind)
+## can forward it to a child process — verified empirically 2026-07-13.
+## Ctrl+Tab stays unbound anyway just to keep Ghostty's own tab-cycling off.
 keybind = ctrl+tab=unbind
 keybind = ctrl+shift+tab=unbind
 
 {{ if eq .chezmoi.os "darwin" -}}
-# Unbind macOS-specific defaults that conflict with expected behaviour.
-# NOTE: super+shift+w is deliberately NOT unbound — Ghostty's default
-# close_window stays as the escape hatch for closing a Ghostty window when
-# no herdr client is attached (Cmd+W belongs to herdr's close_tab; herdr
-# server and panes survive a window close).
+# Unbind macOS defaults that would otherwise drive Ghostty's own unused
+# tab bar / split system. NOTE: super+shift+w is deliberately NOT unbound —
+# Ghostty's default close_window stays as the escape hatch for closing a
+# Ghostty window when no herdr client is attached; herdr server and panes
+# survive a window close regardless.
 keybind = super+d=unbind
 keybind = super+alt+w=unbind
 keybind = super+t=unbind
 keybind = super+w=unbind
+keybind = super+shift+t=unbind
 keybind = super+shift+[=unbind
 keybind = super+shift+]=unbind
-# super+[/] default to goto_split — released for herdr's tab cycling
 keybind = super+[=unbind
 keybind = super+]=unbind
-# Cmd+1..9 default to goto_tab/last_tab — released so they reach herdr's
-# switch_workspace (Cmd+Shift+1..9 = focus_agent has no Ghostty default).
 # Each digit is bound under TWO key names (codepoint `1` and physical
 # `digit_1`) and unbind only matches the named form, so both are needed.
 keybind = super+1=unbind
@@ -82,11 +80,12 @@ keybind = super+digit_9=unbind
 {{ end -}}
 
 {{ if eq .chezmoi.os "linux" -}}
-# Unbind Linux-specific defaults that conflict with expected behaviour
+# Unbind Linux defaults that would otherwise drive Ghostty's own unused
+# tab bar / split system.
 keybind = ctrl+t=unbind
 keybind = ctrl+w=unbind
-# Alt+1..9 goto_tab defaults (if present on this build) — released so the
-# digits reach herdr's switch_workspace/focus_agent
+keybind = ctrl+shift+t=unbind
+# Alt+1..9 goto_tab defaults (if present on this build)
 keybind = alt+1=unbind
 keybind = alt+2=unbind
 keybind = alt+3=unbind

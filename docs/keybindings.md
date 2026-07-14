@@ -1,9 +1,13 @@
 # Keybindings — cross-OS reference and intent
 
-Last major revision: 2026-07-14 (herdr era — supersedes the pre-herdr version
-of this doc, which described Ghostty-owned splits and Hyper launchers).
+Last major revision: 2026-07-14 (Hyper-collapse era — supersedes the
+brief four-layer scheme from earlier the same day, which split herdr
+actions across Hyper *and* Cmd/Alt. That split turned out to cost more in
+layer-switching decisions ("is this a pane thing or a tab thing?") than it
+gained from browser-convention muscle memory, so every herdr action now
+lives on one modifier).
 
-## Architecture: four layers
+## Architecture: three layers
 
 The guiding principle: **each modifier layer owns one kind of concern**, and
 the physical key position (not the label) carries the muscle memory across
@@ -12,22 +16,17 @@ OSes.
 | Layer | Mac | Linux | Owns |
 |---|---|---|---|
 | **System / WM** (2nd modifier from left) | Option (⌥) via AeroSpace | Super via Pop Shell/GNOME | Window focus/move, **WM** workspaces, app launchers — anything that works from anywhere |
-| **Hyper** (Caps Lock hold = `Ctrl+Alt+Super`, no Shift) | herdr | herdr | Pane-level work inside the terminal: nav, swap, splits, close pane, zoom, resize, plus Ghostty's equalize/quick-terminal |
-| **OS-native app conventions** (3rd modifier from left) | Cmd (⌘) | Alt / Ctrl (per app convention) | Browser-style tab & container actions in herdr: tabs, herdr workspaces, agents |
-| **prefix** (`Ctrl+B`, tmux-style) | herdr | herdr | Everything occasional: renames, sidebar, goto, worktrees, pickers |
+| **Hyper** (Caps Lock hold = `Ctrl+Alt+Super`, no Shift) | herdr | herdr | **Everything herdr, high-frequency:** pane nav/swap/splits/close/zoom/resize, tabs, herdr workspaces, agents — plus Ghostty's equalize/quick-terminal |
+| **prefix** (`Ctrl+B`, tmux-style) | herdr | herdr | Everything occasional: renames (except tab), sidebar, goto, worktrees, pickers, whole-tab close |
+
+Cmd (mac) / Alt (linux) carry **no herdr bindings at all** — they're left
+entirely to Ghostty and macOS/GNOME's own native shortcuts (new window,
+quit, settings, reload-config). Since Hyper is the identical chord
+(`ctrl+alt+super`) on both OSes, herdr's config needs almost no per-OS
+templating anymore — a side benefit of the collapse, not the reason for it.
 
 vim keeps its own modal namespaces and never collides: `Ctrl+hjkl`
 (smart-splits pane nav), `Shift+H/L` (buffer nav), `Space` leader.
-
-### Position parity (why the layers differ by OS label)
-
-Mac Option and Linux Super are the **same physical key** (2nd from left);
-Mac Cmd and Linux Alt are the same physical key (3rd from left, next to
-Space). So "2nd key + digit = WM workspace" and "3rd key + digit = herdr
-workspace" hold on both OSes with identical finger motion, even though the
-key labels differ. Exception: new/close tab follow each OS's *browser*
-convention (Cmd+T/W on mac, Ctrl+T/W on linux) rather than strict position
-parity, because that muscle memory already exists per-OS.
 
 ### The frequency line
 
@@ -39,35 +38,34 @@ is this high-frequency? If not, leave it on prefix.
 
 ## Current bindings
 
-### Hyper layer (herdr pane management)
+### Hyper layer (all herdr high-frequency actions)
 
 | Chord | Action |
 |---|---|
 | `Hyper+h/j/k/l` | Focus pane left/down/up/right |
 | `Hyper+Shift+h/j/k/l` | Swap pane left/down/up/right |
 | `Hyper+-` / `Hyper+\` | Split down / split right (LazyVim `<leader>-`/`\|` mnemonic) |
-| `Hyper+w` | Close pane |
+| `Hyper+w` | Close pane (closing a tab's last pane auto-closes the tab — verified via herdr's pane/tab API 2026-07-14) |
 | `Hyper+z` | Zoom/unzoom pane (herdr) |
 | `Hyper+r` | Resize mode (modal: `h/l` width, `j/k` height, `Esc` exits) |
+| `Hyper+t` | New tab |
+| `Hyper+Shift+T` | Rename tab |
+| `Hyper+[` / `Hyper+]` | Previous / next tab |
+| `Hyper+1..9` | Switch herdr workspace |
+| `Hyper+Shift+1..9` | Focus agent |
+| `Hyper+n` | New herdr workspace |
+| `Hyper+Shift+n` | Rename herdr workspace |
 | `Hyper+=` | Equalize splits (Ghostty — only remaining Ghostty split action) |
 | `` Hyper+` `` | Quick terminal (Ghostty global hotkey) |
 
-### OS-native layer (herdr tabs / workspaces / agents)
+Whole-tab close (all panes at once, not just the last one) deliberately
+stays on herdr's own default `prefix+shift+x` rather than Hyper — see
+"Still on prefix" below.
 
-| Action | Mac | Linux |
-|---|---|---|
-| New tab | `Cmd+T` | `Ctrl+T` |
-| Close tab | `Cmd+W` | `Ctrl+W` ⚠ see Linux TODO |
-| Prev / next tab | `Cmd+[` / `Cmd+]` | `Alt+[` / `Alt+]` |
-| Switch herdr workspace | `Cmd+1..9` | `Alt+1..9` |
-| Focus agent | `Cmd+Shift+1..9` | `Alt+Shift+1..9` |
-| New herdr workspace | `Cmd+Shift+N` | `Alt+Shift+N` |
-| Close Ghostty window (escape hatch) | `Cmd+Shift+W` | Ghostty default |
-
-`Cmd+Shift+W` is Ghostty's default `close_window`, deliberately left bound:
-it's the way to close an empty Ghostty window when no herdr client is
-attached (`Cmd+W` belongs to herdr). Closing the window never kills panes —
-the herdr server is a daemon (PPID 1) and all pane shells are its children.
+`Cmd+Shift+W` is Ghostty's default `close_window`, deliberately left bound
+(mac only): it's the way to close an empty Ghostty window when no herdr
+client is attached. Closing the window never kills panes — the herdr
+server is a daemon (PPID 1) and all pane shells are its children.
 
 ### System / WM layer (AeroSpace on Mac; Linux pending)
 
@@ -84,11 +82,12 @@ the herdr server is a daemon (PPID 1) and all pane shells are its children.
 
 ### Still on prefix (`Ctrl+B`) — deliberate
 
-`goto` (session navigator), tab/workspace/pane renames, `toggle_sidebar`,
-`close_workspace` (prefix+shift+d), `workspace_picker` (prefix+w), copy
-mode (prefix+[), cycle panes (prefix+Tab), detach (prefix+q), worktree
-actions. These are low-frequency by design — do not migrate them without
-reconsidering the frequency line.
+`goto` (session navigator), pane rename, `toggle_sidebar`, `close_tab`
+(prefix+shift+x — one-shot close of a whole multi-pane tab; `Hyper+w`
+only closes one pane at a time), `close_workspace` (prefix+shift+d),
+`workspace_picker` (prefix+w), copy mode (prefix+[), cycle panes
+(prefix+Tab), detach (prefix+q), worktree actions. These are low-frequency
+by design — do not migrate them without reconsidering the frequency line.
 
 ## Gotchas (hard-won — read before changing anything)
 
@@ -118,30 +117,29 @@ reconsidering the frequency line.
    declaring a config key nonexistent.
 7. **User vocabulary:** "super" in conversation means **Hyper** (Caps Lock),
    not the config-syntax `super` (which is Cmd on mac). Config syntax:
-   `super`=Cmd(mac)/Super(linux), `alt`=Option(mac)/Alt(linux).
+   `super`=Cmd(mac)/Super(linux), `alt`=Option(mac)/Alt(linux). Now that
+   herdr owns nothing on Cmd/Alt, this trap mostly only matters when
+   editing `dot_config/ghostty/config.tmpl`'s own unbind blocks.
 
 ## Linux TODO (for the agent doing the Linux-side setup)
 
-1. **⚠ `close_tab = "ctrl+w"` shadows delete-word-backward** in fish/bash
-   and vim insert mode — a heavily-used editing key. Confirm the user wants
-   this before applying on Linux; `ctrl+shift+w` is the collision-free
-   alternative. (`ctrl+t` shadows transpose-chars; nobody cares.)
-2. **Launchers not yet migrated.** GNOME custom keybinding `custom0`
+1. **Launchers not yet migrated.** GNOME custom keybinding `custom0`
    (`<Super>t` → ghostty) already exists in the dconf dump. Add
    `custom1..4` for Chrome/Slack/VSCode/Obsidian via `gsettings` on the
    live machine, then re-capture: `chezmoi add ~/.config/dconf/user`.
    `dot_config/dconf/user` is a **binary GVariant database — never
    hand-edit**.
-3. **Check Pop Shell's claimed keys first:**
+2. **Check Pop Shell's claimed keys first:**
    `gsettings list-recursively org.gnome.shell.extensions.pop-shell` —
    the dconf dump only shows non-default keys, so Pop Shell's real keymap
-   is invisible in the repo. Verify `alt+[/]`, `alt+1..9`, `alt+shift+n`
-   aren't taken before trusting the herdr bindings.
-4. **Verify Ghostty's Linux defaults.** The `alt+1..9` unbinds in
-   `config.tmpl`'s linux block are speculative (written from a mac, where
-   those defaults don't exist). Run `ghostty +list-keybinds --default` on
-   Linux and adjust.
-5. **Pop Shell remap to hjkl** (from the original plan): Pop Shell defaults
+   is invisible in the repo. Since herdr no longer uses any Alt chords,
+   this is now purely about WM-layer collisions (Super+arrows etc.), not
+   herdr ones.
+3. **Verify Ghostty's Linux defaults for the Hyper chords.** herdr's config
+   now uses the same `ctrl+alt+super+*` chords on both OSes; confirm none
+   of them collide with a Linux-only Ghostty default via
+   `ghostty +list-keybinds --default` on the actual Linux build.
+4. **Pop Shell remap to hjkl** (from the original plan): Pop Shell defaults
    to `Super+arrows`; remap to `Super+hjkl` for parity with AeroSpace.
 
 ## AeroSpace operational notes (Mac)
@@ -168,8 +166,8 @@ reconsidering the frequency line.
 
 | File | Owns |
 |---|---|
-| `dot_config/herdr/config.toml.tmpl` | All herdr bindings (templated per OS) |
-| `dot_config/ghostty/config.tmpl` | Ghostty unbinds + its 3 remaining Hyper actions |
+| `dot_config/herdr/config.toml.tmpl` | All herdr bindings (almost entirely untemplated — Hyper is the same chord on both OSes) |
+| `dot_config/ghostty/config.tmpl` | Ghostty unbinds (keep Cmd/Alt off Ghostty's unused native tab/split system) + its 3 remaining Hyper actions |
 | `dot_config/aerospace/aerospace.toml` | Mac WM + launchers |
 | `dot_config/private_karabiner/private_karabiner.json` | Caps→Hyper/Esc (mac) |
 | `dot_config/keyd/default.conf` | Caps→Hyper/Esc (linux) |
