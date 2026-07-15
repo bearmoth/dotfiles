@@ -1,0 +1,24 @@
+{{ if eq .chezmoi.os "linux" -}}
+#!/bin/bash
+set -euo pipefail
+
+command -v diffnav >/dev/null && exit 0
+
+{{ $arch := .chezmoi.arch -}}
+{{ if eq $arch "amd64" -}}
+ARCH=x86_64
+{{ else if eq $arch "arm64" -}}
+ARCH=arm64
+{{ else if eq $arch "386" -}}
+ARCH=i386
+{{ else -}}
+echo "diffnav: no prebuilt release for arch {{ $arch }}, skipping" >&2
+exit 0
+{{ end -}}
+
+echo "Installing diffnav..."
+mkdir -p "$HOME/.local/bin"
+curl -fsSL "https://github.com/dlvhdr/diffnav/releases/latest/download/diffnav_Linux_${ARCH}.tar.gz" \
+  | tar -xz -C "$HOME/.local/bin" diffnav
+chmod +x "$HOME/.local/bin/diffnav"
+{{ end -}}

@@ -5,12 +5,14 @@ packages:
       - cheat
       - glow
       - curl
+      - diffnav
       - direnv
       - fd
       - fzf
       - fish
       - gh
       - git
+      - git-delta
       - go-task
       - herdr
       - k9s
@@ -48,6 +50,7 @@ packages:
       - ghostty
       - git
       - gh
+      - git-delta
       - gnome-shell-extension-pop-shell
       - keyd
       - xprop
