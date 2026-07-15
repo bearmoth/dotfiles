@@ -25,7 +25,7 @@ tags: [ personal, github ]
     a / A     # assign / unassign
     c         # comment
     C         # checkout locally (needs repoPaths set in config)
-    d         # view diff (uses pager.diff, default less)
+    d         # view diff (uses pager.diff -> diffnav, see cheat/navi "diffnav")
     e         # expand description
     m         # merge
     u         # update branch
