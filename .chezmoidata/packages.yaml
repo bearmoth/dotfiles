@@ -49,6 +49,7 @@ packages:
       - git
       - gh
       - gnome-shell-extension-pop-shell
+      - keyd
       - xprop
       - lazygit
       - k9s
