@@ -1,0 +1,34 @@
+---
+tags: [ personal, git, diff, pager ]
+---
+
+# delta — syntax-highlighting pager for git/diff output
+
+## Set up as git's pager (official recommendation, ~/.gitconfig)
+    git config --global core.pager delta
+    git config --global interactive.diffFilter 'delta --color-only'   # for `git add -p`
+    git config --global delta.navigate true    # n / N to jump between diff sections
+    git config --global delta.dark true        # or delta.light true, or omit for auto-detect
+    git config --global merge.conflictStyle zdiff3
+
+## Common view flags
+    delta -s / --side-by-side   # side-by-side layout
+    delta -n / --line-numbers   # show line numbers
+    delta --navigate            # enable n / N navigation between files/hunks
+    delta --diff-so-fancy       # emulate diff-so-fancy
+    delta --diff-highlight      # emulate diff-highlight
+    delta --hyperlinks          # commit/file/line numbers as terminal hyperlinks
+
+## Syntax themes (same theme set as bat)
+    delta --syntax-theme "<theme>"    # e.g. "Catppuccin Mocha" — matches this machine's bat theme
+    delta --show-syntax-themes        # preview all available themes
+    delta --show-themes               # preview delta's own light/dark feature themes
+    delta --list-syntax-themes        # list theme names only
+
+## Ad hoc / direct use
+    delta <file1> <file2>                       # same as: diff -u file1 file2 | delta
+    delta --diff-args=-U999 <file1> <file2>      # widen context lines
+
+## Inspect config
+    delta --show-config     # show currently active option values
+    delta --list-languages  # supported languages + extensions

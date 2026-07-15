@@ -1,0 +1,26 @@
+---
+tags: [ personal, git, diff, pager ]
+---
+
+# diffnav — git diff pager with a file tree (à la GitHub)
+
+## Pipe a diff in
+    git diff | diffnav                      # working tree diff
+    git diff --staged | diffnav              # staged diff
+    gh pr diff <pr-url-or-number> | diffnav  # a PR's diff
+
+## Set as git's diff pager
+    git config --global pager.diff diffnav
+    # gh-dash: set `pager: diff: diffnav` in gh-dash's config.yml (dash's `d` key uses it)
+
+## View flags
+    -s / --side-by-side       # force side-by-side view
+    -u / --unified            # force unified view
+
+## Watch mode
+    diffnav --watch                                              # re-run `git diff` every 2s
+    diffnav --watch --watch-cmd "git diff HEAD" --watch-interval 5s
+
+## Requires
+    delta installed (diffnav is delta + a file tree)
+    A Nerd Font for icons to render — brew install --cask font-<name>-nerd-font

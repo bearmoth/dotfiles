@@ -1,0 +1,22 @@
+% diffnav, diff, pager, git
+
+# Pipe working tree diff into diffnav
+git diff | diffnav
+
+# Pipe staged diff into diffnav
+git diff --staged | diffnav
+
+# View a GitHub PR's diff in diffnav
+gh pr diff <pr> | diffnav
+
+# Set diffnav as git's diff pager
+git config --global pager.diff diffnav
+
+# Force side-by-side view
+git diff | diffnav --side-by-side
+
+# Force unified view
+git diff | diffnav --unified
+
+# Watch mode: auto-refresh on a repeating command
+diffnav --watch --watch-cmd "<watch_cmd>" --watch-interval <interval>

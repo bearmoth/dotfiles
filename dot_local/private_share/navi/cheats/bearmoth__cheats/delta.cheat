@@ -1,0 +1,28 @@
+% delta, diff, pager, git
+
+# Set delta as git's pager (diff, show, log -p, etc.)
+git config --global core.pager delta
+
+# Use delta for `git add -p` / `git add -i` (color only, no line rewriting)
+git config --global interactive.diffFilter 'delta --color-only'
+
+# Enable n / N navigation between files/hunks by default
+git config --global delta.navigate true
+
+# Side-by-side diff view
+git diff | delta --side-by-side
+
+# Show line numbers
+git diff | delta --line-numbers
+
+# Diff two files directly with delta
+delta <file1> <file2>
+
+# Preview all available syntax highlighting themes
+delta --show-syntax-themes
+
+# Preview delta's own light/dark feature themes
+delta --show-themes
+
+# Show delta's currently active configuration
+delta --show-config
