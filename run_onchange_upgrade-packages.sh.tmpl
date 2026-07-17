@@ -1,0 +1,25 @@
+#!/bin/bash
+# Weekly upgrade of chezmoi-managed packages.
+#
+# Re-run weekly: {{ now.Year }}-W{{ div now.YearDay 7 }}
+#
+# KNOWN GAP (see docs/package-management.md): coupling `brew`/`dnf upgrade`
+# into `chezmoi apply` makes apply slow and non-deterministic — a routine
+# apply can suddenly spend minutes upgrading, or pull a breaking change at a
+# time we didn't choose. Accepted deliberately for now, gated to run at most
+# once a week via the date-stamped comment above. Revisit later (a launchd /
+# systemd timer, or an explicit "upgrade" command, would decouple it).
+#
+# Scoped ON PURPOSE to the formulae/dnf packages declared in
+# .chezmoidata/packages.yaml — never a bare `brew upgrade` (which would also
+# upgrade casks like Karabiner-Elements and Ghostty) nor a full `dnf upgrade`
+# (whole-OS). Casks and the base OS stay deliberate, manual upgrades.
+set -euo pipefail
+
+{{ if eq .chezmoi.os "darwin" -}}
+echo "Upgrading managed Homebrew formulae..."
+brew upgrade {{ .packages.darwin.brews | join " " }}
+{{ else if eq .chezmoi.os "linux" -}}
+echo "Upgrading managed dnf packages..."
+sudo dnf upgrade -y {{ .packages.fedora.dnf | join " " }}
+{{ end -}}
