@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# lazygit, launched in a herdr popup, in the directory of the pane you
+# invoked it from.
+#
+# Why a wrapper instead of command = "lazygit"? A herdr popup does NOT start
+# in the active pane's directory — it starts in a default cwd and merely
+# *exposes* HERDR_ACTIVE_PANE_CWD for the command to consume. So a bare
+# `lazygit` popup would open on $HOME, not the repo you're looking at.
+#
+# Bound to Hyper+g via [[keys.command]] in dot_config/herdr/config.toml.tmpl.
+set -euo pipefail
+
+cd "${HERDR_ACTIVE_PANE_CWD:-$PWD}" 2>/dev/null || cd "$HOME"
+exec lazygit

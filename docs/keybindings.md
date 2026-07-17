@@ -55,8 +55,20 @@ is this high-frequency? If not, leave it on prefix.
 | `Hyper+Shift+1..9` | Focus agent |
 | `Hyper+n` | New herdr workspace |
 | `Hyper+Shift+n` | Rename herdr workspace |
+| `Hyper+g` | lazygit in a popup (herdr `type = "popup"`, via `lazygit-popup`) |
+| `Hyper+c` | cheat wiki fuzzy popup (herdr `type = "popup"`, via `cheat-popup`) |
 | `Hyper+=` | Equalize splits (Ghostty — only remaining Ghostty split action) |
 | `` Hyper+` `` | Quick terminal (Ghostty global hotkey) |
+
+**Popups** (herdr 0.7.4+): `[[keys.command]]` with `type = "popup"` opens a
+session-modal floating terminal centred over the *whole tab* (not the active
+pane), leaving the tiled layout frozen beneath; it closes when its command
+exits. Both binds call wrapper scripts in `dot_local/bin` rather than the tool
+directly — a popup starts in a default cwd (not the active pane's), so
+`lazygit-popup` cd's into `$HERDR_ACTIVE_PANE_CWD` first, and `cheat-popup`
+needs a real shell for its fzf picker. `c` is safe here *because* herdr owns
+the chord: an **un**bound `Hyper+c` degrades (via fall-through) to `Ctrl+C` and
+clears your input — Gotcha #3 — but a bound one is intercepted by herdr first.
 
 Whole-tab close (all panes at once, not just the last one) deliberately
 stays on herdr's own default `prefix+shift+x` rather than Hyper — see

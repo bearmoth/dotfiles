@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# Interactive "personal wiki" popup over cheat: fuzzy-pick a sheet, read it in
+# a pager, then loop back to the picker. Esc / Ctrl-C dismisses the popup.
+#
+# Bound to Hyper+c via [[keys.command]] in dot_config/herdr/config.toml.tmpl.
+#
+# Sheets are enumerated from the cheatpaths (`cheat -d`) rather than parsed out
+# of `cheat -l`: that command's tabular output wraps by terminal width and
+# silently drops entries in a narrow popup. cheat sheets have no file
+# extension, so filtering out dotted names and .git/ yields a clean list
+# across the community (git-backed), personal and work cheatpaths.
+set -uo pipefail
+
+list_sheets() {
+  cheat -d 2>/dev/null | awk 'NF {print $NF}' | while read -r dir; do
+    [ -d "$dir" ] || continue
+    (cd "$dir" && find . -type f -not -path '*/.git/*' -not -name '*.*' 2>/dev/null | sed 's|^\./||')
+  done | sort -u
+}
+
+while true; do
+  sheet="$(list_sheets | fzf \
+    --prompt='cheat > ' \
+    --preview='cheat -c {}' \
+    --preview-window='right:65%:wrap' \
+    --height='100%' --border --ansi)" || break
+  [ -n "$sheet" ] || break
+  cheat -c "$sheet" | less -R
+done

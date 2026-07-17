@@ -57,3 +57,28 @@ switch_workspace = "ctrl+alt+super+1..9"
 focus_agent = "ctrl+alt+super+shift+1..9"
 new_workspace = "ctrl+alt+super+n"
 rename_workspace = "ctrl+alt+super+shift+n"
+
+# Popup scratch tools (herdr 0.7.4+ `type = "popup"`: a session-modal floating
+# terminal centred over the whole tab, layout frozen beneath, closing when the
+# command exits). Both live on Hyper — lazygit is high-frequency and cheat is
+# the "wiki at my fingertips", so both earn a single-chord bind rather than
+# prefix. Bare Hyper chords are valid for [[keys.command]] (verified with
+# `herdr config check` on 0.7.4). The commands are wrappers on PATH
+# (dot_local/bin) because: a popup starts in a default cwd, not the active
+# pane's, so lazygit-popup cd's into $HERDR_ACTIVE_PANE_CWD; and cheat-popup
+# needs a real shell for its fzf pipeline (default_shell here is fish).
+[[keys.command]]
+key = "ctrl+alt+super+g"
+type = "popup"
+command = "lazygit-popup"
+description = "lazygit (popup, in active pane's dir)"
+width = "90%"
+height = "90%"
+
+[[keys.command]]
+key = "ctrl+alt+super+c"
+type = "popup"
+command = "cheat-popup"
+description = "cheat wiki (fuzzy popup)"
+width = "80%"
+height = "80%"
