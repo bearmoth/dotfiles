@@ -1,0 +1,44 @@
+---
+tags: [ personal, claude ]
+---
+
+# Claude Code — Matt Pocock engineering skills (order of operations)
+
+## One-time, per repo
+    /setup-matt-pocock-skills        # configures issue tracker, triage labels, domain doc
+                                     # layout (docs/agents/). Other skills assume this exists.
+
+## Standard flow (normal-sized feature)
+    /grill-with-docs                 # 1. relentless interview to sharpen the plan;
+                                     #    = /grilling + /domain-modeling, writes ADRs + glossary as it goes
+    /to-spec                         # 2. current conversation -> spec (PRD) published to tracker;
+                                     #    no interview, pure synthesis. Confirms test seams with you.
+    /to-tickets                      # 3. spec/plan/conversation -> tracer-bullet vertical-slice
+                                     #    tickets with blocking edges. Accepts spec path / issue URL as arg.
+    /implement                       # 4. build from spec/tickets; uses /tdd at pre-agreed seams;
+                                     #    ends by running /code-review itself, then commits
+    /code-review <fixed-point>       # 5. standalone two-axis review (Standards + Spec) of diff
+                                     #    since a commit/branch/tag. Ask for fixed point if unsure.
+
+## Huge / foggy efforts: /wayfinder
+    /wayfinder                       # replaces step 1 — NOT steps 3-4
+
+- For work too big for one agent session. Builds a shared map (issue labelled
+  wayfinder:map) of DECISION tickets on the tracker; resolves one per session
+  until the route is clear. Planning only by default — decisions, not deliverables.
+- Wayfinder creates its own sub-issues: decision tickets labelled
+  wayfinder:<research|prototype|grilling|task>, both at charting time and as
+  "fog" graduates. Many sub-issues != build tickets were cut.
+- Whether /to-spec + /to-tickets follow depends on the map's DESTINATION:
+    spec / locked decision      -> yes: wayfinder -> (/to-spec) -> /to-tickets -> /implement
+    change made in place        -> no downstream at all; execution rides in-map
+                                   via task tickets + a "Notes" override of
+                                   plan-don't-do (e.g. symbiosis map #82,
+                                   "cleared deck" — PR merges were map tickets)
+
+## Not every step, every time
+- /to-spec and /to-tickets both work straight off the current conversation —
+  for small work, skip the grilling and jump in at step 2 or 3.
+- /implement already finishes with /code-review, so step 5 standalone is for
+  reviewing someone else's branch or a later pass.
+- Grill variants: /grilling (plain), /grill-me, /roast-me, /grill-with-docs (adds docs).
