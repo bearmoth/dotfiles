@@ -32,6 +32,10 @@ An ephemeral working copy provisioned from a repo for one piece of work. Never r
 
 The presence of a context on a machine, declared in that machine's local chezmoi data. A mount declares the context's local facts: `vaults` (role → local path; an undeclared vault is not present on this machine) and `roots` (directory prefixes serving as both path rules and clone-discovery roots). Machines also declare one machine-level worktree root. Contrast with: *context* (what is mounted, machine-independent).
 
+### Root layer
+
+The substrate every Claude session stands on before any work happens: a small static invariant core (what the contexts model *is*, always loaded) plus a dynamically injected situation block (which context this session resolved to, which mounts this machine has). On-demand capabilities sit above it; deterministic enforcement sits below it. A session in an unresolved location still has a root layer — it says so explicitly, never defaulting. Contrast with: *registry* (the data the root layer resolves against, not the loading of it).
+
 ### Ownership pattern
 
 A remote pattern a context declares over the repos it owns — org-level (e.g. `github.com/bearmoth/*` → `personal`). The primary means of resolving a clone to its context. Contrast with: *path rule*.
