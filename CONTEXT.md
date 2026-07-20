@@ -28,6 +28,14 @@ The deliberate act of moving knowledge *up* in exposure — in practice journal 
 
 A pointer from a note in one vault to a note in another. Always an **exception, never a feature**: intra-vault linking is dense and encouraged (each vault enforces its own edges), but a cross-vault reference is a courtesy pointer that carries convenience, never knowledge — the note must pass the **404 test** (still make sense if every cross-vault URL in it went dead), because contexts end and take their vaults with them. Points only toward equal-or-broader exposure (private → org allowed as a URL; org → private never — that leak is what *promotion* is for). A de-specified note carries no backlink to its work-context source: the link itself is an employer specific. Contrast with: *wikilink* (intra-vault, load-bearing, integrity-checked).
 
+### Subject
+
+What a journal note *concerns*, as distinct from who owns it. Declared explicitly on topical notes (reflections, captures), naming the context(s) the note is about; a note with no declared subject is visible to every context's sessions. Ownership never follows subject: an easygo-subject reflection is still personal-owned. The **quarantine rule** reads subjects: a session resolved to one workplace never surfaces journal material whose subject is another workplace. Dated notes rarely declare a subject — their *era* supplies it. Contrast with: *context* (ownership; a note's subject never changes who owns it).
+
+### Era
+
+The lifespan of a workplace context — when it was live, from start to eventual end — recorded in the registry. An era supplies the **default subject** for dated journal entries: a daily note concerns the workplace whose era contains its date, so diary quarantine works with zero per-note ceremony and no archiving when a workplace ends; an explicit subject on a note overrides its era default. `personal` has no era — it never ends. Contrast with: *subject* (explicit, per-note), *context* (the owner; an era is *when* a context was live, not *what* it owns).
+
 ### Machine
 
 A physical computer that mounts one or more contexts. Machines are never enumerated centrally: each machine self-describes in its local chezmoi config (which contexts it mounts, local paths). Onboarding a machine touches only that machine. Contrast with: *context* (a machine is where contexts are present, never an owner of knowledge).
