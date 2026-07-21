@@ -11,13 +11,34 @@
 # across the community (git-backed), personal and work cheatpaths.
 set -uo pipefail
 
+# The popup window closes the instant this script exits, so an error written to
+# stderr would flash past unread — hence the hold. Failing loudly matters here:
+# a fatal `cheat` config error (e.g. a cheatpath pointing at a missing
+# directory) otherwise surfaces only as an empty fzf, which looks like "no
+# sheets" rather than "cheat is broken".
+die() {
+  printf '%s\n' "$@" >&2
+  [ -t 0 ] && read -r -n 1 -s -p 'Press any key to close…'
+  exit 1
+}
+
+# Validate the config once up front; cheatpath errors are static for the
+# session, and checking here keeps the failure out of the pipeline below where
+# a subshell exit would go unnoticed.
+if ! cheatpaths="$(cheat -d 2>&1)"; then
+  die "cheat-popup: 'cheat -d' failed — check ~/.config/cheat/conf.yml" "" "$cheatpaths"
+fi
+
 list_sheets() {
-  cheat -d 2>/dev/null | awk 'NF {print $NF}' | while read -r dir; do
+  printf '%s\n' "$cheatpaths" | awk 'NF {print $NF}' | while read -r dir; do
     [ -d "$dir" ] || continue
     (cd "$dir" && find . -type f -not -path '*/.git/*' -not -name '*.*' 2>/dev/null | sed 's|^\./||')
   done | sort -u
 }
 
+[ -n "$(list_sheets)" ] || die "cheat-popup: no sheets found in any cheatpath:" "" "$cheatpaths"
+
+# Re-enumerated each pass so sheets added while the popup is open show up.
 while true; do
   sheet="$(list_sheets | fzf \
     --prompt='cheat > ' \

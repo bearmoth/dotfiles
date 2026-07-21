@@ -16,7 +16,13 @@ cheatpaths:
     tags: [ personal ]
     readonly: false
 
+{{- /* cheat treats a missing cheatpath as a fatal config error, so only declare
+       work sheets on machines that actually have them. They are machine-local
+       and untracked (see .chezmoiignore); re-run `chezmoi apply` after creating
+       the directory to pick the path up. */ -}}
+{{ if stat (joinPath .chezmoi.homeDir ".config/cheat/cheatsheets/work") }}
   - name: work
     path: {{ .chezmoi.homeDir }}/.config/cheat/cheatsheets/work
     tags: [ work ]
     readonly: false
+{{- end }}
