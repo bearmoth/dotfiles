@@ -46,11 +46,11 @@ A code repository owned by a context — a workspace agents work *in*, and the t
 
 ### Worktree
 
-An ephemeral working copy provisioned from a repo for one piece of work. Never registry data: existing worktrees are enumerated live from git/herdr via the repo's clone; a worktree inherits its context from the repo it was cut from. The registry holds only the per-machine worktree root convention. Contrast with: *repo* (durable, resolvable via the registry).
+An ephemeral working copy provisioned from a repo for one piece of work. Never registry data: existing worktrees are enumerated live from git/herdr via the repo's clone; a worktree inherits its context from the repo it was cut from. The registry holds only the per-machine worktree root convention. A worktree is named for its branch, and the branch embeds the ticket reference when one exists — so ticket ↔ worktree mapping is *derived by parsing, never stored*. Durable knowledge never cites a worktree path (a note must survive the deletion of every worktree it was written from — see *cross-vault reference* for the analogous 404 test); attribution uses the tuple (context, owner/repo, ticket, branch). Worktrees die only deliberately: no autonomous deletion, no expiry — a human-triggered sweep proposes evidence-backed candidates. Contrast with: *repo* (durable, resolvable via the registry).
 
 ### Mount
 
-The presence of a context on a machine, declared in that machine's local chezmoi data. A mount declares the context's local facts: `vaults` (role → local path; an undeclared vault is not present on this machine) and `roots` (directory prefixes serving as both path rules and clone-discovery roots). Machines also declare one machine-level worktree root. Contrast with: *context* (what is mounted, machine-independent).
+The presence of a context on a machine, declared in that machine's local chezmoi data. A mount declares the context's local facts: `vaults` (role → local path; an undeclared vault is not present on this machine) and `roots` (directory prefixes serving as both path rules and clone-discovery roots). Machines also declare one machine-level **primary clone root** (where new clones land) and one machine-level **worktree root**; beneath both, the layout is always `<owner>/<repo>` — context is derived from the owner segment via ownership patterns, never from a directory name. Other roots persist as discovery-only: existing clones stay legal where they are and are never migrated by convention alone. Contrast with: *context* (what is mounted, machine-independent).
 
 ### Root layer
 
