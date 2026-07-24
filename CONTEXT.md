@@ -36,6 +36,18 @@ What a journal note *concerns*, as distinct from who owns it. Declared explicitl
 
 The lifespan of a workplace context — when it was live, from start to eventual end — recorded in the registry. An era supplies the **default subject** for dated journal entries: a daily note concerns the workplace whose era contains its date, so diary quarantine works with zero per-note ceremony and no archiving when a workplace ends; an explicit subject on a note overrides its era default. `personal` has no era — it never ends. Contrast with: *subject* (explicit, per-note), *context* (the owner; an era is *when* a context was live, not *what* it owns).
 
+### Routine
+
+An unprompted moment in an agent session — a trigger, an obliged action, and a destination resolved by routing. Routines come in two tiers: **obligation** — deterministically enforced, so the moment cannot be silently missed (the worklog after significant work, the exposure gate) — and **offer** — best-effort detection where the agent proposes a capture (an ADR-shaped decision, a reflection, a de-spec flag) and the human decides. An explicit capture request is always guaranteed; offers are bonus. The worklog is agent-written; the diary is never — an agent does not author Phil's first person. Contrast with: *skill* (a capability a session may load; a routine is *when and what must happen*, not how).
+
+### Taint
+
+A session-level fact: once a session has read any private-exposure material, every later autonomous write to an org-exposed destination is human-gated for the rest of that session — the mechanical form of the source-visibility rule. Taint is deliberately conservative: it records that private material *entered the session*, never which claims derive from it, and it cannot be shed by delegating the write to a fresh agent (the delegation itself carries the provenance). Contrast with: *promotion* (the human-gated act taint forces), per-claim provenance (rejected — it would need the nuance-judging the exposure model forbids).
+
+### Pulse
+
+The per-destination freshness signal surfaced at the start of every session: when each routine last produced output (latest worklog entry, inbox triage debt, journal recency, last ingestion run). The pulse turns silence into a visible negative — a broken or abandoned routine shows up as staleness within a day, never as an invisible gap. Contrast with: *audit* (the on-demand deep report — counts per routine, offer acceptance, gate trips — of which the pulse is the one-line summary).
+
 ### Machine
 
 A physical computer that mounts one or more contexts. Machines are never enumerated centrally: each machine self-describes in its local chezmoi config (which contexts it mounts, local paths). Onboarding a machine touches only that machine. Contrast with: *context* (a machine is where contexts are present, never an owner of knowledge).
