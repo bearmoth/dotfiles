@@ -1,0 +1,5 @@
+# Rendered by chezmoi from .chezmoidata/contexts.yaml (shared layer) and this
+# machine's data.eos (mounts) — DO NOT EDIT; edit the sources and re-apply.
+# See the registry-maintenance skill. Machine mirror for scripts:
+# registry.json (same data). Wayfinder #9/#23.
+{{ includeTemplate "eos-registry" . | fromJson | toYaml }}

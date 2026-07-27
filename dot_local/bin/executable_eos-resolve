@@ -1,0 +1,430 @@
+#!/usr/bin/env python3
+"""eos-resolve — engineering-OS registry resolver (wayfinder #10/#23).
+
+The single home of registry semantics. The SessionStart hook, the three
+engineering-OS skills, and the statusline all call this instead of parsing
+the registry themselves.
+
+Reads ~/.config/engineering-os/registry.json (rendered by chezmoi from
+.chezmoidata/contexts.yaml + the machine's data.eos mounts).
+
+Commands:
+  context [PATH]   resolve the owning context for PATH (default: cwd)
+  banner  [PATH]   SessionStart block: context + mounts + attribution + pulse
+  pulse            freshness pulse lines (worklog/journal recency; threshold-
+                   gated lines for _inbox, de-spec queue, ingestion staleness)
+  mounts           this machine's mounts
+  vaults           every registered vault with exposure and local path
+
+All commands accept --json. Exit codes: 0 ok, 1 unresolved (context), 3 no
+registry.
+"""
+
+import argparse
+import fnmatch
+import json
+import os
+import re
+import subprocess
+import sys
+import time
+
+REGISTRY = os.path.expanduser("~/.config/engineering-os/registry.json")
+
+# Pulse thresholds (days) — pilot-tunable via env (wayfinder #15/#16).
+INBOX_MAX_DAYS = int(os.environ.get("EOS_INBOX_MAX_DAYS", "14"))
+DESPEC_MAX_DAYS = int(os.environ.get("EOS_DESPEC_MAX_DAYS", "14"))
+INGEST_MAX_DAYS = int(os.environ.get("EOS_INGEST_MAX_DAYS", "10"))
+
+SKIP_DIRS = {".git", ".obsidian", ".trash", ".claude", "node_modules"}
+
+
+def load_registry():
+    try:
+        with open(REGISTRY) as f:
+            return json.load(f)
+    except (OSError, ValueError) as e:
+        print(f"eos-resolve: cannot read {REGISTRY}: {e}", file=sys.stderr)
+        print("Run `chezmoi apply` to render the registry.", file=sys.stderr)
+        sys.exit(3)
+
+
+def git(args, cwd=None):
+    try:
+        out = subprocess.run(
+            ["git", *args], cwd=cwd, capture_output=True, text=True, timeout=10
+        )
+        return out.stdout.strip() if out.returncode == 0 else None
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+
+
+def normalize_remote(url):
+    """git@github.com:owner/repo.git / https://github.com/owner/repo.git
+    -> github.com/owner/repo"""
+    if not url:
+        return None
+    m = re.match(r"^(?:ssh://)?(?:[\w.-]+@)?([\w.-]+)[:/](.+?)(?:\.git)?/?$", url)
+    if m:
+        host, path = m.group(1), m.group(2)
+        return f"{host}/{path}"
+    m = re.match(r"^https?://([\w.-]+)/(.+?)(?:\.git)?/?$", url)
+    if m:
+        return f"{m.group(1)}/{m.group(2)}"
+    return None
+
+
+def all_vaults(reg):
+    """Yield (context, role_or_None, vault_dict) for every registered vault."""
+    for ctx, cdef in reg.get("contexts", {}).items():
+        for role, v in (cdef.get("vaults") or {}).items():
+            yield ctx, role, v
+        for v in cdef.get("roleless") or []:
+            yield ctx, None, v
+
+
+def path_within(path, root):
+    path = os.path.realpath(path)
+    root = os.path.realpath(root)
+    return path == root or path.startswith(root + os.sep)
+
+
+def parse_ticket(branch):
+    """Derive the ticket ref from a branch name (wayfinder #13: derived by
+    parsing, never stored). e.g. ABC-123-fix-thing -> ABC-123."""
+    if not branch:
+        return None
+    m = re.search(r"\b([A-Za-z][A-Za-z0-9_]*-\d+)\b", branch)
+    return m.group(1) if m else None
+
+
+def resolve_context(reg, path):
+    """Resolve the owning context for a path.
+
+    Order: vault membership -> repo ownership pattern (remote) -> machine
+    path rule (longest matching root). No fallback context (wayfinder #9):
+    unresolved is a surfaced fact, never a default.
+    """
+    path = os.path.realpath(path)
+    result = {
+        "path": path,
+        "context": None,
+        "method": None,
+        "vault": None,
+        "repo": None,
+        "branch": None,
+        "ticket": None,
+    }
+
+    # 1. Inside a registered vault?
+    for ctx, role, v in all_vaults(reg):
+        vpath = v.get("path")
+        if vpath and path_within(path, vpath):
+            result.update(
+                context=ctx,
+                method="vault",
+                vault={"name": v["name"], "role": role, "exposure": v["exposure"]},
+            )
+            return result
+
+    # 2. Inside a git repo whose remote matches an ownership pattern?
+    toplevel = git(["rev-parse", "--show-toplevel"], cwd=path if os.path.isdir(path) else os.path.dirname(path))
+    if toplevel:
+        remote = normalize_remote(git(["remote", "get-url", "origin"], cwd=toplevel))
+        branch = git(["rev-parse", "--abbrev-ref", "HEAD"], cwd=toplevel)
+        result["branch"] = branch
+        result["ticket"] = parse_ticket(branch)
+        if remote:
+            owner_repo = "/".join(remote.split("/")[1:3])
+            result["repo"] = {"remote": remote, "slug": owner_repo}
+            for ctx, cdef in reg.get("contexts", {}).items():
+                for pattern in cdef.get("ownership") or []:
+                    # Match both org-level (host/owner/*) and exact repo patterns.
+                    if fnmatch.fnmatch(remote, pattern) or fnmatch.fnmatch(
+                        remote + "/", pattern
+                    ):
+                        result.update(context=ctx, method="ownership")
+                        return result
+
+    # 3. Machine path rules (longest matching root wins).
+    best = None
+    for ctx, cdef in reg.get("contexts", {}).items():
+        for root in cdef.get("roots") or []:
+            if path_within(path, root):
+                if best is None or len(os.path.realpath(root)) > len(best[1]):
+                    best = (ctx, os.path.realpath(root))
+    if best:
+        result.update(context=best[0], method="path-rule")
+        return result
+
+    return result  # unresolved
+
+
+# ---------------------------------------------------------------- pulse ----
+
+
+def newest_mtime(root, match=None, max_depth=None):
+    """Newest file mtime under root (skipping vault plumbing dirs)."""
+    newest = None
+    root = os.path.realpath(root)
+    base_depth = root.count(os.sep)
+    for dirpath, dirnames, filenames in os.walk(root):
+        dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS and not d.startswith(".")]
+        if max_depth is not None and dirpath.count(os.sep) - base_depth >= max_depth:
+            dirnames[:] = []
+        for fn in filenames:
+            if match and not fnmatch.fnmatch(fn, match):
+                continue
+            try:
+                mt = os.path.getmtime(os.path.join(dirpath, fn))
+            except OSError:
+                continue
+            if newest is None or mt > newest:
+                newest = mt
+    return newest
+
+
+def age_days(mtime):
+    return int((time.time() - mtime) // 86400) if mtime else None
+
+
+def worklog_age(vault_path):
+    """Newest monthly worklog shard (log/YYYY-MM.md at vault root or one
+    level down, e.g. the PKB's wiki/log/)."""
+    newest = None
+    for logdir in [os.path.join(vault_path, "log")] + [
+        os.path.join(vault_path, d, "log")
+        for d in (os.listdir(vault_path) if os.path.isdir(vault_path) else [])
+        if os.path.isdir(os.path.join(vault_path, d)) and d not in SKIP_DIRS and not d.startswith(".")
+    ]:
+        if not os.path.isdir(logdir):
+            continue
+        for fn in os.listdir(logdir):
+            if re.fullmatch(r"\d{4}-\d{2}\.md", fn):
+                try:
+                    mt = os.path.getmtime(os.path.join(logdir, fn))
+                except OSError:
+                    continue
+                if newest is None or mt > newest:
+                    newest = mt
+    return age_days(newest)
+
+
+def despec_queue_state(wiki_path):
+    """(count, oldest_age_days) of undrained de-spec queue entries."""
+    qfile = os.path.join(wiki_path, "WIP", "De-spec Queue.md")
+    if not os.path.isfile(qfile):
+        return 0, None
+    dates = []
+    try:
+        with open(qfile, encoding="utf-8", errors="replace") as f:
+            for line in f:
+                if re.match(r"^#+\s*Drained\b", line, re.IGNORECASE):
+                    break
+                dates += re.findall(r"\b(\d{4}-\d{2}-\d{2})\b", line)
+    except OSError:
+        return 0, None
+    if not dates:
+        return 0, None
+    oldest = min(dates)
+    try:
+        oldest_age = int((time.time() - time.mktime(time.strptime(oldest, "%Y-%m-%d"))) // 86400)
+    except ValueError:
+        oldest_age = None
+    return len(dates), oldest_age
+
+
+def inbox_state(journal_path):
+    """(count, oldest_age_days) of untriaged _inbox/ items."""
+    inbox = os.path.join(journal_path, "_inbox")
+    if not os.path.isdir(inbox):
+        return 0, None
+    oldest = None
+    count = 0
+    for dirpath, dirnames, filenames in os.walk(inbox):
+        dirnames[:] = [d for d in dirnames if not d.startswith(".")]
+        for fn in filenames:
+            if fn.startswith("."):
+                continue
+            count += 1
+            try:
+                mt = os.path.getmtime(os.path.join(dirpath, fn))
+            except OSError:
+                continue
+            if oldest is None or mt < oldest:
+                oldest = mt
+    return count, age_days(oldest)
+
+
+def compute_pulse(reg):
+    """The pulse (wayfinder #14/#16): per-destination freshness. Always-on
+    recency lines; threshold-gated debt lines (silent unless rotting)."""
+    lines = []
+    data = {}
+    contexts = reg.get("contexts", {})
+
+    personal_wiki = None
+    journal = None
+    for ctx in sorted(contexts):
+        cdef = contexts[ctx]
+        vaults = cdef.get("vaults") or {}
+        wiki = vaults.get("wiki") or {}
+        if wiki.get("path"):
+            wa = worklog_age(wiki["path"])
+            data.setdefault("worklog", {})[ctx] = wa
+            lines.append(
+                f"worklog {ctx}: "
+                + ("no log/YYYY-MM.md yet" if wa is None else f"last entry {wa}d ago")
+            )
+            if ctx == "personal":
+                personal_wiki = wiki["path"]
+            # Ingestion heartbeat: newest file under the wiki's raw/ capture
+            # area (how /weekly-ingest lands material in the Engagement PKB).
+            raw = os.path.join(wiki["path"], "raw")
+            if os.path.isdir(raw):
+                ia = age_days(newest_mtime(raw))
+                data.setdefault("ingest", {})[ctx] = ia
+                if ia is not None and ia > INGEST_MAX_DAYS:
+                    lines.append(
+                        f"ingest {ctx}: last run {ia}d ago (>{INGEST_MAX_DAYS}d) — run /weekly-ingest in {wiki['name']}"
+                    )
+        jv = vaults.get("journal") or {}
+        if jv.get("path"):
+            journal = jv["path"]
+            ja = age_days(newest_mtime(jv["path"], match="*.md"))
+            data["journal"] = ja
+            lines.append(
+                "journal: " + ("empty" if ja is None else f"last note {ja}d ago")
+            )
+
+    if journal:
+        count, oldest = inbox_state(journal)
+        data["inbox"] = {"count": count, "oldest_days": oldest}
+        if oldest is not None and oldest > INBOX_MAX_DAYS:
+            lines.append(
+                f"_inbox: {count} untriaged, oldest {oldest}d (>{INBOX_MAX_DAYS}d) — drain via knowledge-routing triage"
+            )
+
+    if personal_wiki:
+        count, oldest = despec_queue_state(personal_wiki)
+        data["despec"] = {"count": count, "oldest_days": oldest}
+        if oldest is not None and oldest > DESPEC_MAX_DAYS:
+            lines.append(
+                f"de-spec queue: {count} queued, oldest {oldest}d (>{DESPEC_MAX_DAYS}d) — drain via /despec"
+            )
+
+    return lines, data
+
+
+# --------------------------------------------------------------- output ----
+
+
+def home_tilde(path):
+    home = os.path.expanduser("~")
+    return "~" + path[len(home):] if path and path.startswith(home) else path
+
+
+def mounts_lines(reg):
+    lines = []
+    for ctx in sorted(reg.get("contexts", {})):
+        cdef = reg["contexts"][ctx]
+        for role in sorted(cdef.get("vaults") or {}):
+            v = cdef["vaults"][role]
+            loc = home_tilde(v.get("path")) if v.get("path") else "not on this machine"
+            lines.append(f"{ctx} {role}: {v['name']} ({v['exposure']}) — {loc}")
+        for v in cdef.get("roleless") or []:
+            loc = home_tilde(v.get("path")) if v.get("path") else "not on this machine"
+            lines.append(
+                f"{ctx} roleless: {v['name']} ({v['exposure']}, not a routing destination) — {loc}"
+            )
+    machine = reg.get("machine", {})
+    if machine.get("clone_root") or machine.get("worktree_root"):
+        lines.append(
+            f"clone root: {home_tilde(machine.get('clone_root', '?'))} | worktree root: {home_tilde(machine.get('worktree_root', '?'))}"
+        )
+    return lines
+
+
+def context_lines(res):
+    if res["context"]:
+        line = f"Context: {res['context']} (via {res['method']}"
+        if res.get("repo"):
+            line += f": {res['repo']['slug']}"
+        elif res.get("vault"):
+            line += f": {res['vault']['name']}"
+        line += ")"
+        lines = [line]
+        if res.get("branch"):
+            attr = f"Attribution: ({res['context']}, {res['repo']['slug'] if res.get('repo') else '?'}, {res.get('ticket') or 'no-ticket'}, {res['branch']})"
+            lines.append(attr)
+        return lines
+    return [
+        "Context: UNRESOLVED — this directory maps to no context; knowledge",
+        "routing is disabled for this session (no default, by design). Fix via",
+        "the registry-maintenance skill: add an ownership pattern to",
+        ".chezmoidata/contexts.yaml or a machine root to ~/.config/chezmoi/chezmoi.yaml.",
+    ]
+
+
+def main():
+    ap = argparse.ArgumentParser(prog="eos-resolve", description=__doc__)
+    ap.add_argument("command", choices=["context", "banner", "pulse", "mounts", "vaults"])
+    ap.add_argument("path", nargs="?", default=os.getcwd())
+    ap.add_argument("--json", action="store_true", dest="as_json")
+    args = ap.parse_intermixed_args()
+
+    reg = load_registry()
+
+    if args.command == "context":
+        res = resolve_context(reg, args.path)
+        if args.as_json:
+            print(json.dumps(res, indent=2))
+        else:
+            print("\n".join(context_lines(res)))
+        sys.exit(0 if res["context"] else 1)
+
+    if args.command == "vaults":
+        vaults = [
+            {"context": ctx, "role": role, **v} for ctx, role, v in all_vaults(reg)
+        ]
+        if args.as_json:
+            print(json.dumps(vaults, indent=2))
+        else:
+            print("\n".join(mounts_lines(reg)))
+        return
+
+    if args.command == "mounts":
+        if args.as_json:
+            print(json.dumps({"machine": reg.get("machine", {}), "contexts": reg.get("contexts", {})}, indent=2))
+        else:
+            print("\n".join(mounts_lines(reg)))
+        return
+
+    if args.command == "pulse":
+        lines, data = compute_pulse(reg)
+        if args.as_json:
+            print(json.dumps(data, indent=2))
+        else:
+            print("\n".join(lines))
+        return
+
+    if args.command == "banner":
+        res = resolve_context(reg, args.path)
+        pulse_lines, pulse_data = compute_pulse(reg)
+        if args.as_json:
+            print(json.dumps({"context": res, "mounts": reg, "pulse": pulse_data}, indent=2))
+            return
+        out = ["## Engineering OS"]
+        out += context_lines(res)
+        out.append("Mounts:")
+        out += ["  " + l for l in mounts_lines(reg)]
+        out.append("Pulse:")
+        out += ["  " + l for l in pulse_lines]
+        out.append(
+            "Registry: ~/.config/engineering-os/registry.yaml | Glossary: CONTEXT.md in bearmoth/dotfiles"
+        )
+        print("\n".join(out))
+
+
+if __name__ == "__main__":
+    main()

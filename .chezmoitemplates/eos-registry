@@ -1,0 +1,45 @@
+{{- /*
+Builds the merged engineering-os registry (shared contexts.yaml layer +
+this machine's data.eos mounts) and emits it as JSON. Included by
+dot_config/engineering-os/registry.{yaml,json}.tmpl — the single place the
+merge happens. Wayfinder #9/#23.
+*/ -}}
+{{- $eos := dict -}}
+{{- if hasKey . "eos" -}}{{- $eos = .eos -}}{{- end -}}
+{{- $mounts := dict -}}
+{{- if hasKey $eos "mounts" -}}{{- $mounts = $eos.mounts -}}{{- end -}}
+{{- $contexts := dict -}}
+{{- range $name, $def := .contexts -}}
+{{-   $mount := dict -}}
+{{-   if hasKey $mounts $name -}}{{- $mount = get $mounts $name -}}{{- end -}}
+{{-   $mvaults := dict -}}
+{{-   if hasKey $mount "vaults" -}}{{- $mvaults = $mount.vaults -}}{{- end -}}
+{{-   $vaults := dict -}}
+{{-   $defvaults := dict -}}
+{{-   if hasKey $def "vaults" -}}{{- $defvaults = $def.vaults -}}{{- end -}}
+{{-   range $role, $v := $defvaults -}}
+{{-     $entry := dict "name" $v.name "repo" $v.repo "exposure" $v.exposure -}}
+{{-     if hasKey $mvaults $role -}}{{- $_ := set $entry "path" (get $mvaults $role) -}}{{- end -}}
+{{-     $_ := set $vaults $role $entry -}}
+{{-   end -}}
+{{-   $mroleless := dict -}}
+{{-   if hasKey $mount "roleless" -}}{{- $mroleless = $mount.roleless -}}{{- end -}}
+{{-   $roleless := list -}}
+{{-   if hasKey $def "roleless" -}}
+{{-     range $v := $def.roleless -}}
+{{-       $entry := dict "name" $v.name "repo" $v.repo "exposure" $v.exposure -}}
+{{-       if hasKey $mroleless $v.name -}}{{- $_ := set $entry "path" (get $mroleless $v.name) -}}{{- end -}}
+{{-       $roleless = append $roleless $entry -}}
+{{-     end -}}
+{{-   end -}}
+{{-   $roots := list -}}
+{{-   if hasKey $mount "roots" -}}{{- $roots = $mount.roots -}}{{- end -}}
+{{-   $ctx := dict "ownership" ($def.ownership | default list) "vaults" $vaults "roots" $roots -}}
+{{-   if hasKey $def "span" -}}{{- $_ := set $ctx "span" $def.span -}}{{- end -}}
+{{-   if $roleless -}}{{- $_ := set $ctx "roleless" $roleless -}}{{- end -}}
+{{-   $_ := set $contexts $name $ctx -}}
+{{- end -}}
+{{- $machine := dict -}}
+{{- if hasKey $eos "clone_root" -}}{{- $_ := set $machine "clone_root" $eos.clone_root -}}{{- end -}}
+{{- if hasKey $eos "worktree_root" -}}{{- $_ := set $machine "worktree_root" $eos.worktree_root -}}{{- end -}}
+{{- toPrettyJson (dict "machine" $machine "contexts" $contexts) -}}

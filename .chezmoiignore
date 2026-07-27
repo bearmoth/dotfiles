@@ -6,6 +6,7 @@ docs/
 # Exceptions — specific .md files that should be managed
 !.claude/CLAUDE.md
 !.claude/skills/**
+!.claude/commands/**
 
 # AeroSpace: macOS-only AND opt-in via features.aerospace (defense-in-depth double gate)
 {{ if or (ne .chezmoi.os "darwin") (not .features.aerospace) -}}

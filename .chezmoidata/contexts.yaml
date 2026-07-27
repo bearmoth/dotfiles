@@ -1,0 +1,49 @@
+# Shared layer of the engineering-OS registry (wayfinder #9, #11, #12).
+# Machine-independent context definitions: names, ownership patterns, vault
+# definitions, eras. Public and unencrypted by decision (#9) — a
+# privacy-conscious future context can instead be declared entirely in a
+# machine's local chezmoi config data (same schema, deep-merged, never
+# committed).
+#
+# Machine-local facts (mounts: vault paths, roots, clone/worktree roots) live
+# in each machine's ~/.config/chezmoi/chezmoi.yaml under data.eos — see
+# the registry-maintenance skill. chezmoi merges both layers and renders
+# ~/.config/engineering-os/registry.{yaml,json}.
+#
+# Schema per context:
+#   span:       era of a workplace context ({start, end}); omitted for
+#               personal, which never ends (#12)
+#   ownership:  remote patterns over the repos this context owns (host/owner/*)
+#   vaults:     role -> vault definition; at most one vault per role (#9)
+#     <role>:   {name, repo, exposure}   role ∈ {wiki, journal}
+#   roleless:   vaults registered but ineligible as routing destinations
+#               (e.g. a draining vault), list of {name, repo, exposure}
+contexts:
+  personal:
+    ownership:
+      - "github.com/bearmoth/*"
+    vaults:
+      wiki:
+        name: "Tech Notes"
+        repo: "github.com/bearmoth/notes-tech"
+        exposure: private
+      journal:
+        name: "Journal"
+        repo: "github.com/bearmoth/notes-journal"
+        exposure: private
+  easygo:
+    span:
+      start: "2024-04-23"
+      end: null
+    ownership:
+      - "github.com/primeslice/*"
+      - "github.com/StakeEngine/*"
+    vaults:
+      wiki:
+        name: "Engagement PKB"
+        repo: "github.com/primeslice/engagement-pkb"
+        exposure: org
+    roleless:
+      - name: "Easygo"
+        repo: "github.com/bearmoth/notes-easygo"
+        exposure: private # draining (#9); leaves the registry when drained

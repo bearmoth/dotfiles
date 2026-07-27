@@ -6,6 +6,17 @@
 {{- $workHostnames := list "MacBook-Pro" -}}
 {{- $isWork := has .chezmoi.hostname $workHostnames -}}
 
+{{- /* Machine-local engineering-os data (mounts, clone/worktree roots) is
+       hand-maintained in this config file per machine (wayfinder #9).
+       Carry it forward when `chezmoi init` regenerates the config. */ -}}
+{{- $eos := dict -}}
+{{- if hasKey . "eos" -}}
+{{-   $eos = .eos -}}
+{{- end -}}
+
 data:
   osid: {{ $osid | quote }}
   isWork: {{ $isWork }}
+{{- if $eos }}
+  eos: {{ toJson $eos }}
+{{- end }}

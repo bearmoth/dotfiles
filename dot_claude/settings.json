@@ -7,9 +7,59 @@
     "pr": ""
   },
   "permissions": {
-    "defaultMode": "auto"
+    "defaultMode": "auto",
+    "deny": [
+      // "EnterPlanMode",
+      // "ExitPlanMode",
+      // "DesignSync",
+      // "NotebookEdit",
+      // "SendMessage",
+      // "PushNotification",
+      // "RemoteTrigger",
+      // "ReportFindings",
+      // "ScheduleWakeup",
+      // "AskUserQuestion",
+      // "CronCreate",
+      // "CronDelete",
+      // "CronList"
+    ],
   },
+  // "disableBundledSkills": true,
+  // "disableWorkflows": true,
+  // "disableClaudeConnectors": true,
+  // "disableArtifact": true,
   "model": "opusplan",
+  // Engineering-OS root layer (wayfinder #23): banner, routines, guardrails.
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          { "type": "command", "command": "~/.claude/hooks/eos-session-start.py" }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          { "type": "command", "command": "~/.claude/hooks/eos-git-guardrail.py" }
+        ]
+      },
+      {
+        "matcher": "Read|Grep|Glob|Edit|Write|MultiEdit|NotebookEdit|Bash",
+        "hooks": [
+          { "type": "command", "command": "~/.claude/hooks/eos-taint-gate.py" }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          { "type": "command", "command": "~/.claude/hooks/eos-stop.py" }
+        ]
+      }
+    ]
+  },
   "statusLine": {
     "type": "command",
     "command": "bash ~/.claude/statusline-command.sh"
