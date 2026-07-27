@@ -8,28 +8,9 @@
   },
   "permissions": {
     "defaultMode": "auto",
-    "deny": [
-      // "EnterPlanMode",
-      // "ExitPlanMode",
-      // "DesignSync",
-      // "NotebookEdit",
-      // "SendMessage",
-      // "PushNotification",
-      // "RemoteTrigger",
-      // "ReportFindings",
-      // "ScheduleWakeup",
-      // "AskUserQuestion",
-      // "CronCreate",
-      // "CronDelete",
-      // "CronList"
-    ],
+    "deny": []
   },
-  // "disableBundledSkills": true,
-  // "disableWorkflows": true,
-  // "disableClaudeConnectors": true,
-  // "disableArtifact": true,
   "model": "opusplan",
-  // Engineering-OS root layer (wayfinder #23): banner, routines, guardrails.
   "hooks": {
     "SessionStart": [
       {
