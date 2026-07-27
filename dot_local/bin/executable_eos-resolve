@@ -210,6 +210,39 @@ def worklog_age(vault_path):
     return age_days(newest)
 
 
+def ingest_age(vault_path):
+    """Age of the last ingest (wayfinder #24): the newest `## [YYYY-MM-DD]
+    ingest | ...` entry in a log.md at the vault root or one level down (the
+    PKB's wiki/log.md) — the ingest workflow's own record, not a file-mtime
+    side-effect. Falls back to newest mtime under raw/ when no entry exists."""
+    newest = None
+    candidates = [os.path.join(vault_path, "log.md")] + [
+        os.path.join(vault_path, d, "log.md")
+        for d in (os.listdir(vault_path) if os.path.isdir(vault_path) else [])
+        if os.path.isdir(os.path.join(vault_path, d)) and d not in SKIP_DIRS and not d.startswith(".")
+    ]
+    for logfile in candidates:
+        if not os.path.isfile(logfile):
+            continue
+        try:
+            with open(logfile, encoding="utf-8", errors="replace") as f:
+                for line in f:
+                    m = re.match(r"^##\s*\[(\d{4}-\d{2}-\d{2})\]\s*ingest\s*\|", line)
+                    if m and (newest is None or m.group(1) > newest):
+                        newest = m.group(1)
+        except OSError:
+            continue
+    if newest:
+        try:
+            return age_days(time.mktime(time.strptime(newest, "%Y-%m-%d")))
+        except ValueError:
+            pass
+    raw = os.path.join(vault_path, "raw")
+    if os.path.isdir(raw):
+        return age_days(newest_mtime(raw))
+    return None
+
+
 def despec_queue_state(wiki_path):
     """(count, oldest_age_days) of undrained de-spec queue entries."""
     qfile = os.path.join(wiki_path, "WIP", "De-spec Queue.md")
@@ -278,15 +311,14 @@ def compute_pulse(reg):
             )
             if ctx == "personal":
                 personal_wiki = wiki["path"]
-            # Ingestion heartbeat: newest file under the wiki's raw/ capture
-            # area (how /weekly-ingest lands material in the Engagement PKB).
-            raw = os.path.join(wiki["path"], "raw")
-            if os.path.isdir(raw):
-                ia = age_days(newest_mtime(raw))
+            # Ingestion heartbeat: last `ingest` entry in the vault's own
+            # log.md (raw/ mtime as fallback) — wayfinder #16/#24.
+            ia = ingest_age(wiki["path"])
+            if ia is not None:
                 data.setdefault("ingest", {})[ctx] = ia
-                if ia is not None and ia > INGEST_MAX_DAYS:
+                if ia > INGEST_MAX_DAYS:
                     lines.append(
-                        f"ingest {ctx}: last run {ia}d ago (>{INGEST_MAX_DAYS}d) — run /weekly-ingest in {wiki['name']}"
+                        f"ingest {ctx}: last ingest {ia}d ago (>{INGEST_MAX_DAYS}d) — run /weekly-ingest in {wiki['name']}"
                     )
         jv = vaults.get("journal") or {}
         if jv.get("path"):
