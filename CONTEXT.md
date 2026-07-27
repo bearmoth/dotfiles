@@ -52,6 +52,14 @@ A session-level fact: once a session has read any private-exposure material, eve
 
 The per-destination freshness signal surfaced at the start of every session: when each routine last produced output (latest worklog entry, inbox triage debt, journal recency, last ingestion run). The pulse turns silence into a visible negative — a broken or abandoned routine shows up as staleness within a day, never as an invisible gap. Contrast with: *audit* (the on-demand deep report — counts per routine, offer acceptance, gate trips — of which the pulse is the one-line summary).
 
+### Session capture
+
+A summary of an agent session written to the journal's `captures/sessions/` as the session ends, by the same Stop hook (and the same significance gate) that nudges the worklog — a session significant enough to worklog is significant enough to capture; a trivial one produces neither. A session capture is a **terminal record**: it is never re-triaged, summarised, or dropped — record-role material accumulates like the diary, and knowledge extraction happens at session end via the routines, not by reprocessing the record later. Hard-killed sessions escape the hook; the gap is accepted and surfaces as journal staleness in the pulse. Contrast with: *worklog entry* (curated, wiki-bound, context-owned), `_inbox/` items (capture that *does* await triage).
+
+### Scraper
+
+An automated pipeline mirroring an external source (Slack DMs, Jira, Confluence, GitHub activity) into a vault without a human in the loop. Scrapers are admitted one at a time, each earning its place by three tests: the pilot has proven triage keeps up, repeated manual fetching has demonstrated pull, and the scraper is heartbeat-visible from day one (last-run + yield in the pulse). Perishable sources outrank re-fetchable ones — Slack DM mirrors are first in line because unmirrored DMs age out of retention, while org-visible sources can always be fetched late. Contrast with: *routine* (fires inside a live session), `/weekly-ingest` (agent-assisted but human-driven — a wide-open time window, not a background process).
+
 ### Machine
 
 A physical computer that mounts one or more contexts. Machines are never enumerated centrally: each machine self-describes in its local chezmoi config (which contexts it mounts, local paths). Onboarding a machine touches only that machine. Contrast with: *context* (a machine is where contexts are present, never an owner of knowledge).
