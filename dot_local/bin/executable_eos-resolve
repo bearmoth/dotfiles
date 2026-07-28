@@ -405,17 +405,25 @@ def home_tilde(path):
 
 
 def mounts_lines(reg):
+    def tag(v):
+        # exposure (who may see it) + the sensitivity marker when private
+        # (ADR-0008: personal != private).
+        t = v.get("exposure", "?")
+        if v.get("private"):
+            t += ", private"
+        return t
+
     lines = []
     for ctx in sorted(reg.get("contexts", {})):
         cdef = reg["contexts"][ctx]
         for role in sorted(cdef.get("vaults") or {}):
             v = cdef["vaults"][role]
             loc = home_tilde(v.get("path")) if v.get("path") else "not on this machine"
-            lines.append(f"{ctx} {role}: {v['name']} ({v['exposure']}) — {loc}")
+            lines.append(f"{ctx} {role}: {v['name']} ({tag(v)}) — {loc}")
         for v in cdef.get("roleless") or []:
             loc = home_tilde(v.get("path")) if v.get("path") else "not on this machine"
             lines.append(
-                f"{ctx} roleless: {v['name']} ({v['exposure']}, not a routing destination) — {loc}"
+                f"{ctx} roleless: {v['name']} ({tag(v)}, not a routing destination) — {loc}"
             )
     machine = reg.get("machine", {})
     if machine.get("clone_root") or machine.get("worktree_root"):
