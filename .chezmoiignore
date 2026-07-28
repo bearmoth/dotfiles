@@ -7,6 +7,10 @@ docs/
 tests/
 .venv/
 .pytest_cache/
+# Python bytecode caches (the suite importlib-loads the hook/resolver scripts,
+# writing __pycache__ next to them — must never deploy into ~/.claude etc.)
+**/__pycache__
+**/__pycache__/**
 
 # Exceptions — specific .md files that should be managed
 !.claude/CLAUDE.md

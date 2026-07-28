@@ -1,2 +1,9 @@
 
 .superpowers/
+
+# Python bytecode from running the repo-root test suite (importlib loads the
+# hook/resolver scripts, which writes caches next to them)
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
