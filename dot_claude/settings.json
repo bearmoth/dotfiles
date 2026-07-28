@@ -13,6 +13,8 @@
     ]
   },
   "model": "opusplan",
+  "disableWorkflows": true,
+  "disableArtifact": true,
   "hooks": {
     "SessionStart": [
       {
