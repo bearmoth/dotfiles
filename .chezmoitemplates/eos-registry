@@ -18,7 +18,7 @@ merge happens. Wayfinder #9/#23.
 {{-   $defvaults := dict -}}
 {{-   if hasKey $def "vaults" -}}{{- $defvaults = $def.vaults -}}{{- end -}}
 {{-   range $role, $v := $defvaults -}}
-{{-     $entry := dict "name" $v.name "repo" $v.repo "exposure" $v.exposure -}}
+{{-     $entry := dict "name" $v.name "repo" $v.repo "exposure" $v.exposure "private" $v.private -}}
 {{-     if hasKey $mvaults $role -}}{{- $_ := set $entry "path" (get $mvaults $role) -}}{{- end -}}
 {{-     $_ := set $vaults $role $entry -}}
 {{-   end -}}
@@ -27,7 +27,7 @@ merge happens. Wayfinder #9/#23.
 {{-   $roleless := list -}}
 {{-   if hasKey $def "roleless" -}}
 {{-     range $v := $def.roleless -}}
-{{-       $entry := dict "name" $v.name "repo" $v.repo "exposure" $v.exposure -}}
+{{-       $entry := dict "name" $v.name "repo" $v.repo "exposure" $v.exposure "private" $v.private -}}
 {{-       if hasKey $mroleless $v.name -}}{{- $_ := set $entry "path" (get $mroleless $v.name) -}}{{- end -}}
 {{-       $roleless = append $roleless $entry -}}
 {{-     end -}}

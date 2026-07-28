@@ -11,12 +11,14 @@ layer, then `chezmoi apply` re-renders both; verify with `eos-resolve`.
 
 | Layer | File | Holds |
 |---|---|---|
-| Shared | `.chezmoidata/contexts.yaml` in `bearmoth/dotfiles` | context names, ownership patterns, vault defs (name/repo/exposure/role), spans |
+| Shared | `.chezmoidata/contexts.yaml` in `bearmoth/dotfiles` | context names, ownership patterns, vault defs (name/repo/exposure/private/role), spans |
 | Machine | `~/.config/chezmoi/chezmoi.yaml` → `data.eos` | mounts (role → vault path, roleless paths, roots), clone root, worktree root |
 
 Schema notes: roles are only `wiki`/`journal`, one vault per (context, role);
-`exposure` is `org`/`private` per vault (the registry's one sensitivity
-fact); a workplace context carries `span: {start, end}` (era — default
+`exposure` is `org`/`personal` per vault (who may see it) and `private` is a
+separate boolean (contents sensitive — governs the read ACL + taint); the two
+are orthogonal (ADR-0008: personal ≠ private). A workplace context carries
+`span: {start, end}` (era — default
 subject for dated journal notes); `roleless:` vaults are visible but never
 routing destinations. Repos are **never enumerated** — a repo joins a context
 via its org's ownership pattern (per-repo exceptions only where a repo breaks

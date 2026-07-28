@@ -15,9 +15,12 @@
 #               personal, which never ends (#12)
 #   ownership:  remote patterns over the repos this context owns (host/owner/*)
 #   vaults:     role -> vault definition; at most one vault per role (#9)
-#     <role>:   {name, repo, exposure}   role ∈ {wiki, journal}
+#     <role>:   {name, repo, exposure, private}   role ∈ {wiki, journal}
+#               exposure ∈ {org, personal} (who may see it); private is a
+#               separate boolean (contents sensitive — must never flow
+#               outward without Phil's eyes). ADR-0008: personal ≠ private.
 #   roleless:   vaults registered but ineligible as routing destinations
-#               (e.g. a draining vault), list of {name, repo, exposure}
+#               (e.g. a draining vault), list of {name, repo, exposure, private}
 contexts:
   personal:
     ownership:
@@ -26,11 +29,13 @@ contexts:
       wiki:
         name: "Tech Notes"
         repo: "github.com/bearmoth/notes-tech"
-        exposure: private
+        exposure: personal
+        private: false
       journal:
         name: "Journal"
         repo: "github.com/bearmoth/notes-journal"
-        exposure: private
+        exposure: personal
+        private: true
   easygo:
     span:
       start: "2024-04-23"
@@ -43,7 +48,9 @@ contexts:
         name: "Engagement PKB"
         repo: "github.com/primeslice/engagement-pkb"
         exposure: org
+        private: false
     roleless:
       - name: "Easygo"
         repo: "github.com/bearmoth/notes-easygo"
-        exposure: private # draining (#9); leaves the registry when drained
+        exposure: personal
+        private: true # DM-mirror-grade sensitive; draining (#9), leaves when drained
