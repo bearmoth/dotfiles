@@ -26,6 +26,16 @@ herdr on Linux is curl-installed (no package manager), so it keeps its own
 `run_onchange_update-herdr.sh.tmpl` (`herdr update`, also weekly). On macOS
 herdr is a brew formula and rides the weekly `brew upgrade` above.
 
+Each formula/package is upgraded individually and failures are collected,
+not fatal — one broken package (e.g. installed from a tap Homebrew no
+longer trusts by default, see `brew trust`/https://docs.brew.sh/Tap-Trust)
+must not abort the rest of the batch or make `chezmoi apply` itself fail
+repeatedly until someone notices. Failures print a warning to stderr
+instead. If `brew upgrade <formula>` starts erroring with "Refusing to load
+formula ... from untrusted tap", check `brew info <formula>` for its source
+tap — if it's since landed in homebrew-core, `brew uninstall`, `brew untap`,
+`brew install` is usually cleaner than trusting the old tap.
+
 ## Known gap (revisit)
 
 Coupling upgrades into `chezmoi apply` is a deliberate trade-off, not an

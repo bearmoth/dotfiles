@@ -14,12 +14,27 @@
 # .chezmoidata/packages.yaml — never a bare `brew upgrade` (which would also
 # upgrade casks like Karabiner-Elements and Ghostty) nor a full `dnf upgrade`
 # (whole-OS). Casks and the base OS stay deliberate, manual upgrades.
-set -euo pipefail
+set -uo pipefail
+# No -e: one formula/package failing (e.g. an untrusted tap, a missing
+# bottle) must not abort the whole batch or fail this script — that would
+# make chezmoi apply itself fail, repeatedly, on every run until someone
+# intervenes manually. Failures are collected and reported instead.
+
+failed=()
 
 {{ if eq .chezmoi.os "darwin" -}}
 echo "Upgrading managed Homebrew formulae..."
-brew upgrade {{ .packages.darwin.brews | join " " }}
+{{ range .packages.darwin.brews -}}
+brew upgrade {{ . }} || failed+=("{{ . }}")
+{{ end -}}
 {{ else if eq .chezmoi.os "linux" -}}
 echo "Upgrading managed dnf packages..."
-sudo dnf upgrade -y {{ .packages.fedora.dnf | join " " }}
+{{ range .packages.fedora.dnf -}}
+sudo dnf upgrade -y {{ . }} || failed+=("{{ . }}")
 {{ end -}}
+{{ end -}}
+
+if [ "${#failed[@]}" -gt 0 ]; then
+  echo "Warning: failed to upgrade: ${failed[*]} (see output above for why — often an untrusted tap; run 'brew trust' or migrate to homebrew-core)" >&2
+fi
+exit 0
