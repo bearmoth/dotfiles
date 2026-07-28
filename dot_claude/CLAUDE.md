@@ -30,8 +30,11 @@ UNRESOLVED, knowledge routing is off — fix the registry before routing.
   scaffold) → `/eos-issue`. These are **system faults, not knowledge**: they go
   to the eos-issues backlog, never a vault; ordinary work still routes normally.
   Drained by `routines-audit` into `docs/eos-issues.md` (ADR-0007).
-- The diary is never agent-written. Exposure only ever ratchets up via a
-  human gate (taint hook enforces; don't launder through subagents).
+- The diary is never agent-written. Governance is per-vault ACLs over
+  context × privacy (ADR-0008): cross-context reads of a `private` vault are
+  denied; org-vault writes are same-context-only, else human-gated. Exposure
+  ratchets up only through that gate (taint hook backstops; don't launder
+  through subagents).
 
 ## Capture-worthy shapes (offer, don't insist)
 

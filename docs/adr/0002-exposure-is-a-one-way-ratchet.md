@@ -14,3 +14,7 @@ The design deliberately does not trust agent nuance. The motivating scenario: a 
 - Capture is unthinking and safe by construction; no capture path ever requires a sensitivity judgment from agent or human.
 - The mechanical half (agent touching an org-exposed vault after reading private material → block, require confirmation) is hook-enforceable — the enforcement design belongs to the routines ticket (#14), which now has a fixed policy to encode.
 - The residual risk is named and accepted: Phil rubber-stamping a promotion without reading it. The design's job ends at putting the exact text in front of him.
+
+## Amendment (2026-07-28, ADR-0008)
+
+The single fact `exposure: org | private` this ADR introduced is superseded by two orthogonal per-vault facts — `exposure: org | personal` (who may see it) and `private: true | false` (whether contents are sensitive). "Personal" is not "private": Tech Notes is personal-exposed yet non-private. The one-way ratchet and source-visibility rule are unchanged in spirit; see [ADR-0008](0008-personal-is-not-private.md).

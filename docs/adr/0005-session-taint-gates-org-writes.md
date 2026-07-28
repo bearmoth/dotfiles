@@ -19,3 +19,7 @@ Two hard edges:
 - One journal glance mid-session downgrades that session's org-vault writes to human-gated for its remaining lifetime; starting a fresh session is the legitimate reset.
 - The audit counts gate trips during the pilot, so any move to finer granularity is evidence-backed.
 - Reads stay unrestricted everywhere — the boundary is autonomous *writes up* in exposure, nothing else.
+
+## Amendment (2026-07-28, ADR-0008)
+
+This ADR set taint on any *touch* of a private path, including writes *into* the Journal — which tripped the gate on the end-of-session worklog routine (a false positive on nearly every session; see the 2026-07-28 audit). [ADR-0008](0008-personal-is-not-private.md) demotes taint to a transitional backstop: it is set only by an actual same-context **read** from a `private: true` vault; writes-down never taint; cross-context private reads are hard-denied upstream. "Reads stay unrestricted everywhere" is amended — private-vault reads are now same-context-only. Retirement of the taint machinery is data-triggered (see ADR-0008).

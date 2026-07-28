@@ -40,7 +40,7 @@ hardcode vault paths.
 degrades to a surfaced follow-up, never blocks the primary.
 
 **Cross-vault links** are courtesy pointers only: point at equal-or-broader
-exposure (private→org as URL; org→private never), and every note must pass
+exposure (personal→org as URL; org→personal never), and every note must pass
 the **404 test** — still makes sense if every cross-vault URL dies.
 
 **Journal subject rules** (#12): topical notes may carry `about: [easygo]`

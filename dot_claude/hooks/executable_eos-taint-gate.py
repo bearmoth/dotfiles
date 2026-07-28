@@ -1,17 +1,23 @@
 #!/usr/bin/env python3
-"""PreToolUse taint gate (ADR-0005, wayfinder #11/#14/#23).
+"""PreToolUse vault-governance gate (ADR-0008, supersedes ADR-0005; wayfinder
+#11/#14/#23/#25).
 
-The source-visibility rule, mechanically: the first read of private-exposure
-material taints the session; from then on any autonomous write targeting an
-org-exposed vault is downgraded to a human-gated approval (permissionDecision
-"ask" — the permission prompt shows the exact proposed content, which IS the
-promotion gate). Reads stay unrestricted everywhere.
+Governance is stateless read/write ACLs over context x privacy (ADR-0008),
+computed by pure functions (read_decision / write_decision / evaluate):
 
-Deliberately crude (per the ADR): taint records that private material entered
-the session, never which claims derive from it. No laundering: delegating the
-write to a subagent doesn't shed taint — the tainted parent composed the
-prompt (the subagent's own writes hit this gate too, in its own session, only
-if IT reads private material; the human gate on the parent is the backstop).
+- Reads of a `private: true` vault are same-context-only: cross-context reads
+  are hard-denied; non-private reads are unrestricted.
+- Writes to an `exposure: org` vault are autonomous only from the owning
+  context; cross-context org writes are human-gated ("ask"). Writes into
+  personal-exposed vaults (incl. write-down into a private vault) always pass.
+- Code repos are never vaults — only registered vault roots are gated.
+
+Session taint is a transitional backstop for the one surviving
+private-read-then-org-write path (the draining Easygo vault, retired by #25).
+It is set only by an actual same-context read from a `private: true` vault;
+writes-down never taint (fixing ADR-0005's directionality bug). The marker
+records the tainting read so the gate prompt is self-sufficient. No laundering:
+delegating the write to a subagent doesn't shed taint.
 
 Fails soft: any internal error allows the call (a crashed guardrail must not
 brick every tool), logging to stderr.
