@@ -19,7 +19,7 @@ import sys
 import time
 
 EOS = os.path.expanduser("~/.local/bin/eos-resolve")
-STATE = os.path.expanduser("~/.local/state/engineering-os")
+STATE = os.path.expanduser(os.environ.get("EOS_STATE", "~/.local/state/engineering-os"))
 
 SIG_EDITS = int(os.environ.get("EOS_SIG_EDITS", "3"))
 SIG_TOOLS = int(os.environ.get("EOS_SIG_TOOLS", "25"))
@@ -43,6 +43,38 @@ def audit(event, session_id, detail):
                 + "\n"
             )
     except OSError:
+        pass
+
+
+def issue_breadcrumb(hook, session, err, severity="friction"):
+    """A hook crash is the only eos defect a hook can honestly self-report
+    (ADR-0007): fail-open would otherwise swallow it silently. Drop one
+    sighting into the same backlog inbox the `/eos-issue` command writes,
+    once per session so a persistently-crashing hook nudges without flooding.
+    Must never raise — it runs inside the fail-open handler."""
+    try:
+        sdir = os.path.join(STATE, "sessions", session)
+        marker = os.path.join(sdir, f"issue-{hook}")
+        if os.path.exists(marker):
+            return
+        os.makedirs(STATE, exist_ok=True)  # first-writer-creates
+        with open(os.path.join(STATE, "eos-issues.jsonl"), "a", encoding="utf-8") as f:
+            f.write(
+                json.dumps(
+                    {
+                        "ts": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+                        "source": f"hook:{hook}",
+                        "component": f"{hook} hook",
+                        "severity": severity,
+                        "summary": f"{hook} hook raised and failed open: {err}",
+                        "session": session,
+                    }
+                )
+                + "\n"
+            )
+        os.makedirs(sdir, exist_ok=True)
+        open(marker, "w").close()
+    except Exception:
         pass
 
 
@@ -87,8 +119,7 @@ def eos_json(args):
         return {}
 
 
-def main():
-    data = json.load(sys.stdin)
+def main(data):
     if data.get("stop_hook_active"):
         return  # already continuing because of us — let it stop
     session = data.get("session_id", "unknown")
@@ -170,8 +201,13 @@ def main():
 
 
 if __name__ == "__main__":
+    session = "unknown"
     try:
-        main()
+        raw = sys.stdin.read()
+        payload = json.loads(raw) if raw.strip() else {}
+        session = payload.get("session_id", "unknown")
+        main(payload)
     except Exception as e:  # fail open — never trap the user in a stop loop
         print(f"eos-stop: {e}", file=sys.stderr)
+        issue_breadcrumb("eos-stop", session, str(e))
         sys.exit(0)

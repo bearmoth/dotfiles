@@ -26,7 +26,7 @@ import sys
 import time
 
 EOS = os.path.expanduser("~/.local/bin/eos-resolve")
-STATE = os.path.expanduser("~/.local/state/engineering-os")
+STATE = os.path.expanduser(os.environ.get("EOS_STATE", "~/.local/state/engineering-os"))
 
 MUTATING_RE = re.compile(
     r"\bgit\b(?:\s+(?:-[a-zA-Z]\S*|-C\s+\S+|--\S+))*\s+"
@@ -64,6 +64,38 @@ def git(args, cwd=None):
         return None
 
 
+def issue_breadcrumb(hook, session, err, severity="friction"):
+    """A hook crash is the only eos defect a hook can honestly self-report
+    (ADR-0007): fail-open would otherwise swallow it silently. Drop one
+    sighting into the same backlog inbox the `/eos-issue` command writes,
+    once per session so a persistently-crashing hook nudges without flooding.
+    Must never raise — it runs inside the fail-open handler."""
+    try:
+        sdir = os.path.join(STATE, "sessions", session)
+        marker = os.path.join(sdir, f"issue-{hook}")
+        if os.path.exists(marker):
+            return
+        os.makedirs(STATE, exist_ok=True)  # first-writer-creates
+        with open(os.path.join(STATE, "eos-issues.jsonl"), "a", encoding="utf-8") as f:
+            f.write(
+                json.dumps(
+                    {
+                        "ts": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+                        "source": f"hook:{hook}",
+                        "component": f"{hook} hook",
+                        "severity": severity,
+                        "summary": f"{hook} hook raised and failed open: {err}",
+                        "session": session,
+                    }
+                )
+                + "\n"
+            )
+        os.makedirs(sdir, exist_ok=True)
+        open(marker, "w").close()
+    except Exception:
+        pass
+
+
 def deny(reason, session, detail):
     audit("guardrail_block", session, detail)
     print(
@@ -79,8 +111,7 @@ def deny(reason, session, detail):
     )
 
 
-def main():
-    data = json.load(sys.stdin)
+def main(data):
     if data.get("tool_name") != "Bash":
         return
     command = (data.get("tool_input") or {}).get("command", "")
@@ -161,8 +192,13 @@ def main():
 
 
 if __name__ == "__main__":
+    session = "unknown"
     try:
-        main()
+        raw = sys.stdin.read()
+        payload = json.loads(raw) if raw.strip() else {}
+        session = payload.get("session_id", "unknown")
+        main(payload)
     except Exception as e:  # fail open
         print(f"eos-git-guardrail: {e}", file=sys.stderr)
+        issue_breadcrumb("eos-git-guardrail", session, str(e), severity="blocking")
         sys.exit(0)

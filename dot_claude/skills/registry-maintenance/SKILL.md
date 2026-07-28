@@ -55,7 +55,27 @@ SessionStart pulse is its one-line summary. Report, per routine:
 5. **Offer acceptance** — best-effort: ADRs/reflections/de-spec queue
    entries created in the window vs offers visible in recent session
    captures.
+6. **Engineering-OS defects** (ADR-0007) — `eos-resolve pulse --json`
+   (`eos_issues`: open count, oldest, blocking) plus the raw inbox
+   `eos-issue list`. These are system faults, **not knowledge** — never
+   route them to a vault. Drain them here (below), not via knowledge-routing.
 
 Present as a short table + one-line verdict per pilot criterion. Never
-"fix" debt inside the audit — draining is knowledge-routing's job, on
-request.
+"fix" knowledge debt inside the audit — draining `_inbox`/de-spec is
+knowledge-routing's job, on request.
+
+## Draining the eos-issues backlog
+
+The inbox (`~/.local/state/engineering-os/eos-issues.jsonl`) is raw sightings;
+this drain digests them into `docs/eos-issues.md` in `bearmoth/dotfiles`. Unlike
+de-spec, there is no per-item human gate — these are defect notes, not IP — but
+writing to the repo needs a worktree (worktree-provisioning).
+
+1. `eos-issue list`; for each sighting decide: **fix-now** (small + you're
+   already in the repo), **keep** (append to `docs/eos-issues.md`, creating it
+   with its header if absent — first-writer-creates), or **drop** (noise/dup).
+2. A kept item big enough to *plan* graduates to a wayfinder gh issue in
+   `bearmoth/dotfiles`, filed **by hand** — never auto-file; raw sightings and
+   scheduled work stay distinct (ADR-0007).
+3. Clear the inbox once digested (truncate the jsonl). Absence is the drained
+   state; the pulse then reads zero.

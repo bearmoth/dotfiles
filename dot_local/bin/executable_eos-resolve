@@ -30,11 +30,13 @@ import sys
 import time
 
 REGISTRY = os.path.expanduser("~/.config/engineering-os/registry.json")
+STATE = os.path.expanduser(os.environ.get("EOS_STATE", "~/.local/state/engineering-os"))
 
 # Pulse thresholds (days) — pilot-tunable via env (wayfinder #15/#16).
 INBOX_MAX_DAYS = int(os.environ.get("EOS_INBOX_MAX_DAYS", "14"))
 DESPEC_MAX_DAYS = int(os.environ.get("EOS_DESPEC_MAX_DAYS", "14"))
 INGEST_MAX_DAYS = int(os.environ.get("EOS_INGEST_MAX_DAYS", "10"))
+ISSUES_MAX_DAYS = int(os.environ.get("EOS_ISSUES_MAX_DAYS", "14"))
 
 SKIP_DIRS = {".git", ".obsidian", ".trash", ".claude", "node_modules"}
 
@@ -289,6 +291,40 @@ def inbox_state(journal_path):
     return count, age_days(oldest)
 
 
+def issues_state():
+    """(count, oldest_age_days, blocking_count) of open eos-issues backlog
+    sightings (ADR-0007). Machine-global — the inbox is not a vault. Absent
+    file -> zero (readers tolerate absence)."""
+    path = os.path.join(STATE, "eos-issues.jsonl")
+    count = blocking = 0
+    oldest = None  # oldest ISO date string, lexically comparable
+    try:
+        with open(path, encoding="utf-8", errors="replace") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    rec = json.loads(line)
+                except ValueError:
+                    continue
+                count += 1
+                if rec.get("severity") == "blocking":
+                    blocking += 1
+                day = (rec.get("ts") or "")[:10]
+                if re.fullmatch(r"\d{4}-\d{2}-\d{2}", day) and (oldest is None or day < oldest):
+                    oldest = day
+    except OSError:
+        return 0, None, 0
+    oldest_age = None
+    if oldest:
+        try:
+            oldest_age = int((time.time() - time.mktime(time.strptime(oldest, "%Y-%m-%d"))) // 86400)
+        except ValueError:
+            oldest_age = None
+    return count, oldest_age, blocking
+
+
 def compute_pulse(reg):
     """The pulse (wayfinder #14/#16): per-destination freshness. Always-on
     recency lines; threshold-gated debt lines (silent unless rotting)."""
@@ -344,6 +380,18 @@ def compute_pulse(reg):
             lines.append(
                 f"de-spec queue: {count} queued, oldest {oldest}d (>{DESPEC_MAX_DAYS}d) — drain via /despec"
             )
+
+    # Engineering-OS defect backlog (ADR-0007). Machine-global, not per-context.
+    # Blocking defects surface immediately; the rest once they age past
+    # threshold — the same silent-unless-rotting rule as the debt lines above.
+    icount, ioldest, iblocking = issues_state()
+    data["eos_issues"] = {"count": icount, "oldest_days": ioldest, "blocking": iblocking}
+    if icount and (iblocking or (ioldest is not None and ioldest > ISSUES_MAX_DAYS)):
+        age = f", oldest {ioldest}d" if ioldest is not None else ""
+        sev = f", {iblocking} blocking" if iblocking else ""
+        lines.append(
+            f"eos-issues: {icount} open{sev}{age} — drain via registry-maintenance routines-audit"
+        )
 
     return lines, data
 

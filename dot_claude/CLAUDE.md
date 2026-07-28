@@ -25,6 +25,11 @@ UNRESOLVED, knowledge routing is off — fix the registry before routing.
   **worktree-provisioning** skill; never mutate a default-branch checkout.
 - Registry edits (contexts, vaults, mounts, machines) or `routines-audit` →
   use the **registry-maintenance** skill.
+- A defect in engineering-OS *itself* (a hook misfiring, a routine's
+  instructions wrong/ambiguous, an UNRESOLVED that shouldn't be, a missing
+  scaffold) → `/eos-issue`. These are **system faults, not knowledge**: they go
+  to the eos-issues backlog, never a vault; ordinary work still routes normally.
+  Drained by `routines-audit` into `docs/eos-issues.md` (ADR-0007).
 - The diary is never agent-written. Exposure only ever ratchets up via a
   human gate (taint hook enforces; don't launder through subagents).
 

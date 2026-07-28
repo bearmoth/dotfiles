@@ -1,0 +1,108 @@
+#!/usr/bin/env python3
+"""eos-issue — append an Engineering-OS defect to the backlog inbox (ADR-0007).
+
+The capture end of the eos-issues loop. A defect in the engineering-OS system
+*itself* — a hook misfiring, a routine whose instructions are wrong or
+ambiguous, an UNRESOLVED that shouldn't be, a bootstrap gap like a missing
+scaffold — is appended as one JSON record to
+
+    $EOS_STATE/eos-issues.jsonl        (default ~/.local/state/engineering-os)
+
+This is the **inbox**: raw, always-writable-from-any-cwd sightings. It is NOT a
+vault — eos defects are system faults, never knowledge, so they never route
+through knowledge-routing. The registry-maintenance `routines-audit` drains the
+inbox into `docs/eos-issues.md` and clears it; genuinely-planned work graduates
+to a wayfinder gh issue by hand (never auto-filed).
+
+First-writer-creates (ADR-0007): this script bootstraps the state dir + file —
+the whole point, since the class of bug it exists to catch is a depended-on
+resource that was never initialised. Readers (`eos-resolve pulse`) tolerate
+absence as zero.
+
+Usage:
+  eos-issue log --component <what> --severity blocking|friction|cosmetic \
+                --summary <one-line> [--expected <text>] [--actual <text>] \
+                [--source <where>]
+  eos-issue list                      # open sightings as JSON
+"""
+
+import argparse
+import json
+import os
+import sys
+import time
+
+STATE = os.path.expanduser(os.environ.get("EOS_STATE", "~/.local/state/engineering-os"))
+SEVERITIES = ("blocking", "friction", "cosmetic")
+
+
+def issues_path():
+    return os.path.join(STATE, "eos-issues.jsonl")
+
+
+def log_issue(args):
+    rec = {
+        "ts": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+        "source": args.source or "command",
+        "component": args.component,
+        "severity": args.severity,
+        "summary": args.summary,
+        "cwd": os.getcwd(),
+    }
+    if args.expected:
+        rec["expected"] = args.expected
+    if args.actual:
+        rec["actual"] = args.actual
+    try:
+        os.makedirs(STATE, exist_ok=True)  # first-writer-creates
+        with open(issues_path(), "a", encoding="utf-8") as f:
+            f.write(json.dumps(rec) + "\n")
+    except OSError as e:
+        print(f"eos-issue: could not write backlog: {e}", file=sys.stderr)
+        return 1
+    print(f"logged eos-issue [{args.severity}] {args.component}: {args.summary}")
+    return 0
+
+
+def read_issues():
+    """All open sightings; absent file -> empty (readers tolerate absence)."""
+    recs = []
+    try:
+        with open(issues_path(), encoding="utf-8", errors="replace") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    recs.append(json.loads(line))
+                except ValueError:
+                    continue
+    except OSError:
+        pass
+    return recs
+
+
+def main():
+    ap = argparse.ArgumentParser(prog="eos-issue", description=__doc__)
+    sub = ap.add_subparsers(dest="cmd", required=True)
+
+    lg = sub.add_parser("log", help="append a defect to the backlog inbox")
+    lg.add_argument("--component", required=True, help="hook/routine/skill involved")
+    lg.add_argument("--severity", required=True, choices=SEVERITIES)
+    lg.add_argument("--summary", required=True, help="one-line: what happened")
+    lg.add_argument("--expected", help="what should have happened")
+    lg.add_argument("--actual", help="what actually happened")
+    lg.add_argument("--source", help="where it was noticed (default: command)")
+
+    sub.add_parser("list", help="print open sightings as JSON")
+
+    args = ap.parse_args()
+    if args.cmd == "log":
+        sys.exit(log_issue(args))
+    if args.cmd == "list":
+        print(json.dumps(read_issues(), indent=2))
+        sys.exit(0)
+
+
+if __name__ == "__main__":
+    main()

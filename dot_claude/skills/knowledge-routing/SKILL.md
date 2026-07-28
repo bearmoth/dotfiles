@@ -47,6 +47,11 @@ the **404 test** — still makes sense if every cross-vault URL dies.
 frontmatter naming their subject; dated notes inherit the era default. The
 diary is **never agent-written**.
 
+**Not a routing destination — eos defects.** A fault in engineering-OS itself
+(a misfiring hook, an ambiguous routine, a wrong UNRESOLVED, a missing
+scaffold) is a *system fault, not knowledge*. It never lands in a vault or
+`_inbox` — capture it with `/eos-issue` (ADR-0007) and carry on.
+
 ## Mode: capture (`/capture`)
 
 Guaranteed quick-capture — never left to auto-trigger. Route per the protocol
