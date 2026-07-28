@@ -8,9 +8,14 @@
   },
   "permissions": {
     "defaultMode": "auto",
-    "deny": []
+    "deny": [
+      "AskUserQuestion",
+      "EnterPlanMode",
+      "ExitPlanMode"
+    ]
   },
-  "model": "opusplan",
+  "disableWorkflows": true,
+  "disableArtifact": true,
   "hooks": {
     "SessionStart": [
       {
