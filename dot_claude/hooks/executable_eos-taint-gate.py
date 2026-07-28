@@ -217,6 +217,54 @@ def bash_reads_private(command, private_roots):
     return False
 
 
+# ---------------------------------------------- taint marker + prompt ------
+# The marker stops being an empty file: it records the tainting read so the
+# gate prompt can be built from state (ADR-0008). Old empty markers from live
+# sessions read as "tainted, provenance unknown".
+
+
+def write_taint_marker(path, tool, detail):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(
+            {"ts": time.strftime("%Y-%m-%dT%H:%M:%S%z"), "tool": tool, "detail": detail},
+            f,
+        )
+
+
+def read_taint_marker(path):
+    if not os.path.exists(path):
+        return None
+    try:
+        with open(path, encoding="utf-8") as f:
+            raw = f.read()
+    except OSError:
+        return {"provenance": "unknown"}
+    if not raw.strip():
+        return {"provenance": "unknown"}  # legacy empty-file marker
+    try:
+        return json.loads(raw)
+    except ValueError:
+        return {"provenance": "unknown"}
+
+
+def gate_prompt(taint_info, target_desc):
+    """Self-sufficient ask reason built from state (ADR-0005/0008). Keeps all
+    four elements: the tainting read, the write target, and what Approve /
+    Reject each do."""
+    if taint_info.get("provenance") == "unknown":
+        source = "private material (provenance unknown — tainted in an earlier session)"
+    else:
+        source = f"{taint_info.get('detail', 'private material')} at {taint_info.get('ts', 'an earlier point')}"
+    return (
+        "Taint gate (ADR-0005/0008, docs/adr/): this session read private "
+        f"material — {source} — so this write to org-visible {target_desc} needs "
+        "your review. Approve = this one write proceeds exactly as shown. "
+        "Reject = it's blocked; re-derive the content from org-visible sources "
+        "and continue."
+    )
+
+
 def main(data):
     tool = data.get("tool_name", "")
     ti = data.get("tool_input") or {}
