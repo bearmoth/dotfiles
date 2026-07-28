@@ -87,35 +87,50 @@ def issue_breadcrumb(hook, session, err, severity="friction"):
         pass
 
 
-def vault_paths():
+# ---------------------------------------------------- injectable I/O -------
+# The hook's two facts about the world each come from one eos-resolve call;
+# isolating them here lets tests drive main() over a fixture world with no
+# subprocess/registry coupling.
+
+
+def get_vaults():
+    """All registered vaults with context/exposure/private/path. Injectable."""
     r = subprocess.run(
         [EOS, "vaults", "--json"], capture_output=True, text=True, timeout=15
     )
     if r.returncode != 0:
-        return [], []
-    private, org = [], []
-    for v in json.loads(r.stdout):
-        p = v.get("path")
-        if not p:
-            continue
-        (private if v["exposure"] == "private" else org).append(os.path.realpath(p))
-    return private, org
+        return []
+    try:
+        return json.loads(r.stdout)
+    except ValueError:
+        return []
 
 
-def touched_paths(tool, ti):
-    paths = []
-    for key in ("file_path", "path", "notebook_path"):
-        if ti.get(key):
-            paths.append(ti[key])
+def get_session_context(cwd):
+    """Owning context of the session cwd (None if unresolved). Injectable."""
+    r = subprocess.run(
+        [EOS, "context", "--json", cwd], capture_output=True, text=True, timeout=15
+    )
+    try:
+        return json.loads(r.stdout).get("context")
+    except ValueError:
+        return None
+
+
+def read_targets(tool, ti, cwd):
+    if tool not in READ_TOOLS:
+        return []
+    paths = [ti[k] for k in ("file_path", "path", "notebook_path") if ti.get(k)]
     if tool == "Grep" and ti.get("path") is None:
-        paths.append(os.getcwd())
+        paths.append(cwd)
     return [os.path.realpath(os.path.expanduser(p)) for p in paths]
 
 
-def mentions(command, root):
-    home = os.path.expanduser("~")
-    forms = {root, root.replace(home, "~")}
-    return any(f in command for f in forms)
+def write_targets(tool, ti):
+    if tool not in WRITE_TOOLS:
+        return []
+    paths = [ti[k] for k in ("file_path", "path", "notebook_path") if ti.get(k)]
+    return [os.path.realpath(os.path.expanduser(p)) for p in paths]
 
 
 def under(path, roots):
@@ -265,57 +280,135 @@ def gate_prompt(taint_info, target_desc):
     )
 
 
+def _deny_reason(vault):
+    return (
+        f"Cross-context read blocked (ADR-0008): {vault.get('name', 'this vault')} "
+        f"is a private vault owned by the '{vault.get('context')}' context and "
+        "this session is elsewhere. It is not readable here — ask Phil to paste "
+        "in anything you need from it."
+    )
+
+
+def _cross_context_write_reason(target_desc):
+    return (
+        f"Cross-context write (ADR-0008): {target_desc} is an org-visible vault "
+        "owned by another context, so this write needs your review. Approve = it "
+        "proceeds as shown. Reject = it's blocked."
+    )
+
+
+def _target_desc(vault, path):
+    root = vault.get("path")
+    rel = os.path.relpath(path, os.path.realpath(root)) if root else os.path.basename(path)
+    return f"{vault.get('name', 'vault')}/{rel}"
+
+
+def evaluate(tool, ti, command, vaults, session_context, tainted, cwd):
+    """Pure decision over a fixed world. Priority: deny > ask > taint > allow.
+    Returns {deny, ask_target, taint, taint_detail}. `ask_target` is the org
+    write target description; main() builds the prompt from it."""
+    result = {"deny": None, "ask_target": None, "taint": False, "taint_detail": None}
+
+    # --- structured reads: deny cross-context private, taint same-context ---
+    for p in read_targets(tool, ti, cwd):
+        v = vault_for_path(p, vaults)
+        if not v:
+            continue
+        d = read_decision(v, session_context)
+        if d == "deny":
+            result["deny"] = _deny_reason(v)
+            return result
+        if d == "taint":
+            result["taint"] = True
+            result["taint_detail"] = p
+
+    # --- structured writes: gate org writes per the ACL ---
+    for p in write_targets(tool, ti):
+        v = vault_for_path(p, vaults)
+        if not v:
+            continue
+        if write_decision(v, session_context, tainted) == "ask":
+            result["ask_target"] = _target_desc(v, p)
+
+    # --- Bash: reads (deny/taint) then org writes (ask) ---
+    if tool == "Bash" and command:
+        for v in vaults:
+            root = v.get("path")
+            if not (root and is_private(v)):
+                continue
+            root = os.path.realpath(root)
+            mentioned = any(f in command for f in _path_forms(root))
+            if mentioned and not mention_is_write_dest_only(command, root):
+                # a read (or ambiguous) mention of a private vault
+                if v.get("context") != session_context:
+                    result["deny"] = _deny_reason(v)
+                    return result
+                result["taint"] = True
+                result["taint_detail"] = root
+        for v in vaults:
+            root = v.get("path")
+            if not (root and is_org(v)):
+                continue
+            root = os.path.realpath(root)
+            mentioned = any(f in command for f in _path_forms(root))
+            if mentioned and BASH_WRITE_RE.search(command):
+                if write_decision(v, session_context, tainted) == "ask":
+                    result["ask_target"] = _target_desc(v, root)
+
+    return result
+
+
+def _emit(decision, reason):
+    print(json.dumps({"hookSpecificOutput": {
+        "hookEventName": "PreToolUse",
+        "permissionDecision": decision,
+        "permissionDecisionReason": reason,
+    }}))
+
+
 def main(data):
     tool = data.get("tool_name", "")
     ti = data.get("tool_input") or {}
     session = data.get("session_id", "unknown")
+    cwd = data.get("cwd") or os.getcwd()
 
-    private, org = vault_paths()
-    if not private and not org:
+    vaults = get_vaults()
+    if not vaults:
         return
+    session_context = get_session_context(cwd)
 
     sdir = os.path.join(STATE, "sessions", session)
     taint_file = os.path.join(sdir, "tainted")
-    tainted = os.path.exists(taint_file)
+    taint_info = read_taint_marker(taint_file)
+    tainted = taint_info is not None
 
     command = ti.get("command", "") if tool == "Bash" else ""
-    paths = touched_paths(tool, ti)
+    verdict = evaluate(tool, ti, command, vaults, session_context, tainted, cwd)
 
-    # 1. Private material entering the session sets the taint flag.
-    touches_private = any(under(p, private) for p in paths) or (
-        command and any(mentions(command, r) for r in private)
-    )
-    if touches_private and not tainted:
-        os.makedirs(sdir, exist_ok=True)
-        open(taint_file, "w").close()
-        audit("taint_set", session, {"tool": tool})
+    # 1. Hard deny (cross-context private read) — highest priority.
+    if verdict["deny"]:
+        audit("read_deny", session, {"tool": tool, "detail": verdict["taint_detail"]})
+        _emit("deny", verdict["deny"])
+        return
+
+    # 2. Set the enriched taint marker on an allowed same-context private read.
+    if verdict["taint"] and not tainted:
+        write_taint_marker(taint_file, tool, verdict["taint_detail"])
+        audit("taint_set", session, {"tool": tool, "path": verdict["taint_detail"]})
+        taint_info = read_taint_marker(taint_file)
         tainted = True
 
-    # 2. Tainted org-exposed writes are human-gated (ask), never autonomous.
-    org_write = (tool in WRITE_TOOLS and any(under(p, org) for p in paths)) or (
-        tool == "Bash"
-        and any(mentions(command, r) for r in org)
-        and BASH_WRITE_RE.search(command)
-    )
-    if tainted and org_write:
-        audit("gate_trip", session, {"tool": tool, "paths": paths})
-        print(
-            json.dumps(
-                {
-                    "hookSpecificOutput": {
-                        "hookEventName": "PreToolUse",
-                        "permissionDecision": "ask",
-                        "permissionDecisionReason": (
-                            "Taint gate (ADR-0005): this session has read "
-                            "private-exposure material, so writes to an "
-                            "org-exposed vault need Phil's eyes on the exact "
-                            "text. Approve to proceed, or reject and derive "
-                            "the content afresh from org-visible sources."
-                        ),
-                    }
-                }
-            )
-        )
+    # 3. Gate an org write (cross-context, or same-context while tainted).
+    if verdict["ask_target"]:
+        audit("gate_trip", session, {
+            "tool": tool,
+            "target": verdict["ask_target"],
+            "command": (command[:200] if command else None),
+        })
+        if tainted:
+            _emit("ask", gate_prompt(taint_info or {"provenance": "unknown"}, verdict["ask_target"]))
+        else:
+            _emit("ask", _cross_context_write_reason(verdict["ask_target"]))
 
 
 if __name__ == "__main__":
