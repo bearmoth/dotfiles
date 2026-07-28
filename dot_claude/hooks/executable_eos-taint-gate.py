@@ -122,6 +122,101 @@ def under(path, roots):
     return any(path == r or path.startswith(r + os.sep) for r in roots)
 
 
+# ------------------------------------------------------- pure decisions ----
+# Governance is stateless read/write ACLs over context x privacy (ADR-0008).
+# These functions take a fully-resolved world and never do I/O, so the whole
+# deny/ask/taint matrix is unit-testable.
+
+
+def is_org(vault):
+    return vault.get("exposure") == "org"
+
+
+def is_private(vault):
+    return bool(vault.get("private"))
+
+
+def vault_for_path(path, vaults):
+    """The registered vault whose root contains `path`, or None."""
+    for v in vaults:
+        root = v.get("path")
+        if root and under(path, [os.path.realpath(root)]):
+            return v
+    return None
+
+
+def read_decision(vault, session_context):
+    """Rule 1 (ADR-0008): a private vault is readable only from its own
+    context. Cross-context private read -> deny; same-context -> allow+taint;
+    non-private -> allow (never taints). Unresolved session context matches no
+    vault, so private reads there deny (conservative, no fallback context)."""
+    if is_private(vault):
+        return "taint" if vault.get("context") == session_context else "deny"
+    return "allow"
+
+
+def write_decision(vault, session_context, tainted):
+    """Rule 2 (ADR-0008) + taint backstop. Only org-exposed vaults are gated:
+    cross-context org write -> ask; same-context -> ask iff the session is
+    tainted (the surviving private-read->org-write path), else allow. Writes
+    into personal-exposed vaults (incl. write-down into a private vault) always
+    pass this hook."""
+    if is_org(vault):
+        if vault.get("context") != session_context:
+            return "ask"
+        return "ask" if tainted else "allow"
+    return "allow"
+
+
+# Redirection (`>`/`>>`/`tee`, optionally with flags) immediately before a
+# path makes that path a write destination.
+_REDIR_BEFORE = re.compile(r"(>>?|\btee\b)\s*(?:-\S+\s+)*$")
+# cp/mv/rsync/install anywhere earlier => a trailing path arg is a destination.
+_COPY_CMD = re.compile(r"\b(cp|mv|rsync|install)\b")
+
+
+def _path_forms(root):
+    home = os.path.expanduser("~")
+    return {root, root.replace(home, "~")}
+
+
+def mention_is_write_dest_only(command, root):
+    """True iff EVERY occurrence of the vault path in `command` is a write
+    destination (target of >/>>/tee, or the trailing arg of cp/mv/rsync/
+    install). Any read-position or ambiguous occurrence -> False, so the
+    caller taints. Crude, in the safe direction (ADR-0008)."""
+    seen = False
+    for form in _path_forms(root):
+        start = 0
+        while True:
+            i = command.find(form, start)
+            if i < 0:
+                break
+            seen = True
+            before = command[:i]
+            after = command[i + len(form):]
+            # The vault path is a whole token (root + trailing subpath); consume
+            # the rest of it before deciding what follows.
+            tok_rest = re.match(r"[^\s|;&<>]*", after).group(0)
+            after_token = after[len(tok_rest):]
+            terminal = after_token.strip() == "" or after_token.lstrip().startswith(("|", ";", "&", ">"))
+            redir = bool(_REDIR_BEFORE.search(before))
+            copy_dest = bool(_COPY_CMD.search(before)) and terminal and ">" not in after_token
+            if not (redir or copy_dest):
+                return False
+            start = i + len(form)
+    return seen  # True only if >=1 mention existed and all were destinations
+
+
+def bash_reads_private(command, private_roots):
+    """A private vault path mentioned in any non-write-destination position
+    means the session read it (conservative: ambiguous counts as a read)."""
+    for root in private_roots:
+        if any(f in command for f in _path_forms(root)) and not mention_is_write_dest_only(command, root):
+            return True
+    return False
+
+
 def main(data):
     tool = data.get("tool_name", "")
     ti = data.get("tool_input") or {}
