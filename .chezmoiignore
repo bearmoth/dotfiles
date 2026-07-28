@@ -22,6 +22,13 @@ tests/
 .config/aerospace
 {{ end -}}
 
+# Obsidian CLI wrapper: only useful where Obsidian is a Flatpak, since it exists
+# solely to bridge the app's private XDG_RUNTIME_DIR. Self-detecting rather than
+# toggle-gated — a machine without a Flatpak Obsidian never wants this file.
+{{ if not (or (stat "/var/lib/flatpak/app/md.obsidian.Obsidian") (stat (joinPath .chezmoi.homeDir ".local/share/flatpak/app/md.obsidian.Obsidian"))) -}}
+.local/bin/obsidian
+{{ end -}}
+
 # Oh My Zsh
 .oh-my-zsh/cache/
 .oh-my-zsh/**/*.zwc

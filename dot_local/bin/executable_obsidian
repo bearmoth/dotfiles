@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+# The `obsidian` CLI, bridged out of the Flatpak sandbox onto the host PATH.
+#
+# Obsidian here is installed as a Flatpak (click-ops, deliberately outside
+# chezmoi's remit — see CONTEXT.md). That ships an `obsidian-cli` binary inside
+# the app tree, but exports only the GUI entry point (`md.obsidian.Obsidian`),
+# so nothing named `obsidian` ever lands on PATH. The obsidian-cli skill and
+# the kepano/obsidian-skills plugin both shell out to a bare `obsidian`, so
+# this wrapper carries that name.
+#
+# Why not `flatpak run --command=/app/obsidian-cli md.obsidian.Obsidian`? That
+# works, but spins up a fresh sandbox per invocation (seconds of startup) and
+# hands the CLI a translated filesystem view. Running the binary directly on
+# the host is instant and sees real host paths.
+#
+# The one catch: the CLI talks to the running Obsidian instance over a unix
+# socket at $XDG_RUNTIME_DIR/.obsidian-cli.sock. Under Flatpak, the app's
+# XDG_RUNTIME_DIR is a private per-app directory, so a host-side process
+# looking in the plain /run/user/$UID finds nothing and reports the very
+# misleading "unable to find Obsidian". Pointing XDG_RUNTIME_DIR at the app's
+# xdg-run dir is the whole fix.
+#
+# Requires: Obsidian running, with Settings > General > Advanced >
+# "Command line interface" enabled.
+#
+# Heads up: enabling that setting makes Obsidian install its own stock
+# obsidian-cli binary to exactly this path, overwriting this wrapper — and the
+# stock binary hits the XDG_RUNTIME_DIR problem described above, so the CLI
+# silently stops working. `chezmoi status ~/.local/bin/obsidian` reports MM
+# when that has happened. Restore with:
+#
+#     chezmoi apply --force ~/.local/bin/obsidian
+#
+# --force is required: a plain apply treats the clobbered binary as local edits
+# worth keeping and stops to prompt.
+set -euo pipefail
+
+app_id=md.obsidian.Obsidian
+
+# current/active are flatpak-maintained symlinks, so this survives upgrades
+# without globbing the versioned hash directory.
+cli=""
+for root in /var/lib/flatpak "$HOME/.local/share/flatpak"; do
+    candidate="$root/app/$app_id/current/active/files/obsidian-cli"
+    if [[ -x $candidate ]]; then
+        cli=$candidate
+        break
+    fi
+done
+
+if [[ -z $cli ]]; then
+    echo "obsidian: no obsidian-cli found in any Flatpak install of $app_id." >&2
+    echo "  Checked /var/lib/flatpak and ~/.local/share/flatpak." >&2
+    echo "  Is Obsidian installed? Try: flatpak list --app | grep -i obsidian" >&2
+    exit 127
+fi
+
+runtime_dir="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/.flatpak/$app_id/xdg-run"
+
+if [[ ! -S $runtime_dir/.obsidian-cli.sock ]]; then
+    echo "obsidian: no CLI socket at $runtime_dir/.obsidian-cli.sock" >&2
+    echo "  Obsidian must be running, with Settings > General > Advanced >" >&2
+    echo "  'Command line interface' enabled." >&2
+    exit 69 # EX_UNAVAILABLE
+fi
+
+exec env XDG_RUNTIME_DIR="$runtime_dir" "$cli" "$@"
