@@ -1,0 +1,117 @@
+#!/usr/bin/env bash
+# chezmoi modify_ script for ~/.claude/settings.json.
+#
+# Claude Code owns `model` at runtime — `/model` persists the chosen default
+# into this file — and re-serialises the WHOLE file on any settings change, so
+# a statically-managed settings.json drifts after nearly every session and
+# trips `chezmoi apply` with a "changed since chezmoi last wrote it" prompt.
+#
+# A modify_ script sidesteps that: chezmoi feeds the current live file in on
+# stdin and takes our stdout as the new content, re-derived every apply (no
+# stored hash, so no drift prompt ever). The MANAGED block below is the source
+# of truth for everything chezmoi owns; runtime-owned keys (currently just
+# `model`) are read back from the live file and preserved untouched.
+#
+# Output is produced by jq, so it is always strict JSON — no comments, no
+# trailing commas (this repo has been bitten by invalid settings.json before).
+set -euo pipefail
+
+# --- managed source of truth (every key EXCEPT runtime-owned ones) ----------
+read -r -d '' MANAGED <<'JSON' || true
+{
+  "env": {
+    "CLAUDE_CODE_FILE_READ_MAX_OUTPUT_TOKENS": "100000"
+  },
+  "attribution": {
+    "commit": "",
+    "pr": ""
+  },
+  "permissions": {
+    "defaultMode": "auto",
+    "deny": [
+      "AskUserQuestion",
+      "EnterPlanMode",
+      "ExitPlanMode"
+    ]
+  },
+  "disableWorkflows": true,
+  "disableArtifact": true,
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          { "type": "command", "command": "~/.claude/hooks/eos-session-start.py" }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          { "type": "command", "command": "~/.claude/hooks/eos-git-guardrail.py" }
+        ]
+      },
+      {
+        "matcher": "Read|Grep|Glob|Edit|Write|MultiEdit|NotebookEdit|Bash",
+        "hooks": [
+          { "type": "command", "command": "~/.claude/hooks/eos-taint-gate.py" }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          { "type": "command", "command": "~/.claude/hooks/eos-stop.py" }
+        ]
+      }
+    ]
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "bash ~/.claude/statusline-command.sh"
+  },
+  "enabledPlugins": {
+    "obsidian@obsidian-skills": true,
+    "skill-creator@claude-plugins-official": true,
+    "claude-md-management@claude-plugins-official": true,
+    "security-guidance@claude-plugins-official": true,
+    "claude-code-setup@claude-plugins-official": true,
+    "explanatory-output-style@claude-plugins-official": true,
+    "superpowers@claude-plugins-official": true
+  },
+  "extraKnownMarketplaces": {
+    "obsidian-skills": {
+      "source": {
+        "source": "github",
+        "repo": "kepano/obsidian-skills"
+      }
+    }
+  },
+  "advisorModel": "opus",
+  "tui": "fullscreen",
+  "skipWorkflowUsageWarning": true,
+  "skipAutoPermissionPrompt": true
+}
+JSON
+
+# --- runtime-owned keys to preserve from the live file ----------------------
+# Extend PRESERVE if Claude Code turns out to persist other keys here.
+PRESERVE='["model"]'
+
+current="$(cat)"
+# A blank (missing file / first apply) or malformed live file self-heals to
+# the managed defaults. Check blank first: `jq empty` treats empty input as
+# valid, which would otherwise leave $current empty and emit nothing.
+if [ -z "${current//[[:space:]]/}" ]; then
+  current='{}'
+elif ! printf '%s' "$current" | jq empty >/dev/null 2>&1; then
+  current='{}'
+fi
+
+printf '%s' "$current" | jq \
+  --argjson managed "$MANAGED" \
+  --argjson preserve "$PRESERVE" '
+  . as $cur
+  | $managed + reduce $preserve[] as $k ({};
+      if ($cur | has($k)) then . + {($k): $cur[$k]} else . end)
+'
