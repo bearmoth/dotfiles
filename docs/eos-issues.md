@@ -31,7 +31,7 @@ since the 2026-07-29 grilling session) and the ADR-0008 cross-context ACL
 - **Component:** taint-gate hook (ADR-0005)
 - **Expected:** prompt gives Phil everything needed for a five-second approve/reject: which read set the taint, which vault/file the write targets, a pointer to docs/adr/0005 — plus the verbatim text ADR-0002 requires.
 - **Actual:** prompt cites "ADR-0005" by number only, names neither the tainting read nor the write target.
-- **Note:** graduation candidate. Audit-window evidence for ADR-0005's revisit: routine-obligated worklog writes to `Engagement PKB/log/2026-07.md` tripped the gate 4× in 3 days (2026-07-28/29) — a recurring, arguably false-positive interruption the better prompt would at least make cheap.
+- **Note:** superseded by [#29](https://github.com/bearmoth/dotfiles/issues/29) — the taint gate is slated for early retirement post-ADR-0009, so the prompt rewrite is moot. Audit-window evidence (routine-obligated worklog writes tripped the gate 4× in 3 days) commented on #29 as retirement support.
 
 ### 2026-07-28 — Tech Notes worklog file TCC-denied (EPERM) to the agent process  (friction → kept, possibly stale)
 - **Component:** worklog routine / macOS TCC
@@ -55,13 +55,13 @@ since the 2026-07-29 grilling session) and the ADR-0008 cross-context ACL
 - **Component:** eos-stop.py routines × ADR-0008 ACL
 - **Expected:** session-end routines completable from any context; defect reporting never gated behind a vault ACL.
 - **Actual:** Stop hook demands a Journal (personal, private) capture that the cross-context ACL correctly denies; the eos-issue path was reportedly gated too from that session (needs verification — the store is `~/.local/state`, not a vault, so the gate may be misclassifying the Bash write). Every significant easygo session hits this.
-- **Note:** graduation candidate — fix direction decided 2026-07-29: central eos queue at session end, vault writes deferred to triage; ADR pending. Resolve together with the write-asymmetry entry below (same ACL, opposite face).
+- **Note:** already graduated — the fix is ADR-0009 (worklog-queue-redesign branch, implemented + tested); deployment tracked in [#28](https://github.com/bearmoth/dotfiles/issues/28). Close this entry when #28 lands.
 
 ### 2026-07-30 — ADR-0008 ACL asymmetry: foreign-context reads hook-blocked, writes ungated  (friction → kept)
 - **Component:** adr-0008-acl-hook
 - **Expected:** writes from a foreign context to a private vault gated like reads — or the write-only capture path explicitly documented as intended in ADR-0008/CLAUDE.md.
 - **Actual:** from an easygo-context session, `ls`/Read under `~/Documents/Journal/` was hard-blocked citing ADR-0008, but Write to `Journal/captures/sessions/2026-07-30-*.md` succeeded ungated — the agent can create files in a private vault it cannot list (no duplicate-detection, no naming-convention discovery).
-- **Note:** opposite face of the blocking entry above; the pending ADR should decide both at once.
+- **Note:** raised on [#29](https://github.com/bearmoth/dotfiles/issues/29) (ADR-0008 amendment) as the write-side facet of the private-read downgrade — decide symmetric ask vs. documented write-only capture there.
 
 ### 2026-07-30 — Worklog nudge conflates "entry exists for today" with "entry exists for this session"  (friction → kept)
 - **Component:** worklog stop-hook nudge
