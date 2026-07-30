@@ -1,0 +1,20 @@
+% kubectl, k8s, rollout
+
+# Staggered restart of one or more deployments (rolling update — honours maxSurge/maxUnavailable, same as a version rollout)
+kubectl --context <context> -n <namespace> rollout restart deployment <deployments>
+
+# Watch a rollout until it completes
+kubectl --context <context> -n <namespace> rollout status deployment/<deployment> <timeout>
+
+# Staggered restart, then watch until complete
+kubectl --context <context> -n <namespace> rollout restart deployment/<deployment> && kubectl --context <context> -n <namespace> rollout status deployment/<deployment>
+
+# Grep a deployment's logs for a pattern (capture evidence BEFORE restarting — restart destroys it)
+kubectl --context <context> -n <namespace> logs deploy/<deployment> <since> --tail=-1 | grep -E '<pattern>' | head -50
+
+# Pod status for a namespace
+kubectl --context <context> -n <namespace> get pods
+
+$ timeout: printf ' \n--timeout=2m\n--timeout=5m\n--timeout=10m\n' --- --fzf-overrides '--header=optional: blank = wait forever'
+$ since: printf ' \n--since=15m\n--since=1h\n--since=24h\n' --- --fzf-overrides '--header=optional: blank = full log history'
+$ pattern: printf 'currentConfig|flag_stream_subscribe|config_parameter\nerror|Error\n' --- --fzf-overrides '--header=suggestions only — edit on the prompt line after selection'
