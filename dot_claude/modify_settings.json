@@ -58,6 +58,14 @@ read -r -d '' MANAGED <<'JSON' || true
         ]
       }
     ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit|NotebookEdit|Bash",
+        "hooks": [
+          { "type": "command", "command": "~/.claude/hooks/eos-taint-gate.py" }
+        ]
+      }
+    ],
     "Stop": [
       {
         "hooks": [

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""PreToolUse vault-governance gate (ADR-0008, supersedes ADR-0005; wayfinder
-#11/#14/#23/#25).
+"""PreToolUse/PostToolUse vault-governance gate (ADR-0008, supersedes
+ADR-0005; wayfinder #11/#14/#23/#25).
 
 Governance is stateless read/write ACLs over context x privacy (ADR-0008),
 computed by pure functions (read_decision / write_decision / evaluate):
@@ -10,7 +10,22 @@ computed by pure functions (read_decision / write_decision / evaluate):
 - Writes to an `exposure: org` vault are autonomous only from the owning
   context; cross-context org writes are human-gated ("ask"). Writes into
   personal-exposed vaults (incl. write-down into a private vault) always pass.
+- Bash commands touching an org vault are gated only when they could write:
+  a command provably read-only (bash_command_is_read_only) passes free —
+  reads of non-private org vaults are unrestricted by ADR-0008. Any doubt
+  keeps the ask.
 - Code repos are never vaults — only registered vault roots are gated.
+
+Session grants (rides on the #29 gate-at-decision-points direction): the same
+script also runs on PostToolUse. When a cross-context org-vault write actually
+executed (PostToolUse only fires for tools that ran, i.e. the user approved
+the ask), a grant for that (session, vault-root) pair is recorded under
+STATE/session-grants/<session_id>.json. Subsequent cross-context writes to the
+same vault root in the same session are allowed under that grant — ask once
+per (session, vault), not per write. Grants are per-session only, never
+global, never persisted across sessions; files older than 7 days are pruned
+opportunistically. Private-vault rules and the taint backstop are unchanged
+(a tainted session still asks even under a grant).
 
 Session taint is a transitional backstop for the one surviving
 private-read-then-org-write path (the draining Easygo vault, retired by #25).
@@ -26,6 +41,7 @@ brick every tool), logging to stderr.
 import json
 import os
 import re
+import shlex
 import subprocess
 import sys
 import time
@@ -35,11 +51,8 @@ STATE = os.path.expanduser(os.environ.get("EOS_STATE", "~/.local/state/engineeri
 
 READ_TOOLS = {"Read", "Grep", "Glob"}
 WRITE_TOOLS = {"Edit", "Write", "MultiEdit", "NotebookEdit"}
-# Bash write indicators — a command mentioning an org vault path is only
-# gated when it plausibly writes (mentioning it in `cat`/`rg` stays free).
-BASH_WRITE_RE = re.compile(
-    r"(>|>>|\btee\b|\bmv\b|\bcp\b|\brsync\b|\bsed\s+-i|\btouch\b|\bmkdir\b|\brm\b|\bgit\s+(commit|push|mv|rm)\b)"
-)
+
+GRANT_MAX_AGE_DAYS = 7
 
 
 def audit(event, session_id, detail):
@@ -176,17 +189,143 @@ def read_decision(vault, session_context):
     return "allow"
 
 
-def write_decision(vault, session_context, tainted):
-    """Rule 2 (ADR-0008) + taint backstop. Only org-exposed vaults are gated:
-    cross-context org write -> ask; same-context -> ask iff the session is
-    tainted (the surviving private-read->org-write path), else allow. Writes
-    into personal-exposed vaults (incl. write-down into a private vault) always
+def write_decision(vault, session_context, tainted, granted=False):
+    """Rule 2 (ADR-0008) + taint backstop + session grants. Only org-exposed
+    vaults are gated: cross-context org write -> ask, unless this session
+    already had one such write to the same vault approved (a session grant),
+    in which case "allow-granted"; same-context -> ask iff the session is
+    tainted (the surviving private-read->org-write path), else allow. A
+    tainted session always asks — a grant never launders taint. Writes into
+    personal-exposed vaults (incl. write-down into a private vault) always
     pass this hook."""
     if is_org(vault):
-        if vault.get("context") != session_context:
+        if tainted:
             return "ask"
-        return "ask" if tainted else "allow"
+        if vault.get("context") != session_context:
+            return "allow-granted" if granted else "ask"
+        return "allow"
     return "allow"
+
+
+# ------------------------------------------- read-only Bash classification --
+# Reads of non-private org vaults are unrestricted (ADR-0008), so a Bash
+# command that provably cannot write must not trip the org-write gate. The
+# classification is deliberately conservative: a command is read-only ONLY if
+# it contains no write-capable construct (redirection, substitution, in-place
+# editors, interpreters, ...) AND every pipeline segment's leading command is
+# on a small allow-list. Anything doubtful classifies as not-read-only, which
+# keeps the current behaviour (ask).
+
+READONLY_LEADERS = {
+    "ls", "cat", "head", "tail", "grep", "rg", "find", "wc", "awk", "sed",
+    "jq", "stat", "file", "du", "sort", "uniq", "cut", "tr", "echo",
+}
+GIT_READONLY_SUBCMDS = {"status", "log", "diff", "show", "ls-files"}
+# find actions that mutate or execute; presence anywhere disqualifies.
+_FIND_WRITE_ACTIONS = {"-delete", "-exec", "-execdir", "-ok", "-okdir",
+                       "-fprint", "-fprintf", "-fls"}
+# Raw-string write hints: any redirection (incl. awk/sed internal `> "f"`),
+# command/process substitution, or backticks. `<` is rejected too — input
+# redirection is harmless but process substitution is not, and doubt asks.
+_WRITE_HINT_RE = re.compile(r"[<>`]|\$\(")
+
+
+def _git_segment_is_read_only(toks):
+    """`git`, skipping -C <path> / pager flags, must reach an allow-listed
+    read-only subcommand. Any other flag or subcommand -> not read-only."""
+    i = 1
+    while i < len(toks):
+        t = toks[i]
+        if t == "-C":
+            i += 2
+            continue
+        if t in ("--no-pager", "-P", "-p", "--paginate"):
+            i += 1
+            continue
+        if t.startswith("-"):
+            return False
+        return t in GIT_READONLY_SUBCMDS
+    return False  # bare `git` (or trailing -C): no subcommand seen
+
+
+def bash_command_is_read_only(command):
+    """True only when `command` provably cannot write: no write-capable
+    construct anywhere, and every pipeline segment leads with an allow-listed
+    read-only command. Every failure mode (unknown leader, env-var prefix,
+    unparsable quoting, subshell, xargs, interpreter, ...) returns False —
+    when in ANY doubt, the caller keeps the ask."""
+    if not command or _WRITE_HINT_RE.search(command):
+        return False
+    for seg in re.split(r"&&|\|\||[;|&\n]", command):
+        seg = seg.strip()
+        if not seg:
+            continue
+        try:
+            toks = shlex.split(seg)
+        except ValueError:
+            return False
+        if not toks:
+            continue
+        head = os.path.basename(toks[0])
+        if head == "git":
+            if not _git_segment_is_read_only(toks):
+                return False
+        elif head in READONLY_LEADERS:
+            if head == "sed" and any(t.startswith("-i") for t in toks[1:]):
+                return False  # in-place edit
+            if head == "find" and any(t in _FIND_WRITE_ACTIONS for t in toks[1:]):
+                return False
+        else:
+            return False
+    return True
+
+
+# ------------------------------------------------------- session grants ----
+# A grant file maps vault-root -> ISO timestamp for one session. It is written
+# by the PostToolUse leg when a cross-context org write actually executed
+# (i.e. the user approved the ask), and consulted by write_decision via
+# main(). Never global, never cross-session.
+
+
+def grant_path(session):
+    return os.path.join(STATE, "session-grants", f"{session}.json")
+
+
+def load_grants(session):
+    """vault-root -> timestamp for this session; {} on any problem."""
+    try:
+        with open(grant_path(session), encoding="utf-8") as f:
+            data = json.load(f)
+        return data if isinstance(data, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def record_grant(session, root):
+    grants = load_grants(session)
+    grants[root] = time.strftime("%Y-%m-%dT%H:%M:%S%z")
+    path = grant_path(session)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(grants, f)
+
+
+def prune_grants(max_age_days=GRANT_MAX_AGE_DAYS):
+    """Opportunistically drop grant files older than max_age_days (grants are
+    per-session; a week-old session file is dead weight). Never raises."""
+    gdir = os.path.join(STATE, "session-grants")
+    cutoff = time.time() - max_age_days * 86400
+    try:
+        names = os.listdir(gdir)
+    except OSError:
+        return
+    for name in names:
+        p = os.path.join(gdir, name)
+        try:
+            if os.path.getmtime(p) < cutoff:
+                os.unlink(p)
+        except OSError:
+            continue
 
 
 # Redirection (`>`/`>>`/`tee`, optionally with flags) immediately before a
@@ -309,11 +448,23 @@ def _target_desc(vault, path):
     return f"{vault.get('name', 'vault')}/{rel}"
 
 
-def evaluate(tool, ti, command, vaults, session_context, tainted, cwd):
+def evaluate(tool, ti, command, vaults, session_context, tainted, cwd,
+             granted_roots=frozenset()):
     """Pure decision over a fixed world. Priority: deny > ask > taint > allow.
-    Returns {deny, ask_target, taint, taint_detail}. `ask_target` is the org
-    write target description; main() builds the prompt from it."""
-    result = {"deny": None, "ask_target": None, "taint": False, "taint_detail": None}
+    Returns {deny, ask_target, taint, taint_detail, granted_target}.
+    `ask_target` is the org write target description; main() builds the prompt
+    from it. `granted_target` is set when a cross-context org write passed
+    only because of a session grant (main() emits an explicit allow)."""
+    result = {"deny": None, "ask_target": None, "taint": False,
+              "taint_detail": None, "granted_target": None}
+
+    def gate_write(v, path_for_desc):
+        d = write_decision(v, session_context, tainted,
+                           granted=os.path.realpath(v["path"]) in granted_roots)
+        if d == "ask":
+            result["ask_target"] = _target_desc(v, path_for_desc)
+        elif d == "allow-granted":
+            result["granted_target"] = _target_desc(v, path_for_desc)
 
     # --- structured reads: deny cross-context private, taint same-context ---
     for p in read_targets(tool, ti, cwd):
@@ -333,10 +484,9 @@ def evaluate(tool, ti, command, vaults, session_context, tainted, cwd):
         v = vault_for_path(p, vaults)
         if not v:
             continue
-        if write_decision(v, session_context, tainted) == "ask":
-            result["ask_target"] = _target_desc(v, p)
+        gate_write(v, p)
 
-    # --- Bash: reads (deny/taint) then org writes (ask) ---
+    # --- Bash: reads (deny/taint) then possible org writes (ask) ---
     if tool == "Bash" and command:
         for v in vaults:
             root = v.get("path")
@@ -351,15 +501,17 @@ def evaluate(tool, ti, command, vaults, session_context, tainted, cwd):
                     return result
                 result["taint"] = True
                 result["taint_detail"] = root
-        for v in vaults:
-            root = v.get("path")
-            if not (root and is_org(v)):
-                continue
-            root = os.path.realpath(root)
-            mentioned = any(f in command for f in _path_forms(root))
-            if mentioned and BASH_WRITE_RE.search(command):
-                if write_decision(v, session_context, tainted) == "ask":
-                    result["ask_target"] = _target_desc(v, root)
+        # A provably read-only command never trips the org-write gate
+        # (ADR-0008: non-private org reads are unrestricted). Anything not
+        # provably read-only is treated as a possible write — doubt asks.
+        if not bash_command_is_read_only(command):
+            for v in vaults:
+                root = v.get("path")
+                if not (root and is_org(v)):
+                    continue
+                root = os.path.realpath(root)
+                if any(f in command for f in _path_forms(root)):
+                    gate_write(v, root)
 
     return result
 
@@ -370,6 +522,41 @@ def _emit(decision, reason):
         "permissionDecision": decision,
         "permissionDecisionReason": reason,
     }}))
+
+
+def cross_context_org_write_roots(tool, ti, command, vaults, session_context):
+    """Vault roots this tool call writes (or may write) into cross-context.
+    Used by the PostToolUse leg to infer grants from executed writes."""
+    roots = set()
+    for p in write_targets(tool, ti):
+        v = vault_for_path(p, vaults)
+        if v and is_org(v) and v.get("context") != session_context:
+            roots.add(os.path.realpath(v["path"]))
+    if tool == "Bash" and command and not bash_command_is_read_only(command):
+        for v in vaults:
+            root = v.get("path")
+            if not (root and is_org(v)) or v.get("context") == session_context:
+                continue
+            root = os.path.realpath(root)
+            if any(f in command for f in _path_forms(root)):
+                roots.add(root)
+    return roots
+
+
+def handle_post(data, vaults, session_context):
+    """PostToolUse: the tool ran, so a cross-context org write here means the
+    user approved the ask (or a grant already covered it) — record/refresh
+    the (session, vault-root) grant so the rest of the session doesn't re-ask
+    per write."""
+    tool = data.get("tool_name", "")
+    ti = data.get("tool_input") or {}
+    session = data.get("session_id", "unknown")
+    command = ti.get("command", "") if tool == "Bash" else ""
+    roots = cross_context_org_write_roots(tool, ti, command, vaults, session_context)
+    for root in roots:
+        record_grant(session, root)
+        audit("grant_recorded", session, {"tool": tool, "vault_root": root})
+    prune_grants()
 
 
 def main(data):
@@ -383,13 +570,20 @@ def main(data):
         return
     session_context = get_session_context(cwd)
 
+    if data.get("hook_event_name") == "PostToolUse":
+        handle_post(data, vaults, session_context)
+        return
+
     sdir = os.path.join(STATE, "sessions", session)
     taint_file = os.path.join(sdir, "tainted")
     taint_info = read_taint_marker(taint_file)
     tainted = taint_info is not None
 
+    granted_roots = {os.path.realpath(r) for r in load_grants(session)}
+
     command = ti.get("command", "") if tool == "Bash" else ""
-    verdict = evaluate(tool, ti, command, vaults, session_context, tainted, cwd)
+    verdict = evaluate(tool, ti, command, vaults, session_context, tainted, cwd,
+                       granted_roots=granted_roots)
 
     # 1. Hard deny (cross-context private read) — highest priority.
     if verdict["deny"]:
@@ -415,6 +609,21 @@ def main(data):
             _emit("ask", gate_prompt(taint_info or {"provenance": "unknown"}, verdict["ask_target"]))
         else:
             _emit("ask", _cross_context_write_reason(verdict["ask_target"]))
+        return
+
+    # 4. Cross-context org write already approved once this session -> allow
+    #    under the session grant (explicit, so the log shows why no ask fired).
+    if verdict["granted_target"]:
+        audit("grant_allow", session, {
+            "tool": tool,
+            "target": verdict["granted_target"],
+            "command": (command[:200] if command else None),
+        })
+        _emit("allow", (
+            f"Cross-context write to {verdict['granted_target']} allowed under "
+            "a session grant (ADR-0008): an identical-vault write was approved "
+            "earlier this session. Grants are per-session and expire with it."
+        ))
 
 
 if __name__ == "__main__":
