@@ -13,6 +13,9 @@ Commands:
   banner  [PATH]   SessionStart block: context + mounts + attribution + pulse
   pulse            freshness pulse lines (worklog/journal recency; threshold-
                    gated lines for _inbox, de-spec queue, ingestion staleness)
+  health           one-shot workflow health report ("are we healthy"): pulse,
+                   per-vault git state, queue/eos-issues debt, merged-worktree
+                   cleanup candidates. Read-only; OK/ATTN per line + verdict.
   mounts           this machine's mounts
   vaults           every registered vault with exposure and local path
 
@@ -494,6 +497,128 @@ def compute_pulse(reg):
     return lines, data
 
 
+# --------------------------------------------------------------- health ----
+# One-shot workflow health report ("are we healthy"): the pulse, per-vault
+# git state, queue/eos-issues debt, and merged-worktree cleanup candidates.
+# Strictly read-only aggregation — never mutates anything.
+
+
+def vault_git_state(path):
+    """(dirty, untracked, unpushed_or_None) for a vault checkout; None when
+    `path` is not a git repo. unpushed is None when there is no upstream."""
+    porcelain = git(["status", "--porcelain"], cwd=path)
+    if porcelain is None:
+        return None
+    entries = [l for l in porcelain.splitlines() if l.strip()]
+    untracked = sum(1 for l in entries if l.startswith("??"))
+    dirty = len(entries) - untracked
+    ahead = git(["rev-list", "--count", "@{upstream}..HEAD"], cwd=path)
+    unpushed = int(ahead) if ahead is not None and ahead.isdigit() else None
+    return dirty, untracked, unpushed
+
+
+def find_worktrees(root, max_depth=4):
+    """Git checkouts under the machine worktree root (a dir owning a .git),
+    without descending into them."""
+    found = []
+    if not root or not os.path.isdir(root):
+        return found
+    root = os.path.realpath(root)
+    base_depth = root.count(os.sep)
+    for dirpath, dirnames, filenames in os.walk(root):
+        if ".git" in dirnames or ".git" in filenames:
+            dirnames[:] = []
+            found.append(dirpath)
+            continue
+        dirnames[:] = [d for d in dirnames if not d.startswith(".")]
+        if dirpath.count(os.sep) - base_depth >= max_depth:
+            dirnames[:] = []
+    return sorted(found)
+
+
+def worktree_removable(path):
+    """(branch, default_branch) when this checkout's branch is merged into
+    origin/<default> AND the tree is clean — a cleanup candidate; else None.
+    Read-only: local refs only, no fetch."""
+    branch = git(["rev-parse", "--abbrev-ref", "HEAD"], cwd=path)
+    if not branch or branch == "HEAD":
+        return None
+    head_ref = git(["symbolic-ref", "refs/remotes/origin/HEAD"], cwd=path)
+    default = head_ref.rsplit("/", 1)[-1] if head_ref else None
+    if default is None:
+        for cand in ("main", "master"):
+            if git(["rev-parse", "--verify", f"origin/{cand}"], cwd=path) is not None:
+                default = cand
+                break
+    if not default or branch == default:
+        return None
+    merged = git(["merge-base", "--is-ancestor", "HEAD", f"origin/{default}"], cwd=path)
+    if merged is None:  # non-zero exit: not merged (or no such ref)
+        return None
+    porcelain = git(["status", "--porcelain"], cwd=path)
+    if porcelain is None or porcelain.strip():
+        return None
+    return branch, default
+
+
+def compute_health(reg):
+    """One line per item, each led by an OK/ATTN marker, ending with a
+    one-line overall verdict."""
+    lines = []
+
+    def add(ok, text):
+        lines.append(f"{'OK  ' if ok else 'ATTN'} {text}")
+
+    # Pulse: recency lines are informational (OK); threshold-gated lines only
+    # appear once something is rotting, so they surface as ATTN.
+    pulse_lines, pulse_data = compute_pulse(reg)
+    for l in pulse_lines:
+        add(l.startswith(("worklog ", "journal:")), f"pulse: {l}")
+
+    # Per-vault git state from this machine's mounts.
+    for ctx, role, v in all_vaults(reg):
+        path = v.get("path")
+        if not path or not os.path.isdir(path):
+            continue
+        state = vault_git_state(path)
+        if state is None:
+            add(True, f"vault {v['name']}: not a git repo")
+            continue
+        dirty, untracked, unpushed = state
+        sync = f"{unpushed} unpushed" if unpushed is not None else "no upstream"
+        ok = dirty == 0 and untracked == 0 and unpushed == 0
+        add(ok, f"vault {v['name']}: {dirty} dirty, {untracked} untracked, {sync}")
+
+    # Queue + eos-issues debt (always shown here, unlike the pulse's
+    # threshold-gated lines).
+    q = pulse_data.get("queue", {})
+    q_ok = not q.get("unresolved_machine") and not (
+        q.get("count") and (q.get("oldest_days") or 0) > QUEUE_MAX_DAYS
+    )
+    oldest = f", oldest {q['oldest_days']}d" if q.get("count") and q.get("oldest_days") is not None else ""
+    add(q_ok, f"queue: {q.get('count', 0)} pending{oldest}")
+
+    i = pulse_data.get("eos_issues", {})
+    add(not i.get("blocking"), f"eos-issues: {i.get('count', 0)} open, {i.get('blocking', 0)} blocking")
+
+    # Merged-worktree cleanup candidates.
+    candidates = 0
+    for wt in find_worktrees((reg.get("machine") or {}).get("worktree_root")):
+        r = worktree_removable(wt)
+        if r:
+            candidates += 1
+            add(False, f"worktree {home_tilde(wt)}: {r[0]} merged into origin/{r[1]}, clean — removable")
+    if not candidates:
+        add(True, "worktrees: no merged cleanup candidates")
+
+    attn = sum(1 for l in lines if l.startswith("ATTN"))
+    lines.append(
+        "verdict: healthy — all clear" if attn == 0
+        else f"verdict: {attn} item{'s' if attn != 1 else ''} need attention"
+    )
+    return lines
+
+
 # --------------------------------------------------------------- output ----
 
 
@@ -554,7 +679,7 @@ def context_lines(res):
 
 def main():
     ap = argparse.ArgumentParser(prog="eos-resolve", description=__doc__)
-    ap.add_argument("command", choices=["context", "banner", "pulse", "mounts", "vaults"])
+    ap.add_argument("command", choices=["context", "banner", "pulse", "health", "mounts", "vaults"])
     ap.add_argument("path", nargs="?", default=os.getcwd())
     ap.add_argument("--json", action="store_true", dest="as_json")
     args = ap.parse_intermixed_args()
@@ -590,6 +715,14 @@ def main():
         lines, data = compute_pulse(reg)
         if args.as_json:
             print(json.dumps(data, indent=2))
+        else:
+            print("\n".join(lines))
+        return
+
+    if args.command == "health":
+        lines = compute_health(reg)
+        if args.as_json:
+            print(json.dumps({"lines": lines}, indent=2))
         else:
             print("\n".join(lines))
         return
