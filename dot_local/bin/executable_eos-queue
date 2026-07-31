@@ -1,0 +1,189 @@
+#!/usr/bin/env python3
+"""eos-queue — session-end capture queue (ADR-0009).
+
+The write-down end of the worklog/knowledge pipeline. At session end the Stop
+hook nudges the agent to append entries here instead of writing into any
+vault — the queue is always legal from any context on any machine (no vault
+mounts, no ACLs). The triage fan-out drains it: work-records into the Journal
+ledger (log/YYYY-MM-DD <machine>.md), knowledge into wikis per the
+knowledge-routing protocol.
+
+    $EOS_STATE/queue.jsonl             (default ~/.local/state/engineering-os)
+    $EOS_STATE/queue-drained.jsonl     (drained entries, append-only audit)
+
+Machine-local and unsynced by design (accepted risk, ADR-0009): entries are
+transient staging drained on the machine that wrote them, not a store.
+
+First-writer-creates (ADR-0007): this script bootstraps the state dir + files;
+readers (`eos-resolve pulse`) tolerate absence as zero.
+
+Usage:
+  eos-queue add --kind work-record|knowledge --title <short> --body <text> \
+                --context <ctx> [--repo owner/repo] [--ticket REF] \
+                [--branch NAME] [--session ID] [--sensitivity org-ok|needs-despec|unsure]
+  eos-queue list                      # pending entries as JSON
+  eos-queue drain --done <id> [...]   # archive drained entries by id
+"""
+
+import argparse
+import json
+import os
+import re
+import socket
+import sys
+import time
+import uuid
+
+STATE = os.path.expanduser(os.environ.get("EOS_STATE", "~/.local/state/engineering-os"))
+REGISTRY = os.path.expanduser(
+    os.environ.get("EOS_REGISTRY", "~/.config/engineering-os/registry.json")
+)
+KINDS = ("work-record", "knowledge")
+SENSITIVITIES = ("org-ok", "needs-despec", "unsure")
+
+
+def queue_path():
+    return os.path.join(STATE, "queue.jsonl")
+
+
+def drained_path():
+    return os.path.join(STATE, "queue-drained.jsonl")
+
+
+def machine_id():
+    """The declared machine id from the registry (ADR-0009). Never derived
+    from hostname: absent id degrades loudly to UNRESOLVED-<hostname> so the
+    pulse can flag it, instead of silently breaking the ledger's
+    single-writer-per-file guarantee."""
+    try:
+        with open(REGISTRY, encoding="utf-8") as f:
+            mid = (json.load(f).get("machine") or {}).get("id")
+        if mid:
+            return mid, True
+    except (OSError, ValueError):
+        pass
+    host = re.sub(r"[^A-Za-z0-9-]+", "-", socket.gethostname().split(".")[0]) or "unknown"
+    return f"UNRESOLVED-{host}", False
+
+
+def read_entries(path):
+    """All entries in a jsonl file; absent file -> empty."""
+    recs = []
+    try:
+        with open(path, encoding="utf-8", errors="replace") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    recs.append(json.loads(line))
+                except ValueError:
+                    continue
+    except OSError:
+        pass
+    return recs
+
+
+def add(args):
+    if args.kind == "knowledge":
+        sensitivity = args.sensitivity or "unsure"  # doubt defaults down
+    elif args.sensitivity:
+        print("eos-queue: --sensitivity applies to knowledge entries only", file=sys.stderr)
+        return 2
+    else:
+        sensitivity = None
+
+    mid, declared = machine_id()
+    rec = {
+        "id": uuid.uuid4().hex[:12],
+        "ts": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+        "machine": mid,
+        "session": args.session or "unknown",
+        "attribution": {
+            "context": args.context,
+            "repo": args.repo,
+            "ticket": args.ticket,
+            "branch": args.branch,
+        },
+        "kind": args.kind,
+        "title": args.title,
+        "body": args.body,
+    }
+    if sensitivity:
+        rec["sensitivity"] = sensitivity
+    try:
+        os.makedirs(STATE, exist_ok=True)  # first-writer-creates
+        with open(queue_path(), "a", encoding="utf-8") as f:
+            f.write(json.dumps(rec) + "\n")
+    except OSError as e:
+        print(f"eos-queue: could not write queue: {e}", file=sys.stderr)
+        return 1
+    note = "" if declared else " (machine.id undeclared — set it via chezmoi init; the pulse will flag this)"
+    print(f"queued {args.kind} [{rec['id']}] {args.title}{note}")
+    return 0
+
+
+def drain(args):
+    """Archive drained entries by id: rewrite queue.jsonl without them and
+    append them (with a drained timestamp) to queue-drained.jsonl. Unknown ids
+    are reported, not fatal — drains are idempotent."""
+    done = set(args.done)
+    pending = read_entries(queue_path())
+    keep, moved = [], []
+    for rec in pending:
+        (moved if rec.get("id") in done else keep).append(rec)
+    missing = done - {r.get("id") for r in moved}
+    if missing:
+        print(f"eos-queue: ids not in queue (already drained?): {', '.join(sorted(missing))}", file=sys.stderr)
+    if not moved:
+        return 0
+    ts = time.strftime("%Y-%m-%dT%H:%M:%S%z")
+    try:
+        os.makedirs(STATE, exist_ok=True)
+        with open(drained_path(), "a", encoding="utf-8") as f:
+            for rec in moved:
+                f.write(json.dumps({**rec, "drained_ts": ts}) + "\n")
+        tmp = queue_path() + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            for rec in keep:
+                f.write(json.dumps(rec) + "\n")
+        os.replace(tmp, queue_path())
+    except OSError as e:
+        print(f"eos-queue: drain failed: {e}", file=sys.stderr)
+        return 1
+    print(f"drained {len(moved)} entr{'y' if len(moved) == 1 else 'ies'}, {len(keep)} pending")
+    return 0
+
+
+def main():
+    ap = argparse.ArgumentParser(prog="eos-queue", description=__doc__)
+    sub = ap.add_subparsers(dest="cmd", required=True)
+
+    add_p = sub.add_parser("add", help="append an entry to the queue")
+    add_p.add_argument("--kind", required=True, choices=KINDS)
+    add_p.add_argument("--title", required=True, help="short heading for the ledger/triage")
+    add_p.add_argument("--body", required=True, help="work-record: outcomes only; knowledge: the finding stated as knowledge")
+    add_p.add_argument("--context", required=True, help="owning context (UNRESOLVED if the session had none)")
+    add_p.add_argument("--repo", help="owner/repo slug")
+    add_p.add_argument("--ticket", help="ticket ref, e.g. EN-1234")
+    add_p.add_argument("--branch", help="branch name")
+    add_p.add_argument("--session", help="session id (for idempotent drains)")
+    add_p.add_argument("--sensitivity", choices=SENSITIVITIES, help="knowledge only; omitted -> unsure (defaults down)")
+
+    sub.add_parser("list", help="print pending entries as JSON")
+
+    dr = sub.add_parser("drain", help="archive drained entries by id")
+    dr.add_argument("--done", required=True, nargs="+", help="entry ids that have been routed")
+
+    args = ap.parse_args()
+    if args.cmd == "add":
+        sys.exit(add(args))
+    if args.cmd == "list":
+        print(json.dumps(read_entries(queue_path()), indent=2))
+        sys.exit(0)
+    if args.cmd == "drain":
+        sys.exit(drain(args))
+
+
+if __name__ == "__main__":
+    main()

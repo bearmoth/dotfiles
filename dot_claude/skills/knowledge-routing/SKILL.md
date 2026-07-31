@@ -1,6 +1,6 @@
 ---
 name: knowledge-routing
-description: Route knowledge to the right vault (context × role), quick-capture on demand (/capture), drain the journal _inbox (triage), or drain the de-spec queue (/despec). Use whenever writing notes, worklogs, reflections, captures, or any knowledge to an Obsidian vault, or when the user says capture, triage, inbox, despec, or "where does this go".
+description: Route knowledge to the right vault (context × role), quick-capture on demand (/capture), drain the journal _inbox and the session-end eos queue (triage), or drain the de-spec queue (/despec). Use whenever writing notes, worklogs, reflections, captures, or any knowledge to an Obsidian vault, or when the user says capture, triage, inbox, queue, despec, or "where does this go".
 ---
 
 # Knowledge routing
@@ -13,6 +13,11 @@ hardcode vault paths.
 |------------|-----------------------|---------------------------------|
 | personal   | Tech Notes            | Journal                         |
 | easygo     | Engagement PKB        | *empty by design*               |
+
+**Worklogs are journal material (ADR-0009).** A first-person work record never
+routes to a wiki — any context's worklog lands in the Journal ledger
+(`log/YYYY-MM-DD <machine>.md`), reaching it via the eos queue drain below.
+Wikis receive only *knowledge*, through their own gates.
 
 ## Routing protocol
 
@@ -62,13 +67,33 @@ dictation — he authored the words). If the content is org knowledge with a
 reusable skeleton, apply the **title test** and offer to queue it for
 de-specification (see below).
 
-## Mode: triage (drain `_inbox/`)
+## Mode: triage (drain `_inbox/` and the eos queue)
 
-User-triggered only. For each `_inbox/` item, oldest first: route it per the
-protocol (this is routing applied late — conventions enforced here), move it
-into its destination, and delete the inbox copy **only after** the routed
-write lands. Never delete or rewrite an item without routing it; never run
-unattended. Report count drained + count remaining (feeds `routines-audit`).
+User-triggered only. Two queues, same session:
+
+**The eos queue** (`eos-queue list` — this machine's session-end entries,
+ADR-0009). This is the fan-out routine. For each entry, oldest first:
+
+- `work-record` → the Journal ledger: `log/YYYY-MM-DD <machine>.md` (date and
+  machine from the *entry*, never from today or this host — that's what makes
+  drains out-of-order-safe and the ledger single-writer). Create the note with
+  `tags: [type/worklog]` and an `about:` list naming every context in the
+  file; append a `## <context> — <ticket> — <title>` section per entry.
+  Condense to meaningful outcomes while writing — the ledger is `type/worklog`,
+  not a capture, so tightening prose here is allowed.
+- `knowledge` → route per the protocol: easygo + `org-ok` → Engagement PKB
+  under its autonomy tiers (append-only with a citable source may be applied;
+  new structure stays briefing-gated); `needs-despec` → the de-spec queue;
+  `unsure` → Journal `_inbox/` (default down).
+- Mark an entry drained **only after** the routed write lands:
+  `eos-queue drain --done <id>...`. Other machines drain their own queues.
+
+**`_inbox/`**: for each item, oldest first, route it per the protocol (this is
+routing applied late — conventions enforced here), move it into its
+destination, and delete the inbox copy **only after** the routed write lands.
+Never delete or rewrite an item without routing it; never run unattended.
+
+Report counts drained + remaining for both queues (feeds `routines-audit`).
 
 ## Mode: despec (`/despec` — drain the de-spec queue)
 

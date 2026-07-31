@@ -17,6 +17,12 @@
 data:
   osid: {{ $osid | quote }}
   isWork: {{ $isWork }}
+  {{- /* Declared machine identity (ADR-0009): a human-chosen kebab-case
+         slug, prompted once at `chezmoi init` and carried forward on
+         re-inits. Never derived from hostname — factory defaults are
+         non-unique and macOS mutates hostnames on DHCP collisions. */}}
+  machine:
+    id: {{ promptStringOnce . "machine.id" "machine id (unique kebab-case slug for this machine, e.g. mbp-work, metabox)" | quote }}
 {{- if $eos }}
   eos: {{ toJson $eos }}
 {{- end }}

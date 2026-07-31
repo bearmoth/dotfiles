@@ -40,6 +40,7 @@ merge happens. Wayfinder #9/#23.
 {{-   $_ := set $contexts $name $ctx -}}
 {{- end -}}
 {{- $machine := dict -}}
+{{- if and (hasKey . "machine") (hasKey .machine "id") -}}{{- $_ := set $machine "id" .machine.id -}}{{- end -}}
 {{- if hasKey $eos "clone_root" -}}{{- $_ := set $machine "clone_root" $eos.clone_root -}}{{- end -}}
 {{- if hasKey $eos "worktree_root" -}}{{- $_ := set $machine "worktree_root" $eos.worktree_root -}}{{- end -}}
 {{- toPrettyJson (dict "machine" $machine "contexts" $contexts) -}}

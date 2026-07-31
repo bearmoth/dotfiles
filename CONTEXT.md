@@ -42,7 +42,7 @@ The lifespan of a workplace context — when it was live, from start to eventual
 
 ### Routine
 
-An unprompted moment in an agent session — a trigger, an obliged action, and a destination resolved by routing. Routines come in two tiers: **obligation** — deterministically enforced, so the moment cannot be silently missed (the worklog after significant work, the exposure gate) — and **offer** — best-effort detection where the agent proposes a capture (an ADR-shaped decision, a reflection, a de-spec flag) and the human decides. An explicit capture request is always guaranteed; offers are bonus. The worklog is agent-written; the diary is never — an agent does not author Phil's first person. Contrast with: *skill* (a capability a session may load; a routine is *when and what must happen*, not how).
+An unprompted moment in an agent session — a trigger, an obliged action, and a destination resolved by routing. Routines come in two tiers: **obligation** — deterministically enforced, so the moment cannot be silently missed (the queue entry after significant work, the exposure gate) — and **offer** — best-effort detection where the agent proposes a capture (an ADR-shaped decision, a reflection, a de-spec flag) and the human decides. An explicit capture request is always guaranteed; offers are bonus. Since ADR-0009 the session-end obligation writes **down to the eos queue, never into a vault** — vault materialisation happens at the triage fan-out, in a session whose context makes each write lawful. The worklog is agent-written; the diary is never — an agent does not author Phil's first person. Contrast with: *skill* (a capability a session may load; a routine is *when and what must happen*, not how).
 
 ### Taint
 
@@ -54,7 +54,19 @@ The per-destination freshness signal surfaced at the start of every session: whe
 
 ### Session capture
 
-A summary of an agent session written to the journal's `captures/sessions/` as the session ends, by the same Stop hook (and the same significance gate) that nudges the worklog — a session significant enough to worklog is significant enough to capture; a trivial one produces neither. A session capture is a **terminal record**: it is never re-triaged, summarised, or dropped — record-role material accumulates like the diary, and knowledge extraction happens at session end via the routines, not by reprocessing the record later. Hard-killed sessions escape the hook; the gap is accepted and surfaces as journal staleness in the pulse. Contrast with: *worklog entry* (curated, wiki-bound, context-owned), `_inbox/` items (capture that *does* await triage).
+A summary of an agent session written to the journal's `captures/sessions/` as the session ends, by the same Stop hook (and the same significance gate) that nudges the queue — a session significant enough to queue is significant enough to capture; a trivial one produces neither. Only same-context sessions write it directly (ADR-0008 ACLs); a cross-context session's queued work-record carries the summary until triage. A session capture is a **terminal record**: it is never re-triaged, summarised, or dropped — record-role material accumulates like the diary, and knowledge extraction happens at session end via the routines, not by reprocessing the record later. Hard-killed sessions escape the hook; the gap is accepted and surfaces as journal staleness in the pulse. Contrast with: *worklog entry* (condensable, journal-ledger-bound — ADR-0009: worklogs are journal material, never wiki), `_inbox/` items (capture that *does* await triage).
+
+### Event
+
+A moment that produces a knowledge-system write: work completed, a discovery, a decision, a problem observed, an incident, a first-person experience, a pattern spotted, an external record encountered. The full taxonomy — what each produces, where it lands, which are obligations vs offers — is `docs/event-taxonomy.md`. One real-world moment is often several events at once; see *Fan-out*.
+
+### Fan-out
+
+The pattern for one event producing writes to several destinations. Exactly one write is the **primary** — the lowest-exposure, rawest form (usually the journal-bound record), written first, whose landing means the event is captured. All other writes are **secondaries**: *different artifacts* derived by a declared transformation (a PKB fact from a session finding; a de-specified Tech Notes pattern from a PKB fact), queued rather than written inline. There is no cross-vault atomicity: a failed secondary degrades to a surfaced follow-up (visible in the pulse), never blocks the primary, and never leaves a derived artifact without its source record. Legal shapes: one journal only (everything is first-person at birth); multiple wikis (fact + generalisation); multiple entries in one wiki (events are cross-topical); journal + wiki (the everyday case). Contrast with: *promotion* (moving one artifact up in exposure; fan-out derives new artifacts instead).
+
+### Queue
+
+The machine-local session-end store (`~/.local/state/engineering-os/queue.jsonl`, ADR-0009) that every significant session writes one templated entry into — `work-record` (outcomes, never blow-by-blow) or `knowledge` (a finding about a system, with a sensitivity guess that defaults down). Always legal from any context on any machine: no vault mounts, no ACLs. It is **staging, not a store** — the triage fan-out drains it (work-records to the Journal ledger `log/YYYY-MM-DD <machine>.md`, knowledge to wikis per routing), and the pulse's queue line makes an un-drained queue loudly visible. Unsynced by accepted risk; each machine drains its own, which is what makes the ledger single-writer per file. Contrast with: `_inbox/` (in-vault default-down landing zone for knowledge capture), *eos-issues backlog* (system faults, not knowledge — ADR-0007).
 
 ### Scraper
 

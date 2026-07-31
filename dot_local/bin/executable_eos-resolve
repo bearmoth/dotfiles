@@ -37,6 +37,7 @@ INBOX_MAX_DAYS = int(os.environ.get("EOS_INBOX_MAX_DAYS", "14"))
 DESPEC_MAX_DAYS = int(os.environ.get("EOS_DESPEC_MAX_DAYS", "14"))
 INGEST_MAX_DAYS = int(os.environ.get("EOS_INGEST_MAX_DAYS", "10"))
 ISSUES_MAX_DAYS = int(os.environ.get("EOS_ISSUES_MAX_DAYS", "14"))
+QUEUE_MAX_DAYS = int(os.environ.get("EOS_QUEUE_MAX_DAYS", "7"))
 
 SKIP_DIRS = {".git", ".obsidian", ".trash", ".claude", "node_modules"}
 
@@ -190,26 +191,88 @@ def age_days(mtime):
     return int((time.time() - mtime) // 86400) if mtime else None
 
 
-def worklog_age(vault_path):
-    """Newest monthly worklog shard (log/YYYY-MM.md at vault root or one
-    level down, e.g. the PKB's wiki/log/)."""
-    newest = None
-    for logdir in [os.path.join(vault_path, "log")] + [
-        os.path.join(vault_path, d, "log")
-        for d in (os.listdir(vault_path) if os.path.isdir(vault_path) else [])
-        if os.path.isdir(os.path.join(vault_path, d)) and d not in SKIP_DIRS and not d.startswith(".")
-    ]:
-        if not os.path.isdir(logdir):
-            continue
-        for fn in os.listdir(logdir):
-            if re.fullmatch(r"\d{4}-\d{2}\.md", fn):
-                try:
-                    mt = os.path.getmtime(os.path.join(logdir, fn))
-                except OSError:
+def read_jsonl(path):
+    """Records from a jsonl file; absent file -> empty (readers tolerate
+    absence, ADR-0007)."""
+    recs = []
+    try:
+        with open(path, encoding="utf-8", errors="replace") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
                     continue
-                if newest is None or mt > newest:
-                    newest = mt
-    return age_days(newest)
+                try:
+                    recs.append(json.loads(line))
+                except ValueError:
+                    continue
+    except OSError:
+        pass
+    return recs
+
+
+def day_age(day):
+    """Age in days of a YYYY-MM-DD string; None if malformed."""
+    try:
+        return int((time.time() - time.mktime(time.strptime(day, "%Y-%m-%d"))) // 86400)
+    except (ValueError, OverflowError):
+        return None
+
+
+def note_contexts(path, default_ctx):
+    """Contexts a ledger note covers: its frontmatter `about:` list, else the
+    journal's own context (dated notes inherit the era default)."""
+    ctxs = set()
+    try:
+        with open(path, encoding="utf-8", errors="replace") as f:
+            for i, line in enumerate(f):
+                if i > 12:
+                    break
+                m = re.match(r"^about:\s*\[(.*)\]\s*$", line)
+                if m:
+                    ctxs = {c.strip().strip("'\"") for c in m.group(1).split(",") if c.strip()}
+                    break
+    except OSError:
+        pass
+    return ctxs or {default_ctx}
+
+
+def worklog_ages(journal_path, journal_ctx):
+    """Per-context age of the newest work record (ADR-0009): the freshest of
+    the local eos queue (pending + drained work-record entries, by attribution
+    context) and the synced Journal ledger notes (log/YYYY-MM-DD <machine>.md,
+    contexts from frontmatter). Also returns (pending_count, oldest_pending_age,
+    unresolved_machine) for the queue debt line."""
+    ages = {}
+
+    def take(ctx, age):
+        if ctx and age is not None and (ctx not in ages or age < ages[ctx]):
+            ages[ctx] = age
+
+    pending = read_jsonl(os.path.join(STATE, "queue.jsonl"))
+    unresolved_machine = any(
+        str(r.get("machine", "")).startswith("UNRESOLVED-") for r in pending
+    )
+    oldest_pending = None
+    for rec in pending:
+        a = day_age((rec.get("ts") or "")[:10])
+        if a is not None and (oldest_pending is None or a > oldest_pending):
+            oldest_pending = a
+    for rec in pending + read_jsonl(os.path.join(STATE, "queue-drained.jsonl")):
+        if rec.get("kind") != "work-record":
+            continue
+        take((rec.get("attribution") or {}).get("context"), day_age((rec.get("ts") or "")[:10]))
+
+    logdir = os.path.join(journal_path, "log") if journal_path else None
+    if logdir and os.path.isdir(logdir):
+        for fn in os.listdir(logdir):
+            m = re.match(r"^(\d{4}-\d{2}-\d{2})\b.*\.md$", fn)
+            if not m:
+                continue
+            age = day_age(m.group(1))
+            for ctx in note_contexts(os.path.join(logdir, fn), journal_ctx):
+                take(ctx, age)
+
+    return ages, len(pending), oldest_pending, unresolved_machine
 
 
 def ingest_age(vault_path):
@@ -332,19 +395,28 @@ def compute_pulse(reg):
     data = {}
     contexts = reg.get("contexts", {})
 
+    journal = journal_ctx = None
+    for ctx in sorted(contexts):
+        jv = (contexts[ctx].get("vaults") or {}).get("journal") or {}
+        if jv.get("path"):
+            journal, journal_ctx = jv["path"], ctx
+            break
+
+    # Worklog freshness (ADR-0009): local eos queue + synced Journal ledger,
+    # never a wiki — worklogs are journal material.
+    wl_ages, q_count, q_oldest, q_unresolved = worklog_ages(journal, journal_ctx)
     personal_wiki = None
-    journal = None
     for ctx in sorted(contexts):
         cdef = contexts[ctx]
         vaults = cdef.get("vaults") or {}
+        wa = wl_ages.get(ctx)
+        data.setdefault("worklog", {})[ctx] = wa
+        lines.append(
+            f"worklog {ctx}: "
+            + ("no entries yet" if wa is None else f"last entry {wa}d ago")
+        )
         wiki = vaults.get("wiki") or {}
         if wiki.get("path"):
-            wa = worklog_age(wiki["path"])
-            data.setdefault("worklog", {})[ctx] = wa
-            lines.append(
-                f"worklog {ctx}: "
-                + ("no log/YYYY-MM.md yet" if wa is None else f"last entry {wa}d ago")
-            )
             if ctx == "personal":
                 personal_wiki = wiki["path"]
             # Ingestion heartbeat: last `ingest` entry in the vault's own
@@ -356,14 +428,25 @@ def compute_pulse(reg):
                     lines.append(
                         f"ingest {ctx}: last ingest {ia}d ago (>{INGEST_MAX_DAYS}d) — run /weekly-ingest in {wiki['name']}"
                     )
-        jv = vaults.get("journal") or {}
-        if jv.get("path"):
-            journal = jv["path"]
-            ja = age_days(newest_mtime(jv["path"], match="*.md"))
-            data["journal"] = ja
-            lines.append(
-                "journal: " + ("empty" if ja is None else f"last note {ja}d ago")
-            )
+    if journal:
+        ja = age_days(newest_mtime(journal, match="*.md"))
+        data["journal"] = ja
+        lines.append(
+            "journal: " + ("empty" if ja is None else f"last note {ja}d ago")
+        )
+
+    # Queue debt (ADR-0009): what keeps "dump centrally, triage later" honest.
+    # Silent unless rotting — except an undeclared machine.id, which surfaces
+    # immediately (it threatens the ledger's single-writer guarantee).
+    data["queue"] = {"count": q_count, "oldest_days": q_oldest, "unresolved_machine": q_unresolved}
+    if q_unresolved:
+        lines.append(
+            f"queue: {q_count} pending with UNDECLARED machine.id — set it via `chezmoi init` (ADR-0009)"
+        )
+    elif q_count and q_oldest is not None and q_oldest > QUEUE_MAX_DAYS:
+        lines.append(
+            f"queue: {q_count} pending, oldest {q_oldest}d (>{QUEUE_MAX_DAYS}d) — drain via knowledge-routing triage"
+        )
 
     if journal:
         count, oldest = inbox_state(journal)

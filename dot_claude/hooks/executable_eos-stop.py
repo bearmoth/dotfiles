@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
-"""Stop hook: worklog nudge + session capture (wayfinder #14/#16/#23).
+"""Stop hook: queue nudge + session capture (ADR-0009, wayfinder #14/#16/#23).
 
 One significance gate, two outputs. At turn-end, if the session did
 significant work (files edited / commits made / heavy tool volume) and hasn't
 been nudged yet, bounce the agent back once to:
-  1. append a worklog entry to the owning context's wiki log/YYYY-MM.md
-  2. write a session capture to the Journal captures/sessions/
+  1. queue a work-record entry (plus any knowledge entries) via `eos-queue` —
+     never a direct vault write; the triage fan-out materialises vaults later
+  2. write a session capture to the Journal captures/sessions/ — but only
+     when the session's own context is the journal's context; cross-context
+     sessions queue only (ADR-0008 ACLs make the direct write unlawful)
 
 A trivial session produces neither. Nudges once per session; hard-killed
 sessions escape (accepted gap — surfaces as staleness in the pulse).
@@ -139,43 +142,50 @@ def main(data):
     contexts = mounts.get("contexts", {})
 
     context = ctx.get("context")
-    wiki = (contexts.get(context, {}).get("vaults") or {}).get("wiki") if context else None
-    journal = None
-    for cdef in contexts.values():
+    journal = journal_ctx = None
+    for cname, cdef in contexts.items():
         j = (cdef.get("vaults") or {}).get("journal")
         if j and j.get("path"):
-            journal = j
+            journal, journal_ctx = j, cname
             break
 
     today = time.strftime("%Y-%m-%d")
-    month = time.strftime("%Y-%m")
-    tasks = []
-    if wiki and wiki.get("path"):
-        attribution = ""
-        if ctx.get("repo"):
-            attribution = (
-                f" Attribute work as ({context}, {ctx['repo']['slug']}, "
-                f"{ctx.get('ticket') or 'no-ticket'}, {ctx.get('branch')}) — never cite filesystem paths."
-            )
+    repo = ctx.get("repo") or {}
+    attr_flags = f"--context {context or 'UNRESOLVED'} --session {session}"
+    if repo.get("slug"):
+        attr_flags += f" --repo \"{repo['slug']}\""
+    if ctx.get("ticket"):
+        attr_flags += f" --ticket {ctx['ticket']}"
+    if ctx.get("branch"):
+        attr_flags += f" --branch \"{ctx['branch']}\""
+
+    # Queue, never a direct vault write (ADR-0009): always legal from any
+    # context on any machine, drained by the triage fan-out.
+    tasks = [
+        "1. QUEUE (work record): run\n"
+        f"   eos-queue add --kind work-record {attr_flags} \\\n"
+        "     --title \"<short title>\" --body \"<terse bullets>\"\n"
+        "   Body register: meaningful outcomes only — decisions, findings, things "
+        "shipped — never a step-by-step narrative (that belongs in the session "
+        "capture). Must pass the 404 test (no cross-vault links carrying meaning); "
+        "never cite filesystem paths.\n"
+        "2. QUEUE (knowledge, if any): for each thing this session learned that is "
+        "knowledge about a system rather than a record of you — a discovered "
+        "constraint, a confirmed behaviour, a gotcha — run\n"
+        f"   eos-queue add --kind knowledge {attr_flags} \\\n"
+        "     --sensitivity org-ok|needs-despec|unsure --title \"<the claim>\" --body \"<the finding, stated as knowledge>\"\n"
+        "   When unsure about sensitivity, omit the flag (defaults down to unsure). "
+        "Skip this step if the session surfaced nothing wiki-worthy."
+    ]
+    if journal and context == journal_ctx:
         tasks.append(
-            f"1. WORKLOG: append an entry for today to \"{wiki['path']}/log/{month}.md\" "
-            f"(create the file with a `# Worklog {month}` heading if missing). Format: a "
-            f"`## {today} — <short title>` heading plus terse bullets covering only work "
-            f"owned by the `{context}` context. The entry must pass the 404 test (no "
-            f"cross-vault links carrying meaning).{attribution} If an entry for this "
-            "session already exists, extend it instead."
-        )
-    if journal:
-        tasks.append(
-            f"{len(tasks) + 1}. SESSION CAPTURE: write a summary of this session to "
+            "3. SESSION CAPTURE: write a summary of this session to "
             f"\"{journal['path']}/captures/sessions/{today}-<short-kebab-slug>.md\" with "
             "frontmatter `tags: [type/capture]`. Cover: what was attempted, what "
             "happened, decisions made, loose ends. This is a terminal record — verbatim-"
             "ish and unpolished is fine. Do NOT write to diary/ (the diary is never "
             "agent-written)."
         )
-    if not tasks:
-        return  # nowhere to write on this machine
 
     os.makedirs(sdir, exist_ok=True)
     open(nudge_file, "w").close()
@@ -192,8 +202,11 @@ def main(data):
                     "Engineering-OS routines (this session did significant work — "
                     f"{edits} edits, {commits} commits, {tools} tool calls):\n"
                     + "\n".join(tasks)
-                    + "\nThen finish your reply normally. If genuinely nothing "
-                    "noteworthy happened, state that in one line instead of writing."
+                    + "\nPerform these routines SILENTLY: no narration, no echoing "
+                    "of entry bodies or file contents into the reply. End with one "
+                    "summary line (e.g. \"routines: 1 work-record, 2 knowledge "
+                    "queued\"), then finish your reply normally. If genuinely "
+                    "nothing noteworthy happened, state that in one line instead."
                 ),
             }
         )
