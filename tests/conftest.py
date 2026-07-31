@@ -6,6 +6,7 @@ import pytest
 
 REPO = pathlib.Path(__file__).resolve().parents[1]
 TAINT_GATE = REPO / "dot_claude" / "hooks" / "executable_eos-taint-gate.py"
+GUARDRAIL = REPO / "dot_claude" / "hooks" / "executable_eos-git-guardrail.py"
 RESOLVER = REPO / "dot_local" / "bin" / "executable_eos-resolve"
 
 
@@ -21,6 +22,11 @@ def _load(path, name):
 @pytest.fixture
 def taint_gate():
     return _load(TAINT_GATE, "eos_taint_gate")
+
+
+@pytest.fixture
+def guardrail():
+    return _load(GUARDRAIL, "eos_git_guardrail")
 
 
 @pytest.fixture

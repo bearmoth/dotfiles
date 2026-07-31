@@ -14,6 +14,15 @@ Load-bearing carve-outs:
 - A repo resolving to NO context is blocked loudly — a routing gap
   surfacing itself, never a silent pass.
 
+Target resolution: explicit `git -C <path>` wins; else a `cd`/`pushd` that
+precedes the mutating git command in a compound command (`cd X && git ...`)
+resolves the target to X — the bypass this closes is `cd /other/repo &&
+git merge` slipping past as the session cwd. Quoted paths, `~`, and
+$HOME/${HOME} resolve statically; anything the hook cannot resolve
+statically (other variables, subshells, multiple cd hops) FAILS CLOSED for
+mutating commands, with a rephrase hint (`git -C`). Non-mutating commands
+are untouched.
+
 Fails soft on internal errors (never bricks Bash), but denials themselves
 are deterministic.
 """
@@ -33,6 +42,73 @@ MUTATING_RE = re.compile(
     r"(commit|pull|merge|rebase|checkout\s+-b|switch\s+(?:-c|--create)|branch\s+(?!-d|-D|--delete|--list|-l\b|--show-current|-a\b|--all|-r\b|-v)\S)"
 )
 GIT_C_RE = re.compile(r"\bgit\s+(?:[^|;&]*?)-C\s+(\"[^\"]+\"|'[^']+'|\S+)")
+# A cd/pushd step: at command start or after a separator. Path may be quoted,
+# empty (bare `cd` -> $HOME), or a bare token.
+CD_RE = re.compile(
+    r"(?:^|&&|\|\||[;|&\n])\s*(cd|pushd)\b\s*(\"[^\"]*\"|'[^']*'|[^\s;&|]*)"
+)
+
+
+def static_path(raw, base):
+    """Statically resolve a shell path token (quote-stripping, ~, $HOME);
+    None when it needs shell evaluation (other variables, substitutions)."""
+    p = (raw or "").strip()
+    if len(p) >= 2 and p[0] == p[-1] and p[0] in "\"'":
+        p = p[1:-1]
+    if not p:
+        return os.path.realpath(os.path.expanduser("~"))  # bare `cd`
+    home = os.path.expanduser("~")
+    p = p.replace("${HOME}", home).replace("$HOME", home)
+    if re.search(r"[$`]", p) or "(" in p or p == "-":
+        return None
+    p = os.path.expanduser(p)
+    if not os.path.isabs(p):
+        p = os.path.join(base, p)
+    return os.path.realpath(p)
+
+
+def resolve_target(command, cwd):
+    """(target_path, deny_reason) for a command already known to mutate.
+    Exactly one of the pair is None. Priority: a cd/pushd before the mutating
+    git command rebases the working directory; an explicit `git -C` then wins
+    over (or composes with) it. Anything not statically resolvable fails
+    closed — deny_reason explains and points at `git -C`."""
+    how_to = (
+        " Rephrase with an explicit static path — `git -C <absolute-path> ...` "
+        "with no shell variables or substitutions — so the guardrail can vet "
+        "the target (ADR-0004)."
+    )
+    mut = MUTATING_RE.search(command)
+    mut_pos = mut.start() if mut else len(command)
+    base = cwd
+    cds = [m for m in CD_RE.finditer(command) if m.start() < mut_pos]
+    if len(cds) > 1:
+        return None, (
+            "Git guardrail (ADR-0004): this mutating git command follows "
+            "multiple cd/pushd steps, which the guardrail cannot statically "
+            "resolve, so it is blocked (fail closed)." + how_to
+        )
+    if cds:
+        p = static_path(cds[0].group(2), cwd)
+        if p is None:
+            return None, (
+                f"Git guardrail (ADR-0004): this mutating git command follows "
+                f"`{cds[0].group(1)} {cds[0].group(2)}`, whose path cannot be "
+                "statically resolved (variables/subshells), so it is blocked "
+                "(fail closed)." + how_to
+            )
+        base = p
+    m = GIT_C_RE.search(command)
+    if m:
+        p = static_path(m.group(1), base)
+        if p is None:
+            return None, (
+                f"Git guardrail (ADR-0004): the `git -C {m.group(1)}` path "
+                "cannot be statically resolved (variables/subshells), so this "
+                "mutating command is blocked (fail closed)." + how_to
+            )
+        return p, None
+    return os.path.realpath(base), None
 
 
 def audit(event, session_id, detail):
@@ -111,6 +187,29 @@ def deny(reason, session, detail):
     )
 
 
+def get_vaults():
+    """Registered vaults, as `eos-resolve vaults --json`. Injectable."""
+    try:
+        return json.loads(
+            subprocess.run(
+                [EOS, "vaults", "--json"], capture_output=True, text=True, timeout=15
+            ).stdout
+        )
+    except (ValueError, OSError):
+        return []
+
+
+def get_context(path):
+    """Owning context of `path` (None if unresolved). Injectable."""
+    try:
+        r = subprocess.run(
+            [EOS, "context", "--json", path], capture_output=True, text=True, timeout=15
+        )
+        return json.loads(r.stdout).get("context")
+    except (ValueError, OSError, subprocess.TimeoutExpired):
+        return None
+
+
 def main(data):
     if data.get("tool_name") != "Bash":
         return
@@ -119,21 +218,15 @@ def main(data):
     if not MUTATING_RE.search(command):
         return
 
-    # Target working tree: explicit `git -C <path>` wins, else the hook cwd.
-    m = GIT_C_RE.search(command)
-    target = m.group(1).strip("\"'") if m else data.get("cwd") or os.getcwd()
-    target = os.path.realpath(os.path.expanduser(target))
+    # Target working tree: cd/pushd prefix and/or `git -C` win, else hook cwd.
+    # Unresolvable targets fail closed (a mutating command must be vettable).
+    target, deny_reason = resolve_target(command, data.get("cwd") or os.getcwd())
+    if deny_reason:
+        deny(deny_reason, session, {"command": command[:200], "reason": "unresolvable-target"})
+        return
 
     # Vaults are exempt entirely.
-    try:
-        vaults = json.loads(
-            subprocess.run(
-                [EOS, "vaults", "--json"], capture_output=True, text=True, timeout=15
-            ).stdout
-        )
-    except (ValueError, OSError):
-        vaults = []
-    for v in vaults:
+    for v in get_vaults():
         p = v.get("path")
         if p:
             p = os.path.realpath(p)
@@ -153,14 +246,7 @@ def main(data):
             return
 
     # A repo resolving to no context is a routing gap — block loudly.
-    ctx = subprocess.run(
-        [EOS, "context", "--json", repo_root], capture_output=True, text=True, timeout=15
-    )
-    resolved = None
-    try:
-        resolved = json.loads(ctx.stdout).get("context")
-    except ValueError:
-        pass
+    resolved = get_context(repo_root)
     if not resolved:
         deny(
             f"Git guardrail: {repo_root} resolves to no context — a routing "
