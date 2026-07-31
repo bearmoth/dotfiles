@@ -436,13 +436,28 @@ def compute_pulse(reg):
         )
 
     # Queue debt (ADR-0009): what keeps "dump centrally, triage later" honest.
-    # Silent unless rotting — except an undeclared machine.id, which surfaces
-    # immediately (it threatens the ledger's single-writer guarantee).
+    # Silent unless rotting — except UNRESOLVED-* stamps, which surface
+    # immediately (they threaten the ledger's single-writer guarantee). Two
+    # distinct states: no machine.id declared -> the chezmoi init remedy;
+    # id declared but entries pre-date it -> drain (init cannot rewrite
+    # already-stamped entries).
     data["queue"] = {"count": q_count, "oldest_days": q_oldest, "unresolved_machine": q_unresolved}
     if q_unresolved:
-        lines.append(
-            f"queue: {q_count} pending with UNDECLARED machine.id — set it via `chezmoi init` (ADR-0009)"
-        )
+        machine_id = (reg.get("machine") or {}).get("id")
+        if machine_id:
+            stamps = sorted({
+                str(r.get("machine"))
+                for r in read_jsonl(os.path.join(STATE, "queue.jsonl"))
+                if str(r.get("machine", "")).startswith("UNRESOLVED-")
+            })
+            lines.append(
+                f"queue: {q_count} pending stamped {', '.join(stamps)} (queued "
+                "before machine.id was declared) — drain to clear (ADR-0009)"
+            )
+        else:
+            lines.append(
+                f"queue: {q_count} pending with UNDECLARED machine.id — set it via `chezmoi init` (ADR-0009)"
+            )
     elif q_count and q_oldest is not None and q_oldest > QUEUE_MAX_DAYS:
         lines.append(
             f"queue: {q_count} pending, oldest {q_oldest}d (>{QUEUE_MAX_DAYS}d) — drain via knowledge-routing triage"
