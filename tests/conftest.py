@@ -8,6 +8,7 @@ REPO = pathlib.Path(__file__).resolve().parents[1]
 TAINT_GATE = REPO / "dot_claude" / "hooks" / "executable_eos-taint-gate.py"
 GUARDRAIL = REPO / "dot_claude" / "hooks" / "executable_eos-git-guardrail.py"
 RESOLVER = REPO / "dot_local" / "bin" / "executable_eos-resolve"
+PUSH_GATE = REPO / "dot_local" / "bin" / "executable_eos-push-gate"
 
 
 def _load(path, name):
@@ -32,6 +33,11 @@ def guardrail():
 @pytest.fixture
 def resolver():
     return _load(RESOLVER, "eos_resolve")
+
+
+@pytest.fixture
+def push_gate():
+    return _load(PUSH_GATE, "eos_push_gate")
 
 
 @pytest.fixture

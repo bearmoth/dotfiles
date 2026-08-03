@@ -1,0 +1,251 @@
+#!/usr/bin/env python3
+"""eos-push-gate — push-time exposure gate for org vaults (#29, ADR-0008 as
+amended).
+
+Write-time asks for cross-context org-vault writes are gone (the taint-gate
+hook allows and audit-logs them); the exposure decision moved here, to the
+vault's own pre-push hook — the last point before content leaves the machine.
+
+Hook mode (installed as .githooks/pre-push; git passes remote name + URL as
+args and the outbound ref lines on stdin):
+
+  1. Print a compact outbound summary: commit count and subjects per ref,
+     files changed with adds/dels, flagging any path outside wiki/ and any
+     file gaining more than 200 added lines.
+  2. If a controlling terminal is available (human-driven push): interactive
+     y/N confirm.
+  3. Otherwise (agent-driven push): require EOS_PUSH_ACK=1 in the
+     environment, else block (exit 1) with instructions to present the
+     summary to the human and re-run with the ack. The Claude permission
+     prompt on the push command itself is the human gate for agent pushes;
+     the env var makes the surface-then-ack explicit.
+
+Install mode:
+
+  eos-push-gate --install <vault-path>
+
+writes <vault>/.githooks/pre-push (a shim delegating back to this script)
+and sets core.hooksPath, refusing on paths that are not registered vault
+roots (checked against the registry via eos-resolve) and refusing to clobber
+a foreign pre-push hook (e.g. the Journal's remote pin). Installation is a
+deliberate per-vault step — nothing installs this automatically.
+"""
+
+import json
+import os
+import re
+import subprocess
+import sys
+
+EOS = os.path.expanduser("~/.local/bin/eos-resolve")
+
+LARGE_ADDS = 200
+SHIM_MARKER = "eos-push-gate shim"
+SHIM = f"""#!/bin/sh
+# {SHIM_MARKER} — installed by `eos-push-gate --install` (dotfiles #29).
+# Delegates the push-time exposure decision to eos-push-gate; remove this
+# file and `git config --unset core.hooksPath` to uninstall.
+exec "$HOME/.local/bin/eos-push-gate" "$@"
+"""
+
+
+def git(args, cwd=None):
+    r = subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True,
+                       timeout=30)
+    return r.stdout if r.returncode == 0 else None
+
+
+_SHA_RE = re.compile(r"[0-9a-f]{40,64}$")  # sha1 or sha256 object name
+
+
+def is_zero_sha(sha):
+    return set(sha) == {"0"}
+
+
+def parse_ref_lines(lines):
+    """Standard pre-push stdin: `<local_ref> <local_sha> <remote_ref>
+    <remote_sha>` per outbound ref. Deletions (zero local sha) carry no
+    outbound content and are skipped."""
+    updates = []
+    for line in lines:
+        parts = line.split()
+        if len(parts) != 4:
+            continue
+        local_ref, local_sha, remote_ref, remote_sha = parts
+        if not (_SHA_RE.match(local_sha) and _SHA_RE.match(remote_sha)):
+            continue
+        if is_zero_sha(local_sha):
+            continue
+        updates.append({"local_ref": local_ref, "local_sha": local_sha,
+                        "remote_ref": remote_ref, "remote_sha": remote_sha})
+    return updates
+
+
+def rev_range(update):
+    """Git rev args selecting the outbound commits: remote..local for an
+    existing ref; for a new ref, everything local not already on any
+    remote."""
+    if is_zero_sha(update["remote_sha"]):
+        return [update["local_sha"], "--not", "--remotes"]
+    return [f"{update['remote_sha']}..{update['local_sha']}"]
+
+
+def outbound_stats(update, repo=None):
+    """(subjects, {path: (adds, dels)}) for one ref update. Binary files
+    (numstat `-`) count as 0 lines but still appear."""
+    rng = rev_range(update)
+    subjects = (git(["log", "--format=%s", *rng], cwd=repo) or "").splitlines()
+    files = {}
+    numstat = git(["log", "--numstat", "--format=", *rng], cwd=repo) or ""
+    for line in numstat.splitlines():
+        parts = line.split("\t")
+        if len(parts) != 3:
+            continue
+        adds, dels, path = parts
+        a = int(adds) if adds.isdigit() else 0
+        d = int(dels) if dels.isdigit() else 0
+        pa, pd = files.get(path, (0, 0))
+        files[path] = (pa + a, pd + d)
+    return subjects, files
+
+
+def file_flags(path, adds):
+    flags = []
+    if not path.startswith("wiki/"):
+        flags.append("[outside wiki/]")
+    if adds > LARGE_ADDS:
+        flags.append(f"[+{adds} lines added]")
+    return flags
+
+
+def summary_lines(updates, remote_name, remote_url, repo=None):
+    """The compact outbound summary the human (or the relaying agent) reads
+    before acking the push."""
+    lines = [f"eos-push-gate: outbound to {remote_name} ({remote_url})"]
+    for u in updates:
+        subjects, files = outbound_stats(u, repo=repo)
+        n = len(subjects)
+        lines.append(f"  {u['local_ref']} -> {u['remote_ref']}: "
+                     f"{n} commit{'s' if n != 1 else ''}")
+        for s in subjects:
+            lines.append(f"    - {s}")
+        if files:
+            lines.append("  files changed:")
+            for path in sorted(files):
+                adds, dels = files[path]
+                flag = "  ".join(file_flags(path, adds))
+                lines.append(f"    +{adds}\t-{dels}\t{path}"
+                             + (f"  {flag}" if flag else ""))
+    return lines
+
+
+def open_tty():
+    """The controlling terminal for the interactive confirm, or None when
+    there isn't one (agent-driven push). Stdin itself carries the ref lines,
+    so interactivity is decided by /dev/tty, never by stdin."""
+    try:
+        return open("/dev/tty", "r+")
+    except OSError:
+        return None
+
+
+def gate(updates, remote_name, remote_url, repo=None, err=None):
+    """Summarise, then decide: 0 = push proceeds, 1 = blocked."""
+    err = err if err is not None else sys.stderr
+    if not updates:
+        return 0  # nothing outbound (e.g. deletions only)
+    for line in summary_lines(updates, remote_name, remote_url, repo=repo):
+        print(line, file=err)
+
+    tty = open_tty()
+    if tty is not None:
+        with tty:
+            print("Proceed with push? [y/N] ", end="", file=err, flush=True)
+            answer = tty.readline().strip().lower()
+        if answer in ("y", "yes"):
+            return 0
+        print("eos-push-gate: push declined.", file=err)
+        return 1
+
+    if os.environ.get("EOS_PUSH_ACK") == "1":
+        print("eos-push-gate: acknowledged via EOS_PUSH_ACK=1 — push proceeds.",
+              file=err)
+        return 0
+    print(
+        "eos-push-gate: push BLOCKED — no terminal and no acknowledgement.\n"
+        "This vault's outbound content needs human review: present the summary\n"
+        "above to the human, and once they approve re-run the push with\n"
+        "EOS_PUSH_ACK=1, e.g. `EOS_PUSH_ACK=1 git push`. (The permission prompt\n"
+        "on that command is the human gate — never set the ack unprompted.)",
+        file=err,
+    )
+    return 1
+
+
+# --------------------------------------------------------------- install ----
+
+
+def registered_vault_roots():
+    """Realpathed roots of every registered vault, via eos-resolve (the
+    single home of registry semantics)."""
+    try:
+        r = subprocess.run([EOS, "vaults", "--json"], capture_output=True,
+                           text=True, timeout=15)
+        vaults = json.loads(r.stdout) if r.returncode == 0 else []
+    except (OSError, ValueError, subprocess.TimeoutExpired):
+        vaults = []
+    return {os.path.realpath(v["path"]) for v in vaults if v.get("path")}
+
+
+def install(vault_path, roots=None, err=None):
+    """Wire this gate into one vault: write .githooks/pre-push (shim) and set
+    core.hooksPath. Refuses non-vault paths and foreign pre-push hooks."""
+    err = err if err is not None else sys.stderr
+    real = os.path.realpath(os.path.expanduser(vault_path))
+    if roots is None:
+        roots = registered_vault_roots()
+    if real not in roots:
+        print(f"eos-push-gate: refusing — {vault_path} is not a registered "
+              "vault root (per eos-resolve vaults). The push gate installs "
+              "into vaults only.", file=err)
+        return 1
+    if not os.path.isdir(os.path.join(real, ".git")):
+        print(f"eos-push-gate: refusing — {vault_path} is not a git checkout.",
+              file=err)
+        return 1
+    hook = os.path.join(real, ".githooks", "pre-push")
+    if os.path.exists(hook):
+        with open(hook, encoding="utf-8") as f:
+            existing = f.read()
+        if SHIM_MARKER not in existing:
+            print(f"eos-push-gate: refusing — {hook} already exists and is "
+                  "not an eos-push-gate shim; merge it by hand.", file=err)
+            return 1
+    os.makedirs(os.path.dirname(hook), exist_ok=True)
+    with open(hook, "w", encoding="utf-8") as f:
+        f.write(SHIM)
+    os.chmod(hook, 0o755)
+    if git(["config", "core.hooksPath", ".githooks"], cwd=real) is None:
+        print("eos-push-gate: failed to set core.hooksPath.", file=err)
+        return 1
+    print(f"eos-push-gate: installed into {vault_path} "
+          "(.githooks/pre-push + core.hooksPath).", file=err)
+    return 0
+
+
+def main(argv=None, stdin=None, repo=None):
+    argv = sys.argv[1:] if argv is None else argv
+    stdin = sys.stdin if stdin is None else stdin
+    if argv and argv[0] == "--install":
+        if len(argv) != 2:
+            print("usage: eos-push-gate --install <vault-path>", file=sys.stderr)
+            return 2
+        return install(argv[1])
+    remote_name = argv[0] if len(argv) > 0 else "?"
+    remote_url = argv[1] if len(argv) > 1 else "?"
+    updates = parse_ref_lines(stdin.read().splitlines())
+    return gate(updates, remote_name, remote_url, repo=repo)
+
+
+if __name__ == "__main__":
+    sys.exit(main())
