@@ -50,3 +50,7 @@ Kept only while the Easygo roleless vault exists — the one remaining legitimat
 - The end-of-session worklog routine runs with **zero** gate interaction — the acceptance test that the directionality bug is dead.
 - Fail-open on hook error and the once-per-session crash breadcrumb are unchanged.
 - **Retirement condition:** the Easygo vault migrated (#25) **and** zero gate trips over 30 consecutive days of audit ⇒ delete the taint machinery in a follow-up change. Data-triggered, per ADR-0005's own principle.
+
+## Amendments
+
+**Amended 2026-08-03:** cross-context org-vault writes are allowed and audit-logged (`org_write_cross_context`); exposure is gated at push time (eos-push-gate in the vault's pre-push hook) per [#29](https://github.com/bearmoth/dotfiles/issues/29). Rule 2's write-time `ask` no longer exists for the clean cross-context case; the taint backstop (rule of this ADR's "Taint" section) is unchanged — a tainted session still asks on any org write, since private content already in-context is the one flow push-time review cannot catch. Session grants (ask-once-per-vault batching) were removed with the asks they batched.
