@@ -123,22 +123,35 @@ def test_cross_context_readonly_bash_on_org_vault_allows(taint_gate, monkeypatch
     assert res is None
 
 
-def test_cross_context_write_bash_on_org_vault_asks(taint_gate, monkeypatch, world, tmp_path):
+def _audit_events(tmp_path):
+    with open(os.path.join(str(tmp_path), "audit.jsonl")) as f:
+        return [json.loads(l) for l in f]
+
+
+def test_cross_context_write_bash_on_org_vault_allows_and_audits(taint_gate, monkeypatch, world, tmp_path):
+    # #29: write-time asks are gone — the write is allowed but audit-logged;
+    # exposure is gated at push time (eos-push-gate).
     res = _run_main(
         taint_gate, monkeypatch, world,
         {"session_id": "s", "cwd": "/repo", "tool_name": "Bash",
          "tool_input": {"command": "cp /tmp/a.md /vaults/pkb/notes/a.md"}},
         tmp_path, session_ctx="personal")
-    assert res["hookSpecificOutput"]["permissionDecision"] == "ask"
+    assert res is None
+    (ev,) = [e for e in _audit_events(tmp_path) if e["event"] == "org_write_cross_context"]
+    assert ev["detail"]["vault"] == "Engagement PKB"
 
 
-def test_cross_context_doubtful_bash_on_org_vault_asks(taint_gate, monkeypatch, world, tmp_path):
+def test_cross_context_doubtful_bash_on_org_vault_allows_and_audits(taint_gate, monkeypatch, world, tmp_path):
+    # A doubtful (not provably read-only) command is treated as a possible
+    # write: no ask post-#29, but the audit event still records the flow.
     res = _run_main(
         taint_gate, monkeypatch, world,
         {"session_id": "s", "cwd": "/repo", "tool_name": "Bash",
          "tool_input": {"command": "python3 tool.py /vaults/pkb/notes"}},
         tmp_path, session_ctx="personal")
-    assert res["hookSpecificOutput"]["permissionDecision"] == "ask"
+    assert res is None
+    (ev,) = [e for e in _audit_events(tmp_path) if e["event"] == "org_write_cross_context"]
+    assert ev["detail"]["session_context"] == "personal"
 
 
 def test_readonly_mention_of_private_vault_still_taints_and_denies(taint_gate, monkeypatch, world, tmp_path):

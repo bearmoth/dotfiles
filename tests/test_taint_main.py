@@ -84,14 +84,52 @@ def test_repo_paths_never_gated(taint_gate, monkeypatch, world, tmp_path):
     assert res is None
 
 
-def test_cross_context_org_write_asks_even_when_clean(taint_gate, monkeypatch, world, tmp_path):
-    # personal session -> PKB (easygo org) is a cross-context org write
+def test_cross_context_org_write_allowed_and_audited(taint_gate, monkeypatch, world, tmp_path):
+    # personal session -> PKB (easygo org): #29 moved the gate to push time,
+    # so the write passes with no ask — but leaves an audit event recording
+    # vault, session context, and file, so routines-audit still sees the flow.
     res, _ = _run_main(
         taint_gate, monkeypatch, world,
         {"session_id": "s", "cwd": "/repo", "tool_name": "Write",
          "tool_input": {"file_path": "/vaults/pkb/notes/x.md"}},
         tmp_path=tmp_path, session_ctx="personal")
+    assert res is None
+    events = [json.loads(l) for l in
+              open(os.path.join(str(tmp_path), "audit.jsonl"))]
+    (ev,) = [e for e in events if e["event"] == "org_write_cross_context"]
+    assert ev["detail"]["vault"] == "Engagement PKB"
+    assert ev["detail"]["session_context"] == "personal"
+    assert ev["detail"]["file"].endswith("/vaults/pkb/notes/x.md")
+
+
+def test_cross_context_org_write_tainted_still_asks(taint_gate, monkeypatch, world, tmp_path):
+    # The taint backstop is untouched by #29: a tainted session asks even on
+    # the now-otherwise-allowed cross-context org write.
+    marker = json.dumps({"ts": "2026-08-03T10:00:00+0000", "tool": "Read",
+                         "detail": "/vaults/journal/diary/x.md"})
+    res, _ = _run_main(
+        taint_gate, monkeypatch, world,
+        {"session_id": "s", "cwd": "/repo", "tool_name": "Write",
+         "tool_input": {"file_path": "/vaults/pkb/notes/x.md"}},
+        tmp_path=tmp_path, session_ctx="personal", tainted_marker=marker)
     assert res["hookSpecificOutput"]["permissionDecision"] == "ask"
+    assert "/vaults/journal/diary/x.md" in res["hookSpecificOutput"]["permissionDecisionReason"]
+
+
+def test_bash_cross_context_org_write_allowed_and_audited(taint_gate, monkeypatch, world, tmp_path):
+    # A possibly-writing Bash command touching a cross-context org vault is
+    # likewise allowed + audited, not asked.
+    res, _ = _run_main(
+        taint_gate, monkeypatch, world,
+        {"session_id": "s", "cwd": "/repo", "tool_name": "Bash",
+         "tool_input": {"command": "echo x >> /vaults/pkb/notes/x.md"}},
+        tmp_path=tmp_path, session_ctx="personal")
+    assert res is None
+    events = [json.loads(l) for l in
+              open(os.path.join(str(tmp_path), "audit.jsonl"))]
+    (ev,) = [e for e in events if e["event"] == "org_write_cross_context"]
+    assert ev["detail"]["vault"] == "Engagement PKB"
+    assert ev["detail"]["command"].startswith("echo x")
 
 
 def test_bash_writedown_into_journal_does_not_taint(taint_gate, monkeypatch, world, tmp_path):

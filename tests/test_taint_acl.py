@@ -33,8 +33,16 @@ def test_org_write_same_context_tainted_asks(taint_gate):
     assert taint_gate.write_decision(PKB, "easygo", tainted=True) == "ask"
 
 
-def test_org_write_cross_context_asks(taint_gate):
-    assert taint_gate.write_decision(PKB, "personal", tainted=False) == "ask"
+def test_org_write_cross_context_clean_allowed_for_audit(taint_gate):
+    # #29: gating moved to push time — a clean cross-context org write is
+    # allowed, distinguished so main() can audit-log it.
+    assert taint_gate.write_decision(PKB, "personal", tainted=False) == "allow-cross-context"
+
+
+def test_org_write_cross_context_tainted_still_asks(taint_gate):
+    # The taint backstop survives #29: private content already in-context
+    # is the one flow push-time review cannot catch.
+    assert taint_gate.write_decision(PKB, "personal", tainted=True) == "ask"
 
 
 def test_writedown_into_private_always_allowed(taint_gate):
