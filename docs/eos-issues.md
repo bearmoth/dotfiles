@@ -63,6 +63,14 @@ since the 2026-07-29 grilling session) and the ADR-0008 cross-context ACL
 
 ## Resolved
 
+### 2026-07-31 — ADR-0008 gate prompted on read-only Bash; per-call prompt volume during sanctioned drains  (friction → fixed 2026-07-31)
+- **Component:** adr-0008-acl-hook (cross-context write gate)
+- **Resolution:** shipped on `eos-workflow-fixes` (merged, deployed 2026-07-31): `bash_command_is_read_only()` lets provably read-only commands through unprompted (doubt keeps the ask), and PostToolUse-derived session grants made cross-context org writes ask once per (session, vault). The volume facet is being superseded again by the #29 push-time gate (org writes allow + audit; exposure gated at push).
+
+### 2026-07-31 — No routine surfaces stale/merged worktrees  (friction → fixed 2026-07-31)
+- **Component:** worktree lifecycle (ADR-0003)
+- **Resolution:** `eos-resolve health` (same branch) lists merged-into-origin-default + clean worktrees as removable candidates; removal stays user-approved per the cleanup-sweep rule.
+
 ### 2026-07-28 — knowledge-routing skill missing the plumbing-write class  (cosmetic → resolved by ADR-0009)
 - **Component:** knowledge-routing skill
 - **Expected:** skill documents wiki `log/` entries as digestion feedstock (plumbing-into-wiki), not curated wiki content; CONTEXT.md's "curated, wiki-bound" worklog definition contradicted the 2026-07-28 routing-audit decision.
