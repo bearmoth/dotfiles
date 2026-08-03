@@ -36,6 +36,13 @@ contexts:
         repo: "github.com/bearmoth/notes-journal"
         exposure: personal
         private: true
+    roleless:
+      - name: "Easygo"
+        repo: "github.com/bearmoth/notes-easygo"
+        exposure: personal
+        private: true # DM-mirror-grade sensitive; draining (#25), leaves when drained.
+                      # Moved from the easygo context 2026-08-03: first-person material
+                      # in a bearmoth repo — personal by the first-person test.
   easygo:
     span:
       start: "2024-04-23"
@@ -49,8 +56,3 @@ contexts:
         repo: "github.com/primeslice/engagement-pkb"
         exposure: org
         private: false
-    roleless:
-      - name: "Easygo"
-        repo: "github.com/bearmoth/notes-easygo"
-        exposure: personal
-        private: true # DM-mirror-grade sensitive; draining (#9), leaves when drained
