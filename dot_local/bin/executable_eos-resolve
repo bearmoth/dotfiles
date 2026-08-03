@@ -503,6 +503,20 @@ def compute_pulse(reg):
 # Strictly read-only aggregation — never mutates anything.
 
 
+def chezmoi_source_path():
+    """The chezmoi source clone — the repo carrying these very routines.
+    Resolved via `chezmoi source-path` when available, else the default
+    location."""
+    try:
+        r = subprocess.run(["chezmoi", "source-path"], capture_output=True,
+                           text=True, timeout=10)
+        if r.returncode == 0 and r.stdout.strip():
+            return r.stdout.strip()
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+    return os.path.expanduser("~/.local/share/chezmoi")
+
+
 def vault_git_state(path):
     """(dirty, untracked, unpushed_or_None) for a vault checkout; None when
     `path` is not a git repo. unpushed is None when there is no upstream."""
@@ -588,6 +602,19 @@ def compute_health(reg):
         sync = f"{unpushed} unpushed" if unpushed is not None else "no upstream"
         ok = dirty == 0 and untracked == 0 and unpushed == 0
         add(ok, f"vault {v['name']}: {dirty} dirty, {untracked} untracked, {sync}")
+
+    # The dotfiles source clone itself — the repo carrying these routines.
+    # Dirty/unpushed engineering-OS changes are workflow debt like any vault.
+    dotfiles = chezmoi_source_path()
+    if dotfiles and os.path.isdir(dotfiles):
+        state = vault_git_state(dotfiles)
+        if state is None:
+            add(True, "repo dotfiles: not a git repo")
+        else:
+            dirty, untracked, unpushed = state
+            sync = f"{unpushed} unpushed" if unpushed is not None else "no upstream"
+            ok = dirty == 0 and untracked == 0 and unpushed == 0
+            add(ok, f"repo dotfiles: {dirty} dirty, {untracked} untracked, {sync}")
 
     # Queue + eos-issues debt (always shown here, unlike the pulse's
     # threshold-gated lines).

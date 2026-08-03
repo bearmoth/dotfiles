@@ -13,8 +13,16 @@ def run_git(cwd, *args):
     ).stdout.strip()
 
 
-def test_health_output_shape(resolver, tmp_path, monkeypatch):
+def hermetic(resolver, monkeypatch, tmp_path, dotfiles=None):
+    """Point health's machine-global probes at the sandbox: STATE and the
+    chezmoi source clone (absent unless the test provides one)."""
     monkeypatch.setattr(resolver, "STATE", str(tmp_path / "state"))
+    monkeypatch.setattr(resolver, "chezmoi_source_path",
+                        lambda: dotfiles or str(tmp_path / "no-dotfiles"))
+
+
+def test_health_output_shape(resolver, tmp_path, monkeypatch):
+    hermetic(resolver, monkeypatch, tmp_path)
     reg = {"machine": {}, "contexts": {"personal": {"vaults": {}}}}
     lines = resolver.compute_health(reg)
     assert lines, "health produced no lines"
@@ -29,7 +37,7 @@ def test_health_output_shape(resolver, tmp_path, monkeypatch):
 
 
 def test_health_verdict_counts_attn(resolver, tmp_path, monkeypatch):
-    monkeypatch.setattr(resolver, "STATE", str(tmp_path / "state"))
+    hermetic(resolver, monkeypatch, tmp_path)
     state = tmp_path / "state"
     state.mkdir()
     (state / "eos-issues.jsonl").write_text(
@@ -59,7 +67,7 @@ def test_vault_git_state_counts(resolver, tmp_path):
 
 
 def test_health_flags_dirty_vault(resolver, tmp_path, monkeypatch):
-    monkeypatch.setattr(resolver, "STATE", str(tmp_path / "state"))
+    hermetic(resolver, monkeypatch, tmp_path)
     repo = tmp_path / "vault"
     repo.mkdir()
     run_git(repo, "init", "-q")
@@ -72,6 +80,42 @@ def test_health_flags_dirty_vault(resolver, tmp_path, monkeypatch):
     (vline,) = [l for l in lines if "vault Tech Notes:" in l]
     assert vline.startswith("ATTN")
     assert "1 untracked" in vline
+
+
+def test_health_repo_dotfiles_line(resolver, tmp_path, monkeypatch):
+    # The chezmoi source clone gets its own line, same format as vaults,
+    # labelled "repo dotfiles" (#29 part 3).
+    origin = tmp_path / "origin"
+    origin.mkdir()
+    run_git(origin, "init", "-q", "-b", "main")
+    (origin / "run_once.sh").write_text("a\n")
+    run_git(origin, "add", ".")
+    run_git(origin, "commit", "-qm", "init")
+    repo = tmp_path / "chezmoi-src"
+    run_git(tmp_path, "clone", "-q", str(origin), str(repo))
+    hermetic(resolver, monkeypatch, tmp_path, dotfiles=str(repo))
+    reg = {"machine": {}, "contexts": {"personal": {"vaults": {}}}}
+
+    # Clean, pushed clone -> OK line.
+    lines = resolver.compute_health(reg)
+    (rline,) = [l for l in lines if "repo dotfiles:" in l]
+    assert rline.startswith("OK")
+    assert "0 dirty, 0 untracked, 0 unpushed" in rline
+
+    # Dirty + untracked -> ATTN, with counts.
+    (repo / "run_once.sh").write_text("b\n")
+    (repo / "new.md").write_text("c\n")
+    lines = resolver.compute_health(reg)
+    (rline,) = [l for l in lines if "repo dotfiles:" in l]
+    assert rline.startswith("ATTN")
+    assert "1 dirty, 1 untracked" in rline
+
+
+def test_health_repo_dotfiles_line_absent_when_no_clone(resolver, tmp_path, monkeypatch):
+    hermetic(resolver, monkeypatch, tmp_path)  # points at a missing dir
+    reg = {"machine": {}, "contexts": {"personal": {"vaults": {}}}}
+    lines = resolver.compute_health(reg)
+    assert not any("repo dotfiles:" in l for l in lines)
 
 
 def test_worktree_removable_detection(resolver, tmp_path):
