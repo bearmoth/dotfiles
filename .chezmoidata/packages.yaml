@@ -19,6 +19,7 @@ packages:
       - lazygit
       - navi
       - neovim
+      - pi-coding-agent
       - ripgrep
       - wget
       - yazi
@@ -58,6 +59,10 @@ packages:
       - k9s
       - navi
       - neovim
+      # node + npm are pi's delivery mechanism on Fedora (ADR-0011); declaring
+      # them here is also what keeps them upgraded by the weekly sweep.
+      - nodejs
+      - npm
       - ripgrep
       - task
       - wget
