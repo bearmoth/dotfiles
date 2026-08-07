@@ -36,6 +36,44 @@ formula ... from untrusted tap", check `brew info <formula>` for its source
 tap — if it's since landed in homebrew-core, `brew uninstall`, `brew untap`,
 `brew install` is usually cleaner than trusting the old tap.
 
+## pi: brew on macOS, npm on Fedora
+
+pi is the same herdr-shaped split, for the same reason — a package manager
+owns it where one does, a script owns it where none does (ADR-0011):
+
+- **macOS**: the `pi-coding-agent` formula in `packages.yaml`. It is in
+  homebrew-core (no tap trust to manage), bottled, and carries
+  `autobump: true` — check any formula with
+  `curl -fsSL https://formulae.brew.sh/api/formula/<name>.json | jq .autobump`
+  — so it follows a fast-releasing upstream automatically and the weekly
+  `brew upgrade` above is the whole maintenance story.
+- **Fedora**: `run_onchange_install-pi.sh.tmpl`, weekly, `npm install -g` into
+  `~/.local/share/pi`. `nodejs` and `npm` are declared in `packages.yaml`
+  purely so this has a runtime that dnf installs *and* the weekly sweep keeps
+  upgraded. Fedora's own `pi-coding-agent` exists only on rawhide/main and
+  trails upstream by weeks, so it is not a route yet; revisit if it reaches a
+  stable branch (it will still pull `nodejs`, so nothing here is wasted).
+
+Two non-obvious things this shape is buying, both worth not re-litigating:
+
+**The interpreter must be pinned.** pi's bin ships `#!/usr/bin/env node`, so a
+node CLI resolves its interpreter from PATH at invocation, not from whatever
+installed it. pi requires node >= 22.19.0 and *crashes* under an older one
+(`TypeError: webidl.util.markAsUncloneable is not a function`, from undici) —
+an error that reads as a pi bug, not a node mismatch. Several projects here
+pin node 18/20 via `nvm.fish`, so this is a live hazard, not a theoretical
+one. Homebrew already solves it by rewriting the shebang to an absolute
+`opt/node/bin/node`; the Fedora script does the equivalent with a wrapper in
+`~/.local/bin` that execs `/usr/bin/node`.
+
+**The upstream standalone binaries are not a route.** pi publishes bun-compiled
+single-binary builds on every GitHub release, and they are genuinely node-free
+— but `pi update` refuses on them ("cannot self-update this installation",
+because bun hides the executable's real path), so adopting them means
+hand-rolling fetch + checksum + atomic swap for a tool that ships most days.
+Rejected for that reason, not for lack of appeal. It is, however, the right
+shape *if* a Linux box ever needs pi without any node at all.
+
 ## Known gap (revisit)
 
 Coupling upgrades into `chezmoi apply` is a deliberate trade-off, not an
