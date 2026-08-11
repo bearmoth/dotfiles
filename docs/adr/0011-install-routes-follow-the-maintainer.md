@@ -22,13 +22,19 @@ question is not reopened every time a JS-based CLI shows up.
   shebang resolves against PATH at invocation, so a global tool inherits
   whatever runtime the current directory's version manager happens to have
   selected. That is a defect to close at install time, not a caveat to document.
+- **Presence is data; mechanism is code.** `packages.yaml` is the inventory of
+  what a machine should have; scripts implement how. A tool declared as data on
+  one platform and hardcoded into a script on the other makes "is this managed?"
+  a question with two answers — so where a package manager exists, the tool gets
+  a tier in `packages.yaml`, and mechanism that generalises to that manager
+  lives with the manager rather than with the tool.
 
 ## The routes
 
 | platform | route | who tracks the version |
 |---|---|---|
 | macOS | `pi-coding-agent` in `packages.yaml` `darwin.brews` | homebrew-core, `autobump: true`, plus the weekly `brew upgrade` sweep |
-| Fedora | `run_onchange_install-pi.sh.tmpl`, weekly `npm install -g` into `~/.local/share/pi` | us, but with npm doing the version resolution |
+| Fedora | `packages.yaml` `fedora.npm`, mechanism in `.chezmoitemplates/npm-tools` | npm resolves versions; the existing weekly sweep drives upgrades |
 
 `nodejs` and `npm` join `packages.yaml` `fedora.dnf` — not as project tooling
 (node for projects stays with `nvm.fish` / direnv, per `docs/direnv.md`) but as
@@ -73,6 +79,17 @@ upgrade machinery covers them rather than inventing a second mechanism.
   that node version is switched or pruned; and it would replace a one-line,
   autobumped, externally-maintained route with a self-driven one on the machine
   that actually exists.
+- **A per-tool `run_onchange_install-pi.sh.tmpl` instead of an npm tier** —
+  this was the first implementation, and it was rejected on review. Counting
+  npm CLIs (one) is the wrong axis: what decides it is that *both* things such
+  a script must do — pinning the interpreter and refusing to link a tool that
+  cannot run — are properties of "installing an npm CLI on a machine with a
+  node version manager", not properties of pi. Mechanism that generalises to
+  the manager belongs at the manager level. A per-tool script also hid the
+  package name inside code (so the inventory in `packages.yaml` was incomplete
+  on exactly one platform) and stood up a *second* weekly upgrade gate beside
+  the one `docs/package-management.md` documents as the only one. The tier
+  costs no more code; it puts the same code where it generalises.
 
 ## Consequences
 
@@ -83,10 +100,22 @@ upgrade machinery covers them rather than inventing a second mechanism.
   for its interpreter because Homebrew rewrites the shebang to an absolute
   `opt/node/bin/node` — which is also what makes the brew route immune to the
   hazard below.
-- The Fedora script refuses to install under node < 22.19.0 rather than leaving
-  a `pi` that crashes at runtime with an undici `TypeError`. A Fedora whose
-  default `nodejs` is too old therefore gets no pi and says so — deliberately
-  loud, not a silent partial install.
+- **npm's own signals cannot be trusted to catch a too-old node.** Measured
+  against pi (`engines: >=22.19.0`) on node 20.20.2 / npm 10.8.2: npm installs
+  the latest release, emits **no** `EBADENGINE` warning, and does not fall back
+  to the older release that satisfies the range — even with `--engine-strict`.
+  The tool then dies at first invocation inside a dependency
+  (`webidl.util.markAsUncloneable is not a function`). So the tier smoke-tests
+  the installed bin under the pinned node and, on failure, warns with the
+  required range and **declines to link it** — an absent tool with a reason
+  beats one that crashes when you next reach for it. The package stays
+  installed, so upgrading node and re-applying is the whole recovery.
+  (An earlier draft of this ADR claimed npm silently *downgraded* to a
+  compatible older version. That was observed once and does not reproduce;
+  the behaviour above is what holds.)
+- The smoke test assumes a bin supports `--version`. A future package that does
+  not will surface as a loud warning on the machine and needs a per-package
+  opt-out then — deliberately not built in advance.
 - The two platforms run different builds of the same version (Homebrew's
   node-backed install vs npm's). Accepted; herdr already has this shape.
 - pi's extensions and skills install as npm packages either way, so node

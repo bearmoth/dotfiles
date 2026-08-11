@@ -32,6 +32,15 @@ echo "Upgrading managed dnf packages..."
 {{ range .packages.fedora.dnf -}}
 sudo dnf upgrade -y {{ . }} || failed+=("{{ . }}")
 {{ end -}}
+{{ if .packages.fedora.npm -}}
+{{ includeTemplate "npm-tools" . }}
+if npm_tier_available; then
+	echo "Upgrading managed npm packages..."
+{{ range .packages.fedora.npm -}}
+	npm_tier_sync {{ . | quote }} || failed+=("{{ . }}")
+{{ end -}}
+fi
+{{ end -}}
 {{ end -}}
 
 if [ "${#failed[@]}" -gt 0 ]; then
