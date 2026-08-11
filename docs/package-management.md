@@ -47,24 +47,36 @@ owns it where one does, a script owns it where none does (ADR-0011):
   `curl -fsSL https://formulae.brew.sh/api/formula/<name>.json | jq .autobump`
   — so it follows a fast-releasing upstream automatically and the weekly
   `brew upgrade` above is the whole maintenance story.
-- **Fedora**: `run_onchange_install-pi.sh.tmpl`, weekly, `npm install -g` into
-  `~/.local/share/pi`. `nodejs` and `npm` are declared in `packages.yaml`
-  purely so this has a runtime that dnf installs *and* the weekly sweep keeps
-  upgraded. Fedora's own `pi-coding-agent` exists only on rawhide/main and
-  trails upstream by weeks, so it is not a route yet; revisit if it reaches a
-  stable branch (it will still pull `nodejs`, so nothing here is wasted).
+- **Fedora**: declared in `packages.yaml` under a third tier, `fedora.npm`,
+  alongside `copr` and `dnf`. Mechanism lives in `.chezmoitemplates/npm-tools`
+  and is included by the same two scripts that handle every other tier —
+  `run_before_all-02` installs what is missing, the weekly sweep upgrades.
+  `nodejs` and `npm` are declared in `fedora.dnf` purely so that tier has a
+  runtime that dnf installs *and* the sweep keeps upgraded. Fedora's own
+  `pi-coding-agent` exists only on rawhide/main and trails upstream by weeks,
+  so it is not a route yet; revisit if it reaches a stable branch (it will
+  still pull `nodejs`, so nothing here is wasted).
 
-Two non-obvious things this shape is buying, both worth not re-litigating:
+Adding a global npm CLI is therefore a one-line change to `fedora.npm`. Two
+non-obvious things the tier handles for you, both worth not re-litigating:
 
-**The interpreter must be pinned.** pi's bin ships `#!/usr/bin/env node`, so a
+**The interpreter must be pinned.** npm bins ship `#!/usr/bin/env node`, so a
 node CLI resolves its interpreter from PATH at invocation, not from whatever
 installed it. pi requires node >= 22.19.0 and *crashes* under an older one
 (`TypeError: webidl.util.markAsUncloneable is not a function`, from undici) —
 an error that reads as a pi bug, not a node mismatch. Several projects here
 pin node 18/20 via `nvm.fish`, so this is a live hazard, not a theoretical
 one. Homebrew already solves it by rewriting the shebang to an absolute
-`opt/node/bin/node`; the Fedora script does the equivalent with a wrapper in
-`~/.local/bin` that execs `/usr/bin/node`.
+`opt/node/bin/node`; the tier does the equivalent, generating one wrapper per
+entry in a package's own `bin` map that execs `/usr/bin/node` explicitly.
+
+**npm will install something that cannot run.** On node 20.20.2 / npm 10.8.2,
+`npm install -g @earendil-works/pi-coding-agent` installs the latest release
+despite `engines: >=22.19.0`, with no `EBADENGINE` warning and no fallback to a
+compatible older release — `--engine-strict` does not change it. So the tier
+smoke-tests each bin under the pinned node and refuses to link one that fails,
+naming the required range. The package stays installed; upgrade node, re-apply,
+and it links.
 
 **The upstream standalone binaries are not a route.** pi publishes bun-compiled
 single-binary builds on every GitHub release, and they are genuinely node-free
