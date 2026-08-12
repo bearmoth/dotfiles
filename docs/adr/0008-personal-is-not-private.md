@@ -54,3 +54,7 @@ Kept only while the Easygo roleless vault exists — the one remaining legitimat
 ## Amendments
 
 **Amended 2026-08-03:** cross-context org-vault writes are allowed and audit-logged (`org_write_cross_context`); exposure is gated at push time (eos-push-gate in the vault's pre-push hook) per [#29](https://github.com/bearmoth/dotfiles/issues/29). Rule 2's write-time `ask` no longer exists for the clean cross-context case; the taint backstop (rule of this ADR's "Taint" section) is unchanged — a tainted session still asks on any org write, since private content already in-context is the one flow push-time review cannot catch. Session grants (ask-once-per-vault batching) were removed with the asks they batched.
+
+**Amended 2026-08-11 (ADR-0010):** authority over these gates — whose approval
+counts, how it may travel, and what any future relaxation must satisfy — is
+defined by [ADR-0010](0010-authority-is-granted-per-decision-class.md).

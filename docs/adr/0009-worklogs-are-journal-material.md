@@ -38,7 +38,7 @@ Drains the local machine's queue (so a machine's entries are always drained wher
 - **knowledge** → Tech Notes and/or Engagement PKB per the knowledge-routing protocol: the PKB path is bounded by its autonomy tiers (append-only + citable source autonomous; new structure briefing-gated); the Tech Notes path runs through de-specification (ADR-0006 — reconstructed, never redacted).
 - Triage may condense work-record prose; the ledger is `type/worklog`, not a capture, so this does not violate the captures-are-terminal rule.
 
-**Design direction, not yet granted:** the fan-out is built to eventually run without a human in the loop. The PKB briefing gates and despec's unconditional human checkpoint are relaxed only by their own future ADRs — never silently by this one.
+**Design direction, not yet granted:** the fan-out is built to eventually run without a human in the loop. The PKB briefing gates and despec's unconditional human checkpoint are relaxed only by their own future ADRs — never silently by this one. What such a future ADR must satisfy is defined by [ADR-0010](0010-authority-is-granted-per-decision-class.md) (trusted-stamper rule: autonomous drains act only on human-ratified labels).
 
 ## Declared machine id
 
