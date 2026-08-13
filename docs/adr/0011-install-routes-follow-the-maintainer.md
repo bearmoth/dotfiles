@@ -9,6 +9,13 @@ route leaves the interpreter unpinned, we pin it. The routes are documented in
 `docs/package-management.md`; this ADR records why the other four lost, so the
 question is not reopened every time a JS-based CLI shows up.
 
+> **Amended 2026-08-13 by [ADR-0012](0012-install-layout-determines-self-update.md).**
+> The per-platform pi routes below are superseded: pi now installs from the
+> npm tier on every platform and updates itself via `pi update --all` in the
+> weekly sweep. The principles here still govern — ADR-0012 applies them to
+> a fact this ADR only measured on the standalone binaries: whether
+> `pi update` can be trusted is a property of the install layout.
+
 ## The principle
 
 - **Prefer the route with an upstream maintainer.** The cost of a tool is not
