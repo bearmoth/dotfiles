@@ -1,0 +1,19 @@
+{{ if eq .osid "darwin" -}}
+#!/bin/bash
+# One-time migration (ADR-0012): pi moves from the pi-coding-agent formula to
+# the npm tier. Uninstall the formula so a stale brew pi cannot shadow the
+# tier's wrapper and brew's inventory stays truthful. node stays — it is now
+# a declared formula in packages.yaml. ~/.pi (auth, settings, sessions,
+# extensions) is install-route-independent and untouched.
+set -euo pipefail
+
+{{ if eq .chezmoi.arch "arm64" -}}
+eval "$(/opt/homebrew/bin/brew shellenv)"
+{{ else -}}
+eval "$(/usr/local/bin/brew shellenv)"
+{{ end -}}
+
+if brew list --formula pi-coding-agent >/dev/null 2>&1; then
+	brew uninstall pi-coding-agent
+fi
+{{ end -}}
