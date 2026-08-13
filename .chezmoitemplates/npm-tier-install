@@ -1,0 +1,16 @@
+{{- /*
+Install-if-missing for the npm tier, shared by the darwin and fedora branches
+of run_before_all-02 (ADR-0011/0012). Install only, matching `brew bundle` /
+`dnf install` semantics: upgrades are the weekly sweep's job — and pi upgrades
+itself there via `pi update --all` (ADR-0012).
+*/ -}}
+{{ if .packages.npm -}}
+{{ includeTemplate "npm-tools" . }}
+if npm_tier_available; then
+{{ range .packages.npm -}}
+	npm_tier_installed {{ . | quote }} || npm_tier_sync {{ . | quote }} || true
+{{ end -}}
+else
+	echo "Warning: npm tier skipped — $NPM_TIER_NODE / $NPM_TIER_NPM missing (expected from the package tier above)" >&2
+fi
+{{ end -}}
