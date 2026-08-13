@@ -24,6 +24,7 @@ brew {{ . | quote }}
 cask {{ . | quote }}
 {{ end -}}
 EOF
+{{ includeTemplate "npm-tier-install" . }}
 {{ end -}}
 
 
@@ -34,16 +35,5 @@ set -euo pipefail
 {{ $pkgs := .packages.fedora.dnf }}
 sudo dnf install -y {{ $pkgs | join " " }}
 
-{{ if .packages.fedora.npm -}}
-{{ includeTemplate "npm-tools" . }}
-# Install-if-missing only, matching `dnf install` semantics above: upgrades
-# are the weekly sweep's job (run_onchange_upgrade-packages), not apply's.
-if npm_tier_available; then
-{{ range .packages.fedora.npm -}}
-	npm_tier_installed {{ . | quote }} || npm_tier_sync {{ . | quote }} || true
-{{ end -}}
-else
-	echo "Warning: npm tier skipped — $NPM_TIER_NODE / $NPM_TIER_NPM missing (expected from dnf)" >&2
-fi
-{{ end -}}
+{{ includeTemplate "npm-tier-install" . }}
 {{ end -}}
