@@ -32,15 +32,31 @@ echo "Upgrading managed dnf packages..."
 {{ range .packages.fedora.dnf -}}
 sudo dnf upgrade -y {{ . }} || failed+=("{{ . }}")
 {{ end -}}
-{{ if .packages.fedora.npm -}}
+{{ end -}}
+
+{{ if .packages.npm -}}
 {{ includeTemplate "npm-tools" . }}
-if npm_tier_available; then
-	echo "Upgrading managed npm packages..."
-{{ range .packages.fedora.npm -}}
-	npm_tier_sync {{ . | quote }} || failed+=("{{ . }}")
+# pi updates itself (ADR-0012): `pi update` replays `npm install -g` against
+# the prefix inferred from its own install path — exactly the tier's layout —
+# so upstream's updater and the tier are one mechanism, and --all sweeps pi's
+# extensions too. The pinned npm's dir leads PATH so the replayed install
+# uses the npm that installed pi, never a version manager's; stdin is closed
+# so an unexpected prompt fails fast instead of hanging apply.
+# Deliberately no npm_tier_sync loop here: for a self-updating tool it would
+# be the same npm command run twice. If a non-self-updating npm CLI ever
+# joins the tier, reintroduce the sync loop for it then (see
+# docs/package-management.md).
+if npm_tier_available && [ -x "$NPM_TIER_BIN/pi" ]; then
+	echo "Updating pi and extensions (pi update --all)..."
+	PATH="$(dirname "$NPM_TIER_NPM"):$PATH" "$NPM_TIER_BIN/pi" update --all </dev/null || failed+=("pi-update")
+	# Re-run the smoke test + wrapper regen after every self-update: a new
+	# release may raise pi's node floor past the pinned node, and the
+	# refuse-to-link contract (ADR-0011) applies at update time, not just
+	# install time.
+{{ range .packages.npm -}}
+	npm_tier_wrap {{ . | quote }} || failed+=("{{ . }}-wrappers")
 {{ end -}}
 fi
-{{ end -}}
 {{ end -}}
 
 if [ "${#failed[@]}" -gt 0 ]; then
