@@ -19,7 +19,10 @@ packages:
       - lazygit
       - navi
       - neovim
-      - pi-coding-agent
+      # pi's runtime (ADR-0012) — was an implicit dependency of the retired
+      # pi-coding-agent formula; declared so the npm tier below owns it and
+      # the weekly formula sweep keeps it current (autobumped in core).
+      - node
       - ripgrep
       - wget
       - yazi
@@ -59,7 +62,7 @@ packages:
       - k9s
       - navi
       - neovim
-      # Runtime for the npm tier below (ADR-0011) — not project tooling;
+      # Runtime for the npm tier (ADR-0011/0012) — not project tooling;
       # project node stays with nvm/direnv. Declared here so dnf installs
       # them and the weekly sweep keeps them current.
       - nodejs
@@ -69,9 +72,10 @@ packages:
       - wget
       - yazi
       - zoxide
-    # Global npm CLIs. Mechanism lives in .chezmoitemplates/npm-tools
-    # (pinned-interpreter wrappers + downgrade detection); installed by
-    # run_before_all-02 and upgraded by the weekly sweep, same as every other
-    # tier. macOS gets pi from brew instead — see ADR-0011.
-    npm:
-      - "@earendil-works/pi-coding-agent"
+  # Global npm CLIs, both platforms (ADR-0011/0012). Mechanism lives in
+  # .chezmoitemplates/npm-tools (pinned-interpreter wrappers + refuse-to-link
+  # smoke test); installed-if-missing by run_before_all-02. pi is NOT swept by
+  # npm_tier_sync weekly — it updates itself via `pi update --all` in
+  # run_onchange_upgrade-packages (ADR-0012).
+  npm:
+    - "@earendil-works/pi-coding-agent"
