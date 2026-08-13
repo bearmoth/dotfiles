@@ -21,6 +21,8 @@ trick as the herdr updater) and upgrades **only the managed packages** from
   the tool that powers the Hyper key is exactly the surprise we don't want.
 - Fedora: `sudo dnf upgrade -y <managed packages>` — scoped, **not** a
   whole-OS `dnf upgrade`.
+- both platforms: the npm tier is not swept with `npm install` — pi updates
+  itself and its extensions via `pi update --all`; see the pi section below.
 
 herdr on Linux is curl-installed (no package manager), so it keeps its own
 `run_onchange_update-herdr.sh.tmpl` (`herdr update`, also weekly). On macOS
@@ -45,7 +47,8 @@ its own updater (ADR-0012, superseding ADR-0011's per-platform routes):
   `npm` tier; mechanism in `.chezmoitemplates/npm-tools` +
   `npm-tier-install`, included by `run_before_all-02` on both OS branches.
   macOS pins wrappers to brew's node (`node` is a declared formula), Fedora
-  to dnf's (`nodejs`/`npm` in `fedora.dnf`).
+  to dnf's (`nodejs`/`npm` in `fedora.dnf`). Adding a global npm CLI is a
+  one-line change to the top-level `npm` tier.
 - **Update** (weekly sweep): `pi update --all` — pi *plus* installed
   extensions. `pi update` replays `npm install -g` against the prefix
   inferred from its own install path, which is exactly the tier's layout, so

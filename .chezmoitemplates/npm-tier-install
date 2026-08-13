@@ -8,7 +8,15 @@ itself there via `pi update --all` (ADR-0012).
 {{ includeTemplate "npm-tools" . }}
 if npm_tier_available; then
 {{ range .packages.npm -}}
-	npm_tier_installed {{ . | quote }} || npm_tier_sync {{ . | quote }} || true
+	if npm_tier_installed {{ . | quote }}; then
+		# Already installed: still re-run the wrapper/smoke-test step.
+		# refuse-to-link (npm-tools) deletes the wrapper when the pinned node
+		# is too old, and this re-wrap is what makes the documented recovery
+		# — upgrade node, re-apply — actually re-link the tool.
+		npm_tier_wrap {{ . | quote }} || true
+	else
+		npm_tier_sync {{ . | quote }} || true
+	fi
 {{ end -}}
 else
 	echo "Warning: npm tier skipped — $NPM_TIER_NODE / $NPM_TIER_NPM missing (expected from the package tier above)" >&2
