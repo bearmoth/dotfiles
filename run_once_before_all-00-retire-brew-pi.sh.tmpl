@@ -8,8 +8,10 @@
 set -euo pipefail
 
 {{ if eq .chezmoi.arch "arm64" -}}
+[ -x /opt/homebrew/bin/brew ] || exit 0
 eval "$(/opt/homebrew/bin/brew shellenv)"
 {{ else -}}
+[ -x /usr/local/bin/brew ] || exit 0
 eval "$(/usr/local/bin/brew shellenv)"
 {{ end -}}
 
