@@ -1,8 +1,9 @@
 {{- /*
-Install-if-missing for the npm tier, shared by the darwin and fedora branches
-of run_before_all-02 (ADR-0011/0012). Install only, matching `brew bundle` /
-`dnf install` semantics: upgrades are the weekly sweep's job — and pi upgrades
-itself there via `pi update --all` (ADR-0012).
+npm tier for run_before_all-02, shared by the darwin and fedora branches
+(ADR-0011/0012). Installs what is missing, and re-runs the wrapper/smoke-test
+step for what is already installed — that re-wrap is the documented recovery
+path (upgrade node, re-apply, and it links). npm-level upgrades stay the
+weekly sweep's job; pi upgrades itself there via `pi update --all` (ADR-0012).
 */ -}}
 {{ if .packages.npm -}}
 {{ includeTemplate "npm-tools" . }}

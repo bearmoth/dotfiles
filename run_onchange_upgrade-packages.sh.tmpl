@@ -53,8 +53,10 @@ if npm_tier_available && [ -x "$NPM_TIER_BIN/pi" ]; then
 	# release may raise pi's node floor past the pinned node, and the
 	# refuse-to-link contract (ADR-0011) applies at update time, not just
 	# install time.
+	# (npm_tier_wrap warns loudly on refusal but never returns non-zero —
+	# refuse-to-link is a warning, not a sweep failure.)
 {{ range .packages.npm -}}
-	npm_tier_wrap {{ . | quote }} || failed+=("{{ . }}-wrappers")
+	npm_tier_wrap {{ . | quote }}
 {{ end -}}
 fi
 {{ end -}}
