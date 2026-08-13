@@ -36,55 +36,51 @@ formula ... from untrusted tap", check `brew info <formula>` for its source
 tap — if it's since landed in homebrew-core, `brew uninstall`, `brew untap`,
 `brew install` is usually cleaner than trusting the old tap.
 
-## pi: brew on macOS, npm on Fedora
+## pi: npm tier everywhere, self-updating
 
-pi is the same herdr-shaped split, for the same reason — a package manager
-owns it where one does, a script owns it where none does (ADR-0011):
+pi installs from the npm tier on **both** platforms and is updated only by
+its own updater (ADR-0012, superseding ADR-0011's per-platform routes):
 
-- **macOS**: the `pi-coding-agent` formula in `packages.yaml`. It is in
-  homebrew-core (no tap trust to manage), bottled, and carries
-  `autobump: true` — check any formula with
-  `curl -fsSL https://formulae.brew.sh/api/formula/<name>.json | jq .autobump`
-  — so it follows a fast-releasing upstream automatically and the weekly
-  `brew upgrade` above is the whole maintenance story.
-- **Fedora**: declared in `packages.yaml` under a third tier, `fedora.npm`,
-  alongside `copr` and `dnf`. Mechanism lives in `.chezmoitemplates/npm-tools`
-  and is included by the same two scripts that handle every other tier —
-  `run_before_all-02` installs what is missing, the weekly sweep upgrades.
-  `nodejs` and `npm` are declared in `fedora.dnf` purely so that tier has a
-  runtime that dnf installs *and* the sweep keeps upgraded. Fedora's own
-  `pi-coding-agent` exists only on rawhide/main and trails upstream by weeks,
-  so it is not a route yet; revisit if it reaches a stable branch (it will
-  still pull `nodejs`, so nothing here is wasted).
+- **Install** (if missing): declared in `packages.yaml` under the top-level
+  `npm` tier; mechanism in `.chezmoitemplates/npm-tools` +
+  `npm-tier-install`, included by `run_before_all-02` on both OS branches.
+  macOS pins wrappers to brew's node (`node` is a declared formula), Fedora
+  to dnf's (`nodejs`/`npm` in `fedora.dnf`).
+- **Update** (weekly sweep): `pi update --all` — pi *plus* installed
+  extensions. `pi update` replays `npm install -g` against the prefix
+  inferred from its own install path, which is exactly the tier's layout, so
+  upstream's updater and the tier are one mechanism. The sweep prepends the
+  pinned npm's directory to PATH for that invocation and closes stdin so a
+  prompt can never hang apply. There is deliberately no `npm_tier_sync` in
+  the sweep: for a self-updating tool it would be the same npm command run
+  twice. A future npm CLI that cannot self-update reintroduces the sync loop
+  for itself then.
 
-Adding a global npm CLI is therefore a one-line change to `fedora.npm`. Two
-non-obvious things the tier handles for you, both worth not re-litigating:
+Two non-obvious things the tier still handles, both worth not re-litigating:
 
 **The interpreter must be pinned.** npm bins ship `#!/usr/bin/env node`, so a
-node CLI resolves its interpreter from PATH at invocation, not from whatever
-installed it. pi requires node >= 22.19.0 and *crashes* under an older one
-(`TypeError: webidl.util.markAsUncloneable is not a function`, from undici) —
-an error that reads as a pi bug, not a node mismatch. Several projects here
-pin node 18/20 via `nvm.fish`, so this is a live hazard, not a theoretical
-one. Homebrew already solves it by rewriting the shebang to an absolute
-`opt/node/bin/node`; the tier does the equivalent, generating one wrapper per
-entry in a package's own `bin` map that execs `/usr/bin/node` explicitly.
+node CLI resolves its interpreter from PATH at invocation. pi requires node
+>= 22.19.0 and *crashes* under an older one (an undici `TypeError` that reads
+as a pi bug). Several projects here pin node 18/20 via `nvm.fish`, so this is
+a live hazard. The tier generates one wrapper per bin that execs the
+brew/dnf-managed node explicitly.
 
-**npm will install something that cannot run.** On node 20.20.2 / npm 10.8.2,
-`npm install -g @earendil-works/pi-coding-agent` installs the latest release
-despite `engines: >=22.19.0`, with no `EBADENGINE` warning and no fallback to a
-compatible older release — `--engine-strict` does not change it. So the tier
-smoke-tests each bin under the pinned node and refuses to link one that fails,
-naming the required range. The package stays installed; upgrade node, re-apply,
-and it links.
+**npm will install something that cannot run** (no `EBADENGINE` warning, no
+fallback, `--engine-strict` doesn't help — measured in ADR-0011). So the tier
+smoke-tests each bin under the pinned node and refuses to link one that
+fails, naming the required range — and since ADR-0012 this check re-runs
+after **every self-update**, the moment a node-floor bump would actually
+arrive. The package stays installed; upgrade node, re-apply, and it links.
 
-**The upstream standalone binaries are not a route.** pi publishes bun-compiled
-single-binary builds on every GitHub release, and they are genuinely node-free
-— but `pi update` refuses on them ("cannot self-update this installation",
-because bun hides the executable's real path), so adopting them means
-hand-rolling fetch + checksum + atomic swap for a tool that ships most days.
-Rejected for that reason, not for lack of appeal. It is, however, the right
-shape *if* a Linux box ever needs pi without any node at all.
+**Routes that stay rejected** (measured; see ADR-0012): Homebrew — its
+receipt and `pi update` corrupt each other (self-update writes into the
+versioned Cellar dir, the weekly `brew upgrade` stomps it back). Upstream's
+curl installer — targets PATH-npm's global prefix (nvm's here, which
+evaporates when that node is pruned) and leaves shebangs unpinned. The
+standalone binaries — `pi update` refuses on them (bun hides the real path),
+so adopting them means hand-rolling the update path for a tool that ships
+most days; still the right shape only for a host that must run pi with no
+node at all.
 
 ## Known gap (revisit)
 
