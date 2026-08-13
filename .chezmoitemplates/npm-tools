@@ -11,7 +11,7 @@ having a node version manager for project work:
   1. A pinned interpreter. npm bins ship `#!/usr/bin/env node`, so they
      resolve node from PATH at invocation — a project-switched node breaks an
      otherwise fine global install. We generate a wrapper per bin that execs
-     the distro node explicitly. (Homebrew solves the same problem by
+     the brew/dnf-managed node explicitly. (Homebrew solves the same problem by
      rewriting the shebang to an absolute path under its own node prefix.)
   2. A smoke test, because npm will happily install something that cannot
      run. Measured against pi (`engines: >=22.19.0`) on node 20.20.2 with
@@ -31,11 +31,21 @@ loud warning on the machine, at which point it needs a per-package opt-out —
 deliberately not built in advance.
 
 Deliberately not driven by `command -v node`: the interpreter these tools get
-pinned to is the dnf-managed one, never whichever node a version manager
+pinned to is the brew/dnf-managed one, never whichever node a version manager
 happens to have put on PATH when `chezmoi apply` ran.
 */ -}}
+{{ if eq .chezmoi.os "darwin" -}}
+{{ if eq .chezmoi.arch "arm64" -}}
+NPM_TIER_NODE=/opt/homebrew/bin/node
+NPM_TIER_NPM=/opt/homebrew/bin/npm
+{{ else -}}
+NPM_TIER_NODE=/usr/local/bin/node
+NPM_TIER_NPM=/usr/local/bin/npm
+{{ end -}}
+{{ else -}}
 NPM_TIER_NODE=/usr/bin/node
 NPM_TIER_NPM=/usr/bin/npm
+{{ end -}}
 NPM_TIER_PREFIX="$HOME/.local/share/npm"
 NPM_TIER_BIN="$HOME/.local/bin"
 
