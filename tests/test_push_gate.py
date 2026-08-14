@@ -1,9 +1,10 @@
-"""eos-push-gate — push-time exposure gate for org vaults (#29): pre-push
+"""eos-push-gate — push-time audit for org vaults (ADR-0011): pre-push
 stdin parsing, the outbound summary (subjects, per-file adds/dels, the
-outside-wiki/ and large-add flags), the TTY / env-ack decision branches, and
+outside-wiki/ and large-add flags), the audit-and-proceed behaviour, and
 --install's vault-root refusal + shim wiring."""
 
 import io
+import json
 import os
 import subprocess
 
@@ -100,62 +101,58 @@ def test_summary_new_branch_uses_not_remotes(push_gate, vault_repo):
     assert any("3 commits" in l for l in lines)
 
 
-# --- gate decision branches ----------------------------------------------------
+# --- audit-and-proceed (ADR-0011) ---------------------------------------------
 
 
-def _gate(push_gate, monkeypatch, vault_repo, tty, ack, err=None):
-    monkeypatch.setattr(push_gate, "open_tty", lambda: tty)
-    if ack is None:
-        monkeypatch.delenv("EOS_PUSH_ACK", raising=False)
-    else:
-        monkeypatch.setenv("EOS_PUSH_ACK", ack)
-    err = err if err is not None else io.StringIO()
+def _run_gate(push_gate, monkeypatch, tmp_path, vault_repo):
+    log = tmp_path / "audit.jsonl"
+    monkeypatch.setattr(push_gate, "AUDIT_LOG", str(log))
     stdin = io.StringIO(ref_line(vault_repo["head"], vault_repo["base"]) + "\n")
     rc = push_gate.main(argv=["origin", "url"], stdin=stdin,
                         repo=vault_repo["path"])
-    return rc, err
+    return rc, log
 
 
-class FakeTTY(io.StringIO):
-    def __exit__(self, *a):  # `with tty:` in gate()
-        return False
-
-
-def test_no_tty_no_ack_blocks_with_relay_instructions(push_gate, monkeypatch,
-                                                      vault_repo, capsys):
-    rc, _ = _gate(push_gate, monkeypatch, vault_repo, tty=None, ack=None)
-    assert rc == 1
+def test_gate_prints_summary_and_proceeds(push_gate, monkeypatch, tmp_path,
+                                           vault_repo, capsys):
+    rc, _ = _run_gate(push_gate, monkeypatch, tmp_path, vault_repo)
+    assert rc == 0
     err = capsys.readouterr().err
-    assert "BLOCKED" in err
-    assert "EOS_PUSH_ACK=1" in err
-    assert "raw/dump.md" in err  # the summary was printed before blocking
+    assert "raw/dump.md" in err          # full summary still printed
+    assert "[outside wiki/]" in err
+    assert "audited — push proceeds" in err
+    assert "BLOCKED" not in err
 
 
-def test_no_tty_with_ack_proceeds(push_gate, monkeypatch, vault_repo, capsys):
-    rc, _ = _gate(push_gate, monkeypatch, vault_repo, tty=None, ack="1")
+def test_gate_appends_audit_event(push_gate, monkeypatch, tmp_path, vault_repo):
+    rc, log = _run_gate(push_gate, monkeypatch, tmp_path, vault_repo)
     assert rc == 0
-    assert "acknowledged via EOS_PUSH_ACK=1" in capsys.readouterr().err
+    (line,) = log.read_text().splitlines()
+    event = json.loads(line)
+    assert event["event"] == "push_audit"
+    assert event["remote"] == "origin"
+    assert event["refs"] == [{"ref": "refs/heads/main", "commits": 2}]
 
 
-def test_tty_yes_proceeds_no_declines(push_gate, monkeypatch, vault_repo):
-    rc, _ = _gate(push_gate, monkeypatch, vault_repo, tty=FakeTTY("y\n"), ack=None)
+def test_audit_log_failure_never_blocks_push(push_gate, monkeypatch, tmp_path,
+                                             vault_repo, capsys):
+    # Point the log somewhere unwritable: the push must still proceed.
+    monkeypatch.setattr(push_gate, "AUDIT_LOG", "/dev/null/nope/audit.jsonl")
+    stdin = io.StringIO(ref_line(vault_repo["head"], vault_repo["base"]) + "\n")
+    rc = push_gate.main(argv=["origin", "url"], stdin=stdin,
+                        repo=vault_repo["path"])
     assert rc == 0
-    rc, _ = _gate(push_gate, monkeypatch, vault_repo, tty=FakeTTY("\n"), ack=None)
-    assert rc == 1  # default is N
+    assert "audited — push proceeds" in capsys.readouterr().err
 
 
-def test_tty_confirm_beats_env_ack(push_gate, monkeypatch, vault_repo):
-    # With a human present, their answer decides — the ack is for agents.
-    rc, _ = _gate(push_gate, monkeypatch, vault_repo, tty=FakeTTY("n\n"), ack="1")
-    assert rc == 1
-
-
-def test_deletion_only_push_passes_silently(push_gate, monkeypatch, capsys):
-    monkeypatch.setattr(push_gate, "open_tty", lambda: None)
-    monkeypatch.delenv("EOS_PUSH_ACK", raising=False)
+def test_deletion_only_push_passes_silently(push_gate, monkeypatch, tmp_path,
+                                            capsys):
+    log = tmp_path / "audit.jsonl"
+    monkeypatch.setattr(push_gate, "AUDIT_LOG", str(log))
     stdin = io.StringIO(f"refs/heads/gone {ZERO} refs/heads/gone {'c' * 40}\n")
     assert push_gate.main(argv=["origin", "url"], stdin=stdin) == 0
     assert capsys.readouterr().err == ""
+    assert not log.exists()  # no audit event for nothing outbound
 
 
 # --- --install -----------------------------------------------------------------
