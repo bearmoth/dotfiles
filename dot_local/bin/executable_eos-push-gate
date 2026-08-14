@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""eos-push-gate — push-time exposure gate for org vaults (#29, ADR-0008 as
-amended).
+"""eos-push-gate — push-time audit for org vaults (ADR-0011; supersedes the
+confirm/ack behaviour built under #29).
 
-Write-time asks for cross-context org-vault writes are gone (the taint-gate
-hook allows and audit-logs them); the exposure decision moved here, to the
-vault's own pre-push hook — the last point before content leaves the machine.
+Work-vault pushes are audited, not gated: the vault carries only org-visible
+content by construction (admission control happens at the source boundary),
+so there is nothing for a human to veto at push time. The hook's job is
+visibility, not permission.
 
 Hook mode (installed as .githooks/pre-push; git passes remote name + URL as
 args and the outbound ref lines on stdin):
@@ -12,13 +13,8 @@ args and the outbound ref lines on stdin):
   1. Print a compact outbound summary: commit count and subjects per ref,
      files changed with adds/dels, flagging any path outside wiki/ and any
      file gaining more than 200 added lines.
-  2. If a controlling terminal is available (human-driven push): interactive
-     y/N confirm.
-  3. Otherwise (agent-driven push): require EOS_PUSH_ACK=1 in the
-     environment, else block (exit 1) with instructions to present the
-     summary to the human and re-run with the ack. The Claude permission
-     prompt on the push command itself is the human gate for agent pushes;
-     the env var makes the surface-then-ack explicit.
+  2. Append a `push_audit` event to the eos audit log (best-effort).
+  3. Exit 0 — the push always proceeds.
 
 Install mode:
 
@@ -119,8 +115,8 @@ def file_flags(path, adds):
 
 
 def summary_lines(updates, remote_name, remote_url, repo=None):
-    """The compact outbound summary the human (or the relaying agent) reads
-    before acking the push."""
+    """The compact outbound summary that makes every push reviewable after
+    the fact."""
     lines = [f"eos-push-gate: outbound to {remote_name} ({remote_url})"]
     for u in updates:
         subjects, files = outbound_stats(u, repo=repo)
@@ -139,47 +135,42 @@ def summary_lines(updates, remote_name, remote_url, repo=None):
     return lines
 
 
-def open_tty():
-    """The controlling terminal for the interactive confirm, or None when
-    there isn't one (agent-driven push). Stdin itself carries the ref lines,
-    so interactivity is decided by /dev/tty, never by stdin."""
+AUDIT_LOG = os.path.expanduser("~/.local/state/engineering-os/audit.jsonl")
+
+
+def audit_event(updates, remote_name, remote_url, repo=None):
+    """Append one push-audit event to the eos audit log. Best-effort: a
+    failure to write the log never blocks the push (the summary on stderr is
+    the primary record)."""
+    import datetime
+    event = {
+        "ts": datetime.datetime.now().astimezone().isoformat(timespec="seconds"),
+        "event": "push_audit",
+        "remote": remote_name,
+        "url": remote_url,
+        "refs": [{"ref": u["remote_ref"],
+                  "commits": len((git(["log", "--format=%H", *rev_range(u)],
+                                      cwd=repo) or "").splitlines())}
+                 for u in updates],
+    }
     try:
-        return open("/dev/tty", "r+")
+        os.makedirs(os.path.dirname(AUDIT_LOG), exist_ok=True)
+        with open(AUDIT_LOG, "a", encoding="utf-8") as f:
+            f.write(json.dumps(event) + "\n")
     except OSError:
-        return None
+        pass
 
 
 def gate(updates, remote_name, remote_url, repo=None, err=None):
-    """Summarise, then decide: 0 = push proceeds, 1 = blocked."""
+    """Summarise and audit; the push always proceeds (ADR-0011)."""
     err = err if err is not None else sys.stderr
     if not updates:
         return 0  # nothing outbound (e.g. deletions only)
     for line in summary_lines(updates, remote_name, remote_url, repo=repo):
         print(line, file=err)
-
-    tty = open_tty()
-    if tty is not None:
-        with tty:
-            print("Proceed with push? [y/N] ", end="", file=err, flush=True)
-            answer = tty.readline().strip().lower()
-        if answer in ("y", "yes"):
-            return 0
-        print("eos-push-gate: push declined.", file=err)
-        return 1
-
-    if os.environ.get("EOS_PUSH_ACK") == "1":
-        print("eos-push-gate: acknowledged via EOS_PUSH_ACK=1 — push proceeds.",
-              file=err)
-        return 0
-    print(
-        "eos-push-gate: push BLOCKED — no terminal and no acknowledgement.\n"
-        "This vault's outbound content needs human review: present the summary\n"
-        "above to the human, and once they approve re-run the push with\n"
-        "EOS_PUSH_ACK=1, e.g. `EOS_PUSH_ACK=1 git push`. (The permission prompt\n"
-        "on that command is the human gate — never set the ack unprompted.)",
-        file=err,
-    )
-    return 1
+    audit_event(updates, remote_name, remote_url, repo=repo)
+    print("eos-push-gate: audited — push proceeds.", file=err)
+    return 0
 
 
 # --------------------------------------------------------------- install ----
