@@ -1,0 +1,41 @@
+#!/usr/bin/env python3
+# 1Password pairs each security setting with an authTags integrity signature
+# keyed to the individual install, so the file can't be synced wholesale
+# (foreign tags read as tampering and the app rewrites the file — endless
+# chezmoi diff). Empirically the app accepts a value edited without its tag
+# and re-signs it, so this modify_ script enforces only the values we care
+# about and passes authTags — and any other app-owned key — through untouched.
+# When nothing needs changing it must emit stdin byte-for-byte: 1Password
+# writes 2-space-indented JSON with no trailing newline, and any formatting
+# drift here would show up as perpetual diff churn.
+import json
+import sys
+
+DESIRED = {
+    "browsers.extension.enabled": True,
+    "security.autolock.minutes": 60,
+    "security.authenticatedUnlock.enabled": True,
+    "developers.cliSharedLockState.enabled": True,
+    "sshAgent.enabled": True,
+    "sshAgent.storeKeyTitles": True,
+    "sshAgent.storeSshKeyTitlesResponseGiven": True,
+    "sshAgent.sshAuthorizatonModel": "application",
+    "sshAgent.sshSessionDuration": "4h",
+}
+
+raw = sys.stdin.read()
+try:
+    settings = json.loads(raw)
+except ValueError:
+    settings = None
+if not isinstance(settings, dict):
+    settings = {"version": 1}
+    raw = None
+
+changed = raw is None
+for key, value in DESIRED.items():
+    if settings.get(key) != value:
+        settings[key] = value
+        changed = True
+
+sys.stdout.write(json.dumps(settings, indent=2) if changed else raw)

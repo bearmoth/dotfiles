@@ -17,6 +17,11 @@ drops it in `./bin` relative to wherever you ran the command. The fish config
 puts `~/.local/bin` on `PATH` (via `XDG_BIN_HOME`), so that's the one place
 the binary is guaranteed to be found.
 
+On a brand-new machine, finish by signing in to 1Password by hand (the one
+step that can't be automated — chezmoi enforces its key settings, see
+[docs/1password.md](docs/1password.md)), then run `chezmoi apply` once more
+to clone anything that needed SSH auth.
+
 Update dotfiles:
 
 ```bash
