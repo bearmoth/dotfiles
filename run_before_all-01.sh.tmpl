@@ -55,7 +55,7 @@ for repo in {{ $copr_repos | join " " }}; do
   fi
 done
 
-# Terra repository
+# Terra repository — provides ghostty, which is not in official Fedora repos
 if dnf repolist --enabled | grep -q terra; then
   echo "Terra repo already present"
 else
@@ -75,8 +75,11 @@ else
 fi
 
 if [ "$CHECK_UPDATE" = "true" ]; then
-  echo "Checking DNF for updates"
-  sudo dnf check-update
+  echo "Refreshing DNF metadata for newly added repos"
+  # Not `dnf check-update`: it exits 100 when updates exist (its documented
+  # "updates available" signal), which under set -e aborted the whole first
+  # apply on a fresh machine before packages were ever installed.
+  sudo dnf makecache
 fi
 
 {{ end -}}
