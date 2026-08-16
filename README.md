@@ -5,8 +5,12 @@
 Install [chezmoi](https://www.chezmoi.io/) and dotfiles from GitHub for the first time:
 
 ```bash
-sh -c "$(curl -fsLS get.chezmoi.io)" -- init --apply git@github.com:bearmoth/dotfiles.git
+sh -c "$(curl -fsLS get.chezmoi.io)" -- init --apply https://github.com/bearmoth/dotfiles.git
 ```
+
+HTTPS on purpose: a fresh machine has no SSH keys yet. Switch the remote to
+SSH later if you want to push (`git -C ~/.local/share/chezmoi remote set-url
+origin git@github.com:bearmoth/dotfiles.git`).
 
 Update dotfiles:
 

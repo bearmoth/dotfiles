@@ -38,6 +38,9 @@ packages:
       - zed
   fedora:
     copr:
+      # lazygit is not in official Fedora repos; atim's copr is the de facto
+      # source (ghostty likewise comes from the Terra repo, added in
+      # run_before_all-01 — everything else in the dnf list is official).
       - atim/lazygit
     dnf:
       - 1password

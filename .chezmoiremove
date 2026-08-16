@@ -1,0 +1,7 @@
+# Retired gh-copilot extension integration: gh now ships a built-in
+# `gh copilot` (delegates to the new standalone Copilot CLI) that shadows
+# the deprecated github/gh-copilot extension, so the old shims are dead —
+# and fish auto-loads anything left in conf.d/.
+.config/gh-copilot
+.config/zsh/gh-copilot.sh
+.config/fish/conf.d/gh-copilot.fish
