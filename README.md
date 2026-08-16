@@ -5,12 +5,17 @@
 Install [chezmoi](https://www.chezmoi.io/) and dotfiles from GitHub for the first time:
 
 ```bash
-sh -c "$(curl -fsLS get.chezmoi.io)" -- init --apply https://github.com/bearmoth/dotfiles.git
+sh -c "$(curl -fsLS get.chezmoi.io)" -- -b "$HOME/.local/bin" init --apply https://github.com/bearmoth/dotfiles.git
 ```
 
 HTTPS on purpose: a fresh machine has no SSH keys yet. Switch the remote to
 SSH later if you want to push (`git -C ~/.local/share/chezmoi remote set-url
 origin git@github.com:bearmoth/dotfiles.git`).
+
+`-b` pins the chezmoi binary to `~/.local/bin` — without it the installer
+drops it in `./bin` relative to wherever you ran the command. The fish config
+puts `~/.local/bin` on `PATH` (via `XDG_BIN_HOME`), so that's the one place
+the binary is guaranteed to be found.
 
 Update dotfiles:
 

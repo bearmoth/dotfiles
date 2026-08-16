@@ -5,3 +5,8 @@
 .config/gh-copilot
 .config/zsh/gh-copilot.sh
 .config/fish/conf.d/gh-copilot.fish
+
+# Retired chezmoi alias: it hardcoded ~/.local/bin/chezmoi, which broke on any
+# machine where the installer put the binary elsewhere. ~/.local/bin is already
+# on PATH (XDG_BIN_HOME in 00-env), so plain PATH lookup replaces the alias.
+.config/fish/conf.d/chezmoi.fish
