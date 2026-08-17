@@ -28,7 +28,13 @@ focus_pane_up = "ctrl+alt+super+k"
 focus_pane_right = "ctrl+alt+super+l"
 split_horizontal = "ctrl+alt+super+minus"
 split_vertical = "ctrl+alt+super+backslash"
-close_pane = "ctrl+alt+super+w"
+# close_pane is deliberately UNSET — it stays on herdr's own default
+# prefix+x. Closing a pane kills its process (no buffer layer to fall back
+# on, unlike vim's <C-W>c), making it the only irreversible action that was
+# ever on the Hyper layer — everything else here is reversible or additive,
+# which is what makes a bare chord safe. It also restores LazyVim parity:
+# nvim closes with <leader>wd / <leader><tab>d, i.e. leader-gated multi-key
+# sequences, never a one-shot chord. herdr's prefix IS that leader.
 resize_mode = "ctrl+alt+super+r"
 zoom = "ctrl+alt+super+z"
 
@@ -42,9 +48,12 @@ swap_pane_right = "ctrl+alt+shift+super+l"
 
 # Tabs. close_tab is deliberately NOT bound here — closing a tab's last
 # pane already auto-closes the tab (verified via herdr pane/tab API
-# 2026-07-14), so Hyper+w covers the common case one pane at a time. A
+# 2026-07-14), so prefix+x covers the common case one pane at a time. A
 # dedicated one-shot "nuke this whole tab" stays on herdr's own default
-# prefix+shift+x, as the escape hatch for multi-pane tabs.
+# prefix+shift+x, as the escape hatch for multi-pane tabs. The pair mirrors
+# vim's <leader>wd / <leader><tab>d, down to the cascade: the last pane
+# taking its tab with it is the same rule as vim closing a tabpage when its
+# last window goes.
 new_tab = "ctrl+alt+super+t"
 rename_tab = "ctrl+alt+super+shift+t"
 previous_tab = "ctrl+alt+super+["
