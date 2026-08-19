@@ -38,5 +38,18 @@ tests/
 .claude/plugins/installed_plugins.json
 .claude/plugins/known_marketplaces.json
 
+# pi: only settings.json (via modify_), keybindings.json and the modes
+# extension are managed — everything else under ~/.pi/agent is a secret, a
+# cache, machine-local state, or owned by another installer. See docs/pi.md.
+# auth.json = live OAuth tokens; models-store.json = re-fetched provider
+# catalogue; trust.json = per-machine absolute project paths; sessions/ =
+# transcripts; herdr-agent-state.ts = owned by herdr's own installer, which
+# overwrites it on every update (run_once_install-herdr).
+.pi/agent/auth.json
+.pi/agent/models-store.json
+.pi/agent/trust.json
+.pi/agent/sessions/
+.pi/agent/extensions/herdr-agent-state.ts
+
 # Fish universal variables — managed by run_onchange_after_tide_config.sh, not synced directly
 .config/fish/fish_variables
