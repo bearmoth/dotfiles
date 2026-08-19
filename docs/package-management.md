@@ -38,6 +38,32 @@ formula ... from untrusted tap", check `brew info <formula>` for its source
 tap — if it's since landed in homebrew-core, `brew uninstall`, `brew untap`,
 `brew install` is usually cleaner than trusting the old tap.
 
+## chezmoi: outside the tiers, because it bootstraps them
+
+chezmoi is deliberately **not** declared in `packages.yaml` and comes from
+upstream's install script into `~/.local/bin` on every platform, per the
+README one-liner's `-b "$HOME/.local/bin"`.
+
+It cannot be owned by a package manager: chezmoi is what installs the package
+managers, so on a bare machine the install script necessarily runs first. By
+ADR-0012's principle — whoever controls the first install controls every
+update after it — that makes the install script the owner everywhere, and
+Fedora settles it independently since metabox has no brew.
+
+- **Update**: manual `chezmoi upgrade`, which re-installs "in the same way as
+  chezmoi was previously installed" and so preserves the layout. Deliberately
+  *not* in the weekly sweep: that script is executed *by* chezmoi during
+  apply, so upgrading there would swap the running binary mid-run and leave
+  "which chezmoi ran this apply" without a single answer. This is the
+  decoupling gap the sweep's own header describes.
+- **A brew formula must not coexist.** `XDG_BIN_HOME` puts `~/.local/bin`
+  ahead of brew on PATH, so a formula install is silently shadowed: brew's
+  inventory claims a chezmoi that never runs, and it drifts from the live one
+  in either direction. Found on 2026-08-19 with a v2.67.0 install-script
+  binary shadowing a v2.70.2 formula. `run_once_before_all-00-retire-brew-chezmoi`
+  removes the formula, but only when a `~/.local/bin/chezmoi` exists to fall
+  back on.
+
 ## pi: npm tier everywhere, self-updating
 
 pi installs from the npm tier on **both** platforms and is updated only by
