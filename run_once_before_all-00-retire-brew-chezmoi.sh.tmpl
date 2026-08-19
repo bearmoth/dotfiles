@@ -1,0 +1,39 @@
+{{ if eq .osid "darwin" -}}
+#!/bin/bash
+# One-time migration (ADR-0011/0012): chezmoi is owned by upstream's install
+# script in ~/.local/bin, never by a package manager. A brew formula had been
+# installed alongside it, and since XDG_BIN_HOME puts ~/.local/bin ahead of
+# brew on PATH, the formula's binary was shadowed — brew's inventory claimed a
+# chezmoi that never ran (found 2026-08-19: ~/.local/bin at v2.67.0 shadowing
+# a v2.70.2 formula, with `chezmoi upgrade` then taking the live one to
+# v2.72.0, ahead of both).
+#
+# Why the install script owns chezmoi, and not brew: chezmoi bootstraps the
+# package managers, so it cannot come from one. The README one-liner runs on a
+# bare machine long before run_before_all installs Homebrew, which makes the
+# install script the first install on every platform by construction — and
+# ADR-0012's principle is that whoever controls the first install controls
+# every update after it. `chezmoi upgrade` then re-installs "the same way as
+# chezmoi was previously installed", so the layout keeps itself current.
+# Fedora (metabox) has no brew and is unaffected by this script.
+set -euo pipefail
+
+{{ if eq .chezmoi.arch "arm64" -}}
+[ -x /opt/homebrew/bin/brew ] || exit 0
+eval "$(/opt/homebrew/bin/brew shellenv)"
+{{ else -}}
+[ -x /usr/local/bin/brew ] || exit 0
+eval "$(/usr/local/bin/brew shellenv)"
+{{ end -}}
+
+# Only retire the formula if an install-script chezmoi is actually in place —
+# never leave a machine with no chezmoi at all.
+if brew list --formula chezmoi >/dev/null 2>&1; then
+	if [ -x "$HOME/.local/bin/chezmoi" ]; then
+		brew uninstall chezmoi
+	else
+		echo "retire-brew-chezmoi: keeping the formula — no ~/.local/bin/chezmoi to fall back on." >&2
+		echo "  Install it first: sh -c \"\$(curl -fsLS get.chezmoi.io)\" -- -b \"\$HOME/.local/bin\"" >&2
+	fi
+fi
+{{ end -}}
