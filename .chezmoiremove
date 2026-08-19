@@ -10,3 +10,11 @@
 # machine where the installer put the binary elsewhere. ~/.local/bin is already
 # on PATH (XDG_BIN_HOME in 00-env), so plain PATH lookup replaces the alias.
 .config/fish/conf.d/chezmoi.fish
+
+# Retired oh-my-zsh: it loaded no plugins here, so its only jobs were sourcing
+# the powerlevel10k theme and setting interactive defaults. The theme now
+# installs standalone to .local/share/powerlevel10k and the defaults live in
+# .config/zsh/01-shell.sh, so the 12M tree (refreshed weekly from an unpinned
+# master) is dead weight. Removing it also drops the theme copy underneath it.
+.oh-my-zsh
+.config/zsh/oh-my-zsh.sh
