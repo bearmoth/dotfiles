@@ -1,0 +1,59 @@
+#!/usr/bin/env python3
+# pi owns ~/.pi/agent/settings.json at runtime: `/settings`, `/model` and the
+# thinking-level picker all persist straight back into it, and pi bumps
+# lastChangelogVersion on every self-update (ADR-0012). Every one of pi's ~41
+# settings is runtime-writable, so this cannot be a preserve-list script like
+# dot_claude/modify_settings.json — an unlisted key would be *deleted* the
+# first time Phil changed it in the TUI. Instead this merges DESIRED over the
+# live file and passes every other key through untouched, the same shape as
+# dot_config/private_1Password/settings/modify_private_settings.json.
+#
+# Deliberately NOT managed here (see docs/pi.md):
+#   defaultProvider / defaultModel — `/model` writes the pair together, so
+#     pinning one and not the other can leave an invalid provider+model
+#     combination; model ids also churn with the provider catalogue, and
+#     auth.json is per-install so a fresh machine re-runs the auth flow anyway.
+#   theme, tuiMode, fullscreenScrollbar, markdown.mermaid — pi's own defaults
+#     written back verbatim by `/settings`; asserting a default buys nothing.
+#
+# When nothing needs changing it must emit stdin byte-for-byte: pi writes
+# JSON.stringify(settings, null, 2) — 2-space indent, no trailing newline —
+# and any formatting drift here would show up as perpetual chezmoi diff churn.
+import json
+import sys
+
+# Cross-machine intent only: keys where pi's default is not what Phil wants.
+DESIRED = {
+    "defaultThinkingLevel": "high",
+}
+
+
+def merge(target, desired):
+    """Recursive so a nested DESIRED entry can't clobber sibling keys pi owns."""
+    changed = False
+    for key, value in desired.items():
+        if isinstance(value, dict):
+            if not isinstance(target.get(key), dict):
+                target[key] = {}
+                changed = True
+            if merge(target[key], value):
+                changed = True
+        elif target.get(key) != value:
+            target[key] = value
+            changed = True
+    return changed
+
+
+raw = sys.stdin.read()
+try:
+    settings = json.loads(raw)
+except ValueError:
+    settings = None
+# A missing file (first apply) or a malformed one self-heals to DESIRED.
+if not isinstance(settings, dict):
+    settings = {}
+    raw = None
+
+changed = merge(settings, DESIRED) or raw is None
+
+sys.stdout.write(json.dumps(settings, indent=2) if changed else raw)

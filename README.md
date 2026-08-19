@@ -72,3 +72,10 @@ Check the hostname with `hostname` or `chezmoi data | grep hostname`.
 Full cross-OS keymap reference (Ghostty splits, AeroSpace, Linux WM, collision analysis, activation gate): [`docs/keybindings.md`](docs/keybindings.md)
 
 Quick terminal lookup: `cheat keymaps`
+
+## pi
+
+What under `~/.pi/agent` is managed (settings via `modify_`, keybindings, the
+modes extension) and what deliberately isn't (tokens, caches, machine-local
+state), plus the edit-then-`re-add` loop for the extension:
+[`docs/pi.md`](docs/pi.md)
