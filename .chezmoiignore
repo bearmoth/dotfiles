@@ -29,10 +29,6 @@ tests/
 .local/bin/obsidian
 {{ end -}}
 
-# Oh My Zsh
-.oh-my-zsh/cache/
-.oh-my-zsh/**/*.zwc
-
 # Claude Code runtime state (rewritten on every invocation)
 .claude.json
 .claude/plugins/installed_plugins.json

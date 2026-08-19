@@ -1,10 +1,12 @@
-.oh-my-zsh:
-  type: "archive"
-  url: "https://github.com/ohmyzsh/ohmyzsh/archive/master.tar.gz"
-  exact: true
-  stripComponents: 1
-  refreshPeriod: "168h"
-.oh-my-zsh/custom/themes/powerlevel10k:
+# Powerlevel10k, installed standalone. It used to live under
+# .oh-my-zsh/custom/themes/ because oh-my-zsh was the loader; OMZ is gone (it
+# loaded no plugins — see dot_config/zsh/01-shell.sh) so the theme installs to
+# XDG_DATA_HOME and dot_config/zsh/p10k.sh sources it directly.
+#
+# Pinned to a tag on purpose. Note that upstream cuts releases rarely (v1.20.0
+# is from Jan 2024) while master stays actively maintained, so bumping this pin
+# is a deliberate, occasional chore rather than something to track continuously.
+.local/share/powerlevel10k:
   type: "archive"
   url: "https://github.com/romkatv/powerlevel10k/archive/v1.20.0.tar.gz"
   exact: true
