@@ -200,7 +200,7 @@ export default function modesExtension(pi: ExtensionAPI): void {
 		}
 		applyToolPolicy();
 		updateStatus(ctx);
-		installPaddedFooter(ctx);
+		// installPaddedFooter(ctx); // disabled: ui-plus.ts owns the footer now
 	});
 
 	// Enforcement layer — independent of model instructions.
