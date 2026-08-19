@@ -28,8 +28,14 @@ packages:
       - yazi
       - zoxide
       - zsh
-    taps:
-      - go-task/tap/go-task
+    # Intentionally empty. go-task/tap was dropped 2026-08-19: upstream
+    # migrated the formula to homebrew-core (the installed keg's receipt
+    # already read homebrew/core, so the tap installed nothing) and the tap
+    # now ships only a cask, which Homebrew 6 refuses to load from an
+    # untrusted tap — failing the whole `brew bundle` fetch, not just
+    # go-task. The tap loop in run_before_all-02 stays: presence is data,
+    # mechanism is code (ADR-0011).
+    taps: []
     casks:
       - 1password-cli
       - ghostty
