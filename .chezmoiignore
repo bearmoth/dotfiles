@@ -29,6 +29,13 @@ tests/
 .local/bin/obsidian
 {{ end -}}
 
+# Powerlevel10k compiles itself, writing .zwc files into its own install dir.
+# The external is `exact: true`, so without this every apply deletes them and
+# p10k recompiles on next shell start — endless churn and a status that never
+# comes clean. This rule predates the oh-my-zsh removal (it read
+# `.oh-my-zsh/**/*.zwc` while the theme lived under OMZ); only the path moved.
+.local/share/powerlevel10k/**/*.zwc
+
 # Claude Code runtime state (rewritten on every invocation)
 .claude.json
 .claude/plugins/installed_plugins.json
