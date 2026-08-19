@@ -89,6 +89,14 @@ guard against a future recursive add sweeping the secrets in).
 - `sessions/` — session transcripts.
 - `extensions/herdr-agent-state.ts` — installed and overwritten by herdr's own
   integration (`run_once_install-herdr`); two owners would fight.
+- `extensions/modes/FUTURES.md` — open question, deliberately left out for now.
+  It is prose that pi itself appends ideas to, which inverts chezmoi's
+  ownership model: `apply` would restore the last capture and silently drop
+  anything added since, and prose can't be key-merged the way settings.json
+  is. It also inventories gaps in the modes extension's own guardrails, which
+  this repo being public makes a standing exposure question (ADR-0002) rather
+  than a one-off. If it is ever managed here it wants `create_` (seed once,
+  never overwrite), most likely with `encrypted_`.
 
 `~/.pi` and `~/.pi/agent` are `0700` because of `auth.json`, hence the
 `private_` prefixes in the source tree. Verified by applying to a scratch
