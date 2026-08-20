@@ -1,9 +1,13 @@
 /**
  * Operating Modes Extension: /mode <explore|edit|yolo>
  *
- * EXPLORE - enforced read-only (tools + bash command classification, fail closed)
- * EDIT    - default; normal tools with confirmation gate on destructive commands
- * YOLO    - normal tools, interactive gating bypassed
+ * Explore - enforced read-only (tools + bash command classification, fail closed)
+ * Edit    - default; normal tools with confirmation gate on destructive commands
+ * Yolo    - normal tools, interactive gating bypassed
+ *
+ * Footer labels are title case (all-caps lives only in the model-facing
+ * [MODE: ...] instruction blocks). See ORCHESTRATE-SPEC.md for the planned
+ * fourth mode.
  *
  * State persists via pi.appendEntry within a session (survives compaction and
  * resume of the same session). New sessions always start in EDIT.
@@ -19,9 +23,9 @@ type Mode = "explore" | "edit" | "yolo";
 const MODE_ORDER: Mode[] = ["explore", "edit", "yolo"];
 
 const MODE_INFO: Record<Mode, { label: string; color: string; note: string }> = {
-	explore: { label: "EXPLORE", color: "mdLink", note: "workspace mutations disabled." },
-	edit: { label: "EDIT", color: "warning", note: "normal editing; destructive commands are gated." },
-	yolo: { label: "YOLO", color: "error", note: "interactive permission gating bypassed." },
+	explore: { label: "Explore", color: "mdLink", note: "workspace mutations disabled." },
+	edit: { label: "Edit", color: "warning", note: "normal editing; destructive commands are gated." },
+	yolo: { label: "Yolo", color: "error", note: "interactive permission gating bypassed." },
 };
 
 const MODE_INSTRUCTIONS: Record<Mode, string> = {
@@ -149,12 +153,12 @@ export default function modesExtension(pi: ExtensionAPI): void {
 	};
 
 	pi.registerShortcut("shift+tab", {
-		description: "Cycle mode (EXPLORE → EDIT → YOLO)",
+		description: "Cycle mode (Explore → Edit → Yolo)",
 		handler: cycleMode,
 	});
 
 	pi.registerShortcut("ctrl+alt+m", {
-		description: "Cycle mode (EXPLORE → EDIT → YOLO)",
+		description: "Cycle mode (Explore → Edit → Yolo)",
 		handler: cycleMode,
 	});
 

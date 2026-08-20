@@ -16,6 +16,9 @@ tests/
 !.claude/CLAUDE.md
 !.claude/skills/**
 !.claude/commands/**
+# pi modes extension docs (spec, ADRs, glossary, futures) travel with the code
+!.pi/agent/extensions/modes/*.md
+!.pi/agent/extensions/modes/docs/**
 
 # AeroSpace: macOS-only AND opt-in via features.aerospace (defense-in-depth double gate)
 {{ if or (ne .chezmoi.os "darwin") (not .features.aerospace) -}}
