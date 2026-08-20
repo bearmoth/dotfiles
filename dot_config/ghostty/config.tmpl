@@ -3,7 +3,14 @@
 # MacOS: `cmd+shift+,`
 
 # Theme
-background-blur = 50
+# background-blur only ever took effect on macOS: GNOME ships no blur protocol,
+# Hyprland blurs windows from its own decoration:blur config regardless of what
+# the app asks for, and KDE/KWin discards the number in favour of one global
+# strength. So this value is a macOS-only knob in practice. 2 = subtle shading;
+# 50 read as a flat milky wash, because a wide radius collapses the backdrop to
+# its local average and destroys the detail cue that makes a window read as
+# transparent (Ghostty's own recommended default is 20).
+background-blur = 2
 background-opacity = 0.85
 
 window-padding-x = 8
