@@ -3,10 +3,10 @@
 # MacOS: `cmd+shift+,`
 
 # Theme
-# background-blur only ever took effect on macOS: GNOME ships no blur protocol,
+# background-blur is a macOS-only knob in practice: GNOME ships no blur protocol,
 # Hyprland blurs windows from its own decoration:blur config regardless of what
 # the app asks for, and KDE/KWin discards the number in favour of one global
-# strength. So this value is a macOS-only knob in practice. 2 = subtle shading;
+# strength, so the number only ever lands here. 2 = subtle shading;
 # 50 read as a flat milky wash, because a wide radius collapses the backdrop to
 # its local average and destroys the detail cue that makes a window read as
 # transparent (Ghostty's own recommended default is 20).
@@ -15,6 +15,35 @@ background-opacity = 0.85
 
 window-padding-x = 8
 window-padding-y = 8
+
+# Window chrome — herdr owns tabs and splits, so Ghostty's own titlebar and tab
+# bar are dead weight. macOS and GTK draw entirely different chrome (a
+# transparent NSWindow titlebar vs a libadwaita headerbar), which is why the two
+# platforms looked nothing alike; strip both rather than try to match them.
+{{ if eq .chezmoi.os "darwin" -}}
+# `hidden` keeps the frame and rounded corners, unlike window-decoration = none
+# which squares them off. Cost: the titlebar strip no longer drags the window —
+# option+click a resizable frame edge instead. Applies to new windows only.
+macos-titlebar-style = hidden
+{{ else -}}
+# GTK equivalent of wezterm's window_decorations = "NONE". Move/resize falls back
+# to the compositor (super+drag on GNOME; Hyprland draws its own borders anyway).
+# window-show-tab-bar is GTK-only and belt-and-braces — herdr owns tabs, so
+# Ghostty should never reach the 2-tab threshold that `auto` reveals.
+window-decoration = none
+window-show-tab-bar = never
+{{ end -}}
+
+# Launch herdr in the first window. `initial-command` rather than `command`:
+# `command` applies to every surface including the quick terminal below, which
+# would attach the drop-down to the same herdr session and mirror the main
+# window instead of giving a plain shell. There is no per-surface-type override.
+# lookPath bakes the absolute path at apply time because initial-command
+# replaces the login shell, and a GUI-launched Ghostty inherits launchd's PATH
+# with no Homebrew prefix (`launchctl getenv PATH` is empty), so a bare `herdr`
+# would resolve only when Ghostty was started from a terminal. On a machine
+# without herdr yet this expands to empty, i.e. the default shell.
+initial-command = {{ lookPath "herdr" }}
 
 # Splits — mirror LazyVim mnemonics (<leader>- and <leader>|)
 ## Hyper = Caps Lock (tap=Escape, hold=Ctrl+Alt+Super)
