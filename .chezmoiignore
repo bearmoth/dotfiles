@@ -19,6 +19,8 @@ tests/
 # pi modes extension docs (spec, ADRs, glossary, futures) travel with the code
 !.pi/agent/extensions/modes/*.md
 !.pi/agent/extensions/modes/docs/**
+# orchestrating skill travels with the modes extension (its doctrine lives there)
+!.pi/agent/skills/orchestrating/**
 
 # AeroSpace: macOS-only AND opt-in via features.aerospace (defense-in-depth double gate)
 {{ if or (ne .chezmoi.os "darwin") (not .features.aerospace) -}}
@@ -55,6 +57,8 @@ tests/
 .pi/agent/models-store.json
 .pi/agent/trust.json
 .pi/agent/sessions/
+# dispatch_task worker transcripts (see modes/dispatch.ts) — never synced
+.pi/agent/orchestrator-sessions/
 .pi/agent/extensions/herdr-agent-state.ts
 
 # Fish universal variables — managed by run_onchange_after_tide_config.sh, not synced directly

@@ -57,8 +57,17 @@ const SUBCOMMAND_RULES: Record<string, SubRule> = {
 	gh: { label: "gh", sub: new Set(["pr", "issue", "repo", "run", "api"]) }, // still gated below
 };
 
+// Reviewer-role extension: gh subcommand pairs that mutate only GitHub review
+// state (never the working tree). Enabled via classify options, not by default.
+const REVIEWER_GH_PAIRS = new Set(["pr review", "pr comment", "issue comment"]);
+
+export interface ClassifyOptions {
+	/** Allow the reviewer-role gh pairs (pr review/comment, issue comment). */
+	reviewerGh?: boolean;
+}
+
 // Extra restrictions layered on subcommand rules.
-function checkSubcommandExtras(cmd: string, args: string[]): Verdict | undefined {
+function checkSubcommandExtras(cmd: string, args: string[], opts: ClassifyOptions): Verdict | undefined {
 	if (cmd === "git") {
 		// `git stash` alone mutates; only `git stash list/show` is read-only.
 		if (args[0] === "stash" && !["list", "show"].includes(args[1] ?? "")) {
@@ -82,7 +91,10 @@ function checkSubcommandExtras(cmd: string, args: string[]): Verdict | undefined
 	}
 	if (cmd === "gh") {
 		const readonlyPairs = new Set(["pr list", "pr view", "pr diff", "pr status", "pr checks", "issue list", "issue view", "issue status", "repo view", "run list", "run view"]);
-		if (!readonlyPairs.has(`${args[0]} ${args[1]}`)) return no("`gh` subcommand not classified as read-only");
+		const pair = `${args[0]} ${args[1]}`;
+		if (readonlyPairs.has(pair)) return undefined;
+		if (opts.reviewerGh && REVIEWER_GH_PAIRS.has(pair)) return undefined;
+		return no("`gh` subcommand not classified as read-only");
 	}
 	return undefined;
 }
@@ -108,7 +120,7 @@ function stripQuotes(command: string): string {
 	return command.replace(/'[^']*'/g, "''").replace(/"(\\.|[^"\\])*"/g, '""');
 }
 
-export function classifyBashCommand(command: string): Verdict {
+export function classifyBashCommand(command: string, opts: ClassifyOptions = {}): Verdict {
 	const stripped = stripQuotes(command).replace(SAFE_REDIRECTS, " ");
 
 	for (const [pattern, reason] of FORBIDDEN_SYNTAX) {
@@ -173,7 +185,7 @@ export function classifyBashCommand(command: string): Verdict {
 		if (rule) {
 			const sub = args.find((a) => !a.startsWith("-")) ?? "";
 			if (!rule.sub.has(sub)) return no(`\`${rule.label} ${sub || "(none)"}\` is not a read-only subcommand`);
-			const extra = checkSubcommandExtras(cmd, args);
+			const extra = checkSubcommandExtras(cmd, args, opts);
 			if (extra) return extra;
 			continue;
 		}

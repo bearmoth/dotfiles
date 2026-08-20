@@ -1,8 +1,11 @@
 # Orchestrate mode — v1 specification
 
-Status: designed, not implemented. Designed 2026-02 via grilling session; see
+Status: **implemented** (2026-02) in this extension (`index.ts`,
+`dispatch.ts`, `readonly-bash.ts`) plus the `orchestrating` skill
+(`~/.pi/agent/skills/orchestrating/`). Designed via grilling session; see
 `docs/adr/0001`–`0004` for the decisions and their v1-pragmatism framing.
 Glossary terms (Workstream, Role, Brief, Dispatch) are in `CONTEXT.md`.
+Deviations from the original design are marked *(as implemented)* below.
 
 ## Identity
 
@@ -48,16 +51,49 @@ dispatch_task(role, workdir, brief, model?, timeout?)
   Workstreams point dispatches at worktrees.
 - **brief**: one self-contained string. No structured params — doctrine
   mandates the sections (see Briefs). Structure-by-doctrine, not by schema.
-- **model**: optional override of the role's default model.
-- **timeout**: optional; default 15 minutes. On expiry: kill worker, report.
+- **model**: optional override of the role's default model. Overrides are
+  HITL: the orchestrator proposes them at plan approval; an override not
+  surfaced there requires an explicit user ask before dispatch.
+- **timeout**: optional; default 15 minutes. On expiry: kill the worker and
+  leave the worktree **as-is** (never auto-clean). The orchestrator then
+  inspects and reports its state like any other failure — the user chooses
+  a rework brief (current diff state included) or a manual reset via `!`.
+  A half-mutated tree is quarantined by construction (one workstream ↔ one
+  worktree).
 
 ### Execution (sync v1 — ADR 0002)
 
-Each dispatch spawns a fresh `pi -p` subprocess in `workdir`, blocking the
-orchestrator's turn until it finishes. Workers are real pi sessions and
-therefore inherit the modes extension guardrails; the worker starts in the
-role's mode (via a `--mode`-equivalent or injected first command —
-implementation detail to resolve).
+Each dispatch spawns a fresh `pi --mode json -p` subprocess in `workdir`,
+blocking the orchestrator's turn until it finishes. (Note: pi's `--mode`
+flag means *output* mode — json event stream — not operating mode.) No
+`--no-session`: the worker's session file is part of the result shape.
+Workers are real pi sessions and load the same global extensions, so they
+inherit the modes extension guardrails.
+
+- **Worker mode via extension flag**: the modes extension registers
+  `--op-mode` via `pi.registerFlag()`; the dispatcher passes it per role
+  (`edit` for implementors, `explore` for researchers, `reviewer` — a flag
+  value, not a mode — for reviewers: explore enforcement + reviewer gh
+  pairs). Read at `session_start`, it overrides the fresh-session edit
+  default and **locks the mode for the process** (`/mode` and the cycle
+  shortcuts are disabled while the flag is set) — so a prompt-injected
+  brief cannot switch modes. Unknown flag values fail closed to explore.
+  *(As implemented: `--op-mode orchestrate` is also accepted, mainly for
+  testing.)*
+- **Defense in depth**: explore-role dispatches also pass
+  `--tools read,grep,find,ls` — harness-level restriction independent of
+  the extension layer.
+- **Invocation robustness**: resolve the pi binary as the subagent example
+  does (`process.execPath` + current script fallback), not bare `pi` in
+  PATH.
+- **Result parsing**: the JSON event stream supplies exit code, stopReason
+  (`error`/`aborted`), final assistant message, and per-worker usage/cost.
+- **Session file pinning (resolved)**: each dispatch passes a fresh
+  per-dispatch `--session-dir` under
+  `~/.pi/agent/orchestrator-sessions/<role>-<random>/`; the single `.jsonl`
+  pi creates there is the worker's `sessionFile`. (Plain `--session <path>`
+  does not create the file at a chosen path; `--session-dir` does, verified
+  empirically.)
 
 Workers cannot converse with the user mid-run. Anything requiring HITL is
 the orchestrator's own job (refinement, plan approval) or waits for async
@@ -65,11 +101,25 @@ the orchestrator's own job (refinement, plan approval) or waits for async
 
 ### Result shape
 
-The tool returns:
+The tool returns one normalized shape regardless of success, expected
+failure, or unexpected failure:
 
-1. the worker's final assistant message,
-2. exit status,
-3. the worker's **session file path** (full-transcript audit on demand).
+```
+{ status: "ok" | "error" | "timeout" | "killed",
+  exitCode: number | null,
+  finalMessage: string | null,   // null when the worker died before replying
+  sessionFile: string,           // always present — full-transcript audit
+  durationMs: number,
+  usage?: { turns, tokens, cost } }  // from the worker's JSON event stream
+```
+
+`sessionFile` always exists (created at subprocess start), so even an
+unexpected failure is auditable. `finalMessage: null` makes "no report"
+explicit rather than special-cased prose. *(As implemented: the tool's text
+content is a summary of this shape plus the final message; the structured
+shape lives in the tool result's `details`. `usage.tokens` = input+output.
+Model default resolution: explicit `model` param → role default → the
+orchestrator's own model.)*
 
 The orchestrator **never trusts a worker's self-report of changes**: it
 independently inspects via read-only git (`git -C <workdir> diff/status`).
@@ -90,12 +140,13 @@ when role count or per-repo variation demands it.
 
 | Role | Permissions | Default model | Notes |
 |---|---|---|---|
-| `implementor` | edit | strong model | Deterministic QA (tests, lint) is part of its definition of done — the brief mandates "checks pass before you report". |
-| `researcher` | explore | cheap/fast model | Fact-finding fan-out. |
-| `reviewer` | explore + `gh` CLI (comment read/write) | strong model | The `gh` carve-out is the only per-role tool extension in v1. |
+| `implementor` | edit | inherit orchestrator's model | Deterministic QA (tests, lint) is part of its definition of done — the brief mandates "checks pass before you report". |
+| `researcher` | explore + `--tools read,grep,find,ls` | `github-copilot/claude-haiku-4.5` | Fact-finding fan-out. |
+| `reviewer` | explore + extended `gh` pair allowlist | inherit orchestrator's model | The only per-role tool extension in v1. Implemented as an opt-in flag on the (fail-closed) readonly-bash classifier enabling `pr review`, `pr comment`, `issue comment` on top of the read-only pairs explore already permits. Unclassified pairs (`pr merge`, `repo delete`, …) stay denied. |
 
-- **Worker mode ceiling: edit.** A `yolo` dispatch requires per-dispatch
-  user confirmation. Revisit at sandboxing.
+- **Worker mode ceiling: edit.** No role maps to yolo in v1, so a yolo
+  dispatch is simply **not expressible** (roles are hardcoded; there is no
+  mode/permission param on `dispatch_task`). Revisit at sandboxing.
 - **Not roles in v1** (deliberate cuts):
   - *debugger, tester* — an implementor/researcher with a different brief;
     split into roles only if permissions ever differ.
@@ -117,7 +168,8 @@ One string, composed by the orchestrator per doctrine. Mandated sections:
 - relevant paths,
 - constraints,
 - acceptance criteria (implementors: including "tests+lint pass"),
-- prior findings (for rework/review dispatches),
+- prior findings — required for rework and review dispatches, omitted
+  otherwise,
 - **required report format**: the worker must end with
   `## Result / ## Changes / ## Concerns / ## Questions`.
 
@@ -143,9 +195,15 @@ intake → refine (HITL) → plan (HITL approval) → implement → verify → r
    mutation monopoly stays with workers). One workstream ↔ one worktree.
 5. **Implement**: dispatch implementor(s), sequentially (sync v1).
 6. **Verify** (mandated): orchestrator inspects the diff read-only and
-   re-runs deterministic checks *where the read-only classifier permits*
-   (known limit: many test commands mutate; note discrepancies rather than
-   forcing it).
+   re-runs deterministic checks *where the read-only classifier permits*.
+   Where it doesn't — project check commands (`npm test` etc.) run opaque
+   scripts the classifier cannot prove read-only, and often do write
+   (coverage, caches, snapshots) — the orchestrator **never
+   proceeds on the implementor's word**: it dispatches an independent
+   verification run — implementor permissions, brief = "run the checks,
+   change nothing, report results" — and treats any diff produced by that
+   worker as a red flag. Verification results (including "could not be
+   independently re-run") go in the consolidated report.
 7. **Review** (auto): reviewer dispatch is doctrine-mandated after
    verification — read-only, always valuable, no reason to gate it.
 8. **Report**: consolidated — diff summary + verification findings +
