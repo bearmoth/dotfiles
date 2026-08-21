@@ -242,7 +242,8 @@ export default function (pi: ExtensionAPI) {
 		"assistant-thinking": nf ? "\uE28C  " : "○ ",
 	};
 	pi.registerMarkdownTransformer((markdown, { messageType, availableWidth }) => {
-		const icon = MESSAGE_ICONS[messageType];
+		const rawIcon = MESSAGE_ICONS[messageType];
+		const icon = rawIcon && messageType === "user" ? `\x1b[32m${rawIcon}\x1b[39m` : rawIcon;
 		let prefixed = icon ? icon + markdown : markdown;
 		if (messageType !== "user") return prefixed;
 		// Indent source lines after the first by the icon's display width
@@ -258,7 +259,7 @@ export default function (pi: ExtensionAPI) {
 		// thematic-break char, but the leading ANSI dim escape also guards
 		// against any block-level reinterpretation by the parser.
 		const ruleWidth = Math.max(1, availableWidth ?? 80);
-		const rule = `\x1b[2m${"╌".repeat(ruleWidth)}\x1b[22m`;
+		const rule = `\x1b[32m${"╌".repeat(ruleWidth)}\x1b[39m`;
 		return `${rule}\n${prefixed}\n${rule}`;
 	});
 }
