@@ -8,6 +8,7 @@ import {
 	checkBashAgainstFence,
 	checkPathAgainstFence,
 	parseFenceEnv,
+	bashMentionsProtected,
 	resolveRealPath,
 	resolveWorktreeRoot,
 } from "./fence.ts";
@@ -263,6 +264,42 @@ test("nerdFontEnabled reads the settings flag, fails closed", async () => {
 		assert.equal(nerdFontEnabled(path.join(dir, "missing.json")), false);
 	} finally {
 		fs.rmSync(dir, { recursive: true, force: true });
+	}
+});
+
+test("bashMentionsProtected detects guardrail paths in commands", () => {
+	const prot = mkFence(); // stand-in protected root
+	try {
+		const inside = path.join(prot, "index.ts");
+		// Plain absolute path token.
+		assert.equal(bashMentionsProtected(`cp evil.ts ${inside}`, [prot], os.homedir()), inside);
+		// Quoted token.
+		assert.equal(bashMentionsProtected(`tee "${inside}" < x`, [prot], os.homedir()), inside);
+		// --opt=path shape.
+		assert.ok(bashMentionsProtected(`git --git-dir=${prot}/.git commit`, [prot], os.homedir()));
+		// Redirect glued to fd number: 2>path.
+		assert.ok(bashMentionsProtected(`cmd 2>${inside}`, [prot], os.homedir()));
+		// Tilde expansion.
+		const rel = path.relative(os.homedir(), inside);
+		assert.ok(bashMentionsProtected(`echo x > ~/${rel}`, [prot], "/"));
+		// Relative path resolving into the protected root.
+		assert.ok(bashMentionsProtected(`cp a.ts ./sub/../index.ts`, [prot], prot));
+		// Symlink spelling of a protected path.
+		const linkDir = fs.mkdtempSync(path.join(os.homedir(), ".fence-link-"));
+		const link = path.join(linkDir, "alias");
+		fs.symlinkSync(prot, link);
+		try {
+			assert.ok(bashMentionsProtected(`cp evil.ts ${link}/index.ts`, [prot], os.homedir()));
+		} finally {
+			fs.rmSync(linkDir, { recursive: true, force: true });
+		}
+		// Clean commands: no hit.
+		assert.equal(bashMentionsProtected("npm test", [prot], os.homedir()), null);
+		assert.equal(bashMentionsProtected("cp a.ts b.ts", [prot], os.homedir()), null);
+		// Non-path words that merely mention the basename: no hit.
+		assert.equal(bashMentionsProtected("echo index.ts", [prot], os.homedir()), null);
+	} finally {
+		fs.rmSync(prot, { recursive: true, force: true });
 	}
 });
 

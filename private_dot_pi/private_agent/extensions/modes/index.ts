@@ -30,7 +30,7 @@ import { join, resolve } from "node:path";
 import { registerDispatchTool } from "./dispatch.ts";
 import { installPaddedFooter } from "./footer.ts";
 import { classifyBashCommand } from "./readonly-bash.ts";
-import { checkBashAgainstFence, checkPathAgainstFence, parseFenceEnv, protectedGrantActive, resolveRealPath } from "./fence.ts";
+import { bashMentionsProtected, checkBashAgainstFence, checkPathAgainstFence, parseFenceEnv, protectedGrantActive, resolveRealPath } from "./fence.ts";
 
 type Mode = "explore" | "edit" | "yolo" | "orchestrate";
 
@@ -85,6 +85,7 @@ const DANGEROUS_PATTERNS: RegExp[] = [
 	/\bdrop\s+(table|database)\b/i,
 	/\|\s*(ba|z|da|k)?sh\b/, // pipe-to-shell (curl ... | sh)
 	/\bchezmoi\s+(apply|update)\b/, // deploys chezmoi source (incl. guardrails) to $HOME
+	/\bchezmoi\s+(add|re-add|edit|forget|destroy|import)\b/, // mutates chezmoi source (incl. guardrail copies)
 ];
 
 // Never allowed, in ANY mode (including YOLO). Substitutes for a container boundary.
@@ -379,6 +380,27 @@ export default function modesExtension(pi: ExtensionAPI): void {
 			if (fenceRoots.length > 0) {
 				const fence = checkBashAgainstFence(command, fenceRoots, ctx.cwd);
 				if (!fence.ok) return { block: true, reason: fence.reason ?? "Blocked by write fence." };
+			}
+			// Protected-path guard for bash (all interactive modes, incl. YOLO):
+			// commands that name a guardrail path are gated unless read-only.
+			// Best-effort token scan, symlink/firmlink aware. Dispatched workers
+			// rely on the write fence + protected grant instead of a UI prompt.
+			if (!classifyBashCommand(command, { reviewerGh }).readonly) {
+				const hit = bashMentionsProtected(command, PROTECTED_PATHS, ctx.cwd);
+				if (hit && !approvedCommands.has(command)) {
+					if (protectedGrantActive(process.env.PI_PROTECTED_GRANT, modeLocked)) {
+						// sanctioned dispatched worker; fence still applies above
+					} else if (!ctx.hasUI) {
+						return { block: true, reason: `Command touches protected guardrail path (${hit}); requires interactive approval.` };
+					} else {
+						const ok = await ctx.ui.confirm(
+							"Protected path in command",
+							`This command references a guardrail path:\n\n  ${command}\n\n(matched: ${hit})\n\nAllow?`,
+						);
+						if (!ok) return { block: true, reason: "Blocked: command touches protected guardrail paths. The user declined." };
+						approvedCommands.add(command);
+					}
+				}
 			}
 		}
 

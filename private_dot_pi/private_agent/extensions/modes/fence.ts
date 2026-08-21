@@ -164,6 +164,46 @@ export function checkBashAgainstFence(
 }
 
 /**
+ * Best-effort scan of a bash command for path tokens that resolve under any
+ * protected root (symlink/firmlink aware via resolveRealPath). Returns the
+ * offending token, or null. Used to gate protected-path mutations that go
+ * through bash instead of the write/edit tools (cp, tee, chezmoi add,
+ * git -C, redirects, ...). Callers should skip read-only-classified commands.
+ */
+export function bashMentionsProtected(
+	command: string,
+	protectedRoots: string[],
+	cwd: string,
+): string | null {
+	const roots = protectedRoots.map((r) => resolveRealPath(r, cwd));
+	const expandTilde = (s: string) =>
+		s === "~" ? os.homedir() : s.startsWith("~/") ? path.join(os.homedir(), s.slice(2)) : s;
+	const hits = (raw: string): boolean => {
+		const t = expandTilde(raw);
+		// Only consider path-like tokens; resolve relative ones against cwd.
+		if (!path.isAbsolute(t) && !t.includes("/")) return false;
+		const real = resolveRealPath(t, cwd);
+		return roots.some((root) => isUnder(real, root));
+	};
+	const tokenRe = /"([^"]*)"|'([^']*)'|(\S+)/g;
+	let m: RegExpExecArray | null;
+	while ((m = tokenRe.exec(command)) !== null) {
+		const token = m[1] ?? m[2] ?? m[3] ?? "";
+		if (!token) continue;
+		const candidates = [token];
+		// --opt=path and N>path shapes: also check the part after = or >.
+		const eq = token.indexOf("=");
+		if (eq !== -1) candidates.push(token.slice(eq + 1));
+		const gt = token.lastIndexOf(">");
+		if (gt !== -1) candidates.push(token.slice(gt + 1));
+		for (const c of candidates) {
+			if (c && hits(c)) return token;
+		}
+	}
+	return null;
+}
+
+/**
  * Nerd Font availability: `nerdFont: true` in ~/.pi/agent/settings.json.
  * Absent/false/invalid → false (callers fall back to Unicode-safe glyphs).
  * Same read pattern as resolveWorktreeRoot; settingsPath overridable for tests.
