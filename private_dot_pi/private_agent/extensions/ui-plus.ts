@@ -155,6 +155,12 @@ export default function (pi: ExtensionAPI) {
 					for (const e of ctx.sessionManager.getEntries()) {
 						if (e.type === "message" && e.message.role === "assistant") {
 							cost += (e.message as any).usage?.cost?.total ?? 0;
+						} else if (
+							e.type === "message" &&
+							e.message.role === "toolResult" &&
+							(e.message as any).toolName === "dispatch_task"
+						) {
+							cost += (e.message as any).details?.usage?.cost ?? 0;
 						}
 					}
 					if (cost > 0) parts.push(theme.fg("dim", `$${cost.toFixed(2)}`));
