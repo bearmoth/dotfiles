@@ -17,11 +17,16 @@
  * issue comment).
  *
  * State persists via pi.appendEntry within a session (survives compaction and
- * resume of the same session). New sessions always start in EDIT.
+ * resume of the same session). Sessions start in EDIT unless restored; /new
+ * and /fork inherit the previous session's mode via a process-scoped stash
+ * file in tmpdir (written on session_shutdown, read on session_start —
+ * session files persist lazily, so they can't be relied on for this).
  */
 
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { resolve } from "node:path";
+import { readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
 import { registerDispatchTool } from "./dispatch.ts";
 import { installPaddedFooter } from "./footer.ts";
 import { classifyBashCommand } from "./readonly-bash.ts";
@@ -204,6 +209,17 @@ export default function modesExtension(pi: ExtensionAPI): void {
 		},
 	});
 
+	pi.registerCommand("orchestrate", {
+		description: "Switch to Orchestrate mode",
+		handler: async (_args, ctx) => {
+			if (modeLocked) {
+				if (ctx.hasUI) ctx.ui.notify("Mode is locked for this process (--op-mode).", "warning");
+				return;
+			}
+			setMode("orchestrate", ctx);
+		},
+	});
+
 	const cycleMode = async (ctx: ExtensionContext) => {
 		if (mode === "orchestrate") return; // excluded from the cycle; leave via /mode
 		const next = CYCLE_ORDER[(CYCLE_ORDER.indexOf(mode) + 1) % CYCLE_ORDER.length];
@@ -236,10 +252,32 @@ export default function modesExtension(pi: ExtensionAPI): void {
 		},
 	});
 
-	// Restore mode from the current session's entries; new sessions have none → EDIT.
-	pi.on("session_start", async (_event, ctx) => {
+	// Process-scoped stash: session_shutdown fires on the old extension instance
+	// before /new//fork rebinds extensions; same process, same pid.
+	const modeStashFile = join(tmpdir(), `pi-mode-state-${process.pid}.json`);
+
+	pi.on("session_shutdown", async () => {
+		if (modeLocked) return; // workers must not propagate their locked mode
+		try {
+			writeFileSync(modeStashFile, JSON.stringify({ mode }));
+		} catch {
+			// best-effort
+		}
+	});
+
+	function readModeStash(): Mode | undefined {
+		try {
+			const { mode: m } = JSON.parse(readFileSync(modeStashFile, "utf8")) as { mode?: string };
+			return (MODE_ORDER as string[]).includes(m ?? "") ? (m as Mode) : undefined;
+		} catch {
+			return undefined;
+		}
+	}
+
+	// Restore mode from the current session's entries; on /new or /fork, inherit via the stash file.
+	pi.on("session_start", async (event, ctx) => {
 		lastCtx = ctx;
-		let restored: Mode = "edit";
+		let restored: Mode | undefined;
 		for (const entry of ctx.sessionManager.getEntries()) {
 			const e = entry as { type: string; customType?: string; data?: { mode?: Mode } };
 			if (e.type === "custom" && e.customType === "mode-state" && e.data?.mode) {
@@ -250,7 +288,17 @@ export default function modesExtension(pi: ExtensionAPI): void {
 				allowedDirs.add(d.data.dir);
 			}
 		}
-		mode = restored;
+		if (restored) {
+			mode = restored;
+		} else {
+			const inherited = event.reason === "new" || event.reason === "fork" ? readModeStash() : undefined;
+			if (inherited) {
+				mode = inherited;
+				pi.appendEntry("mode-state", { mode });
+			} else {
+				mode = "edit";
+			}
+		}
 		// --op-mode overrides the default/restored mode and locks it for the process.
 		const opMode = pi.getFlag("op-mode") as string | undefined;
 		if (opMode) {
