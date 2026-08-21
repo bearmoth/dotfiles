@@ -31,6 +31,15 @@ with that repo's own trust/guardrails. Base: examples/extensions/subagent/,
 `pi -p`. Never give the model an allow-dir tool.
 - Status: idea; /allow-dir (user-invoked) shipped as the interim hatch.
 
+## Upstream PR: pi core message-rendering hooks
+Hooks we want in pi core: `registerMessageTypeRenderer` for built-in
+message blocks (user/assistant/assistant-thinking) — enables hanging
+indent / gutter for wrapped lines — and a thinking-block style hook.
+Extension-level markdown transformers were confirmed insufficient
+(2026-02 research): they run pre-wrap and are display-only, so only a
+first-line prefix is possible (see DESIGN.md icons table).
+- Status: idea; first-line icons shipped in ui-plus.ts as the interim.
+
 ## Inline sigil capture (mid-prompt commands)
 `input` event handler strips `%%...%%`-style directives from prompts before
 the model sees them (decided: model never sees directives); v1 is pure
@@ -78,3 +87,24 @@ hard floor.
 Scanning tool results for injection attempts. Parked: high false positives,
 arms race; effect-gating already caps damage.
 - Status: parked deliberately.
+
+## Dispatch log groundwork
+The extension already sees every dispatch (role, title, status, timing) via
+dispatch_task's params and result details. Once async dispatch lands, a
+future overlay or sidebar could list dispatches per workstream from that
+same data — no new plumbing needed, just a place to render it.
+- Status: groundwork noted while adding dispatch rendering.
+
+## YOLO residual hole: DANGEROUS_PATTERNS in interactive yolo
+DANGEROUS_PATTERNS (including `chezmoi apply`) are not checked in
+interactive YOLO — the model can run them unprompted. Sandboxing
+(containerized YOLO above) is the real seal; until then this is a
+documented residual hole.
+- Status: known gap.
+
+## PI_WRITE_FENCE parsing limitation
+The fence env var can't represent paths containing `:` (used as the list
+separator). Unlikely for workdirs, but a possible guard: reject workdirs
+containing `:` at dispatch time so the fence can never be silently
+malformed.
+- Status: idea.

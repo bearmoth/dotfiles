@@ -7,7 +7,7 @@
  *    - line 1: location + usage data, grouped with dim separators
  *    - line 2: mode (from `modes` extension status) left, model+thinking right
  * 2. Copilot credit usage (provider-dynamic; only shown on github-copilot).
- * 3. Claude-style "> " gutter on user prompts (display-only).
+ * 3. First-line message icons on user/assistant/thinking blocks (display-only).
  * 4. Compaction nudge at 50% context (thresholds: green <30%, yellow 30-60%, red >60%).
  */
 
@@ -17,6 +17,7 @@ import { join } from "node:path";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { CustomEditor } from "@earendil-works/pi-coding-agent";
 import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
+import { nerdFontEnabled } from "./modes/fence.ts";
 
 const BAR_WIDTH = 10;
 
@@ -98,13 +99,17 @@ export default function (pi: ExtensionAPI) {
 		ctx.ui.setEditorComponent((tui, theme, keybindings) => {
 			class PromptEditor extends CustomEditor {
 				render(width: number): string[] {
-					// Ensure enough left padding to host the "> " gutter
-					if (this.getPaddingX() < 2) this.setPaddingX(2);
+					// Gutter: Nerd Font keyboard glyph + two spaces. Empirically
+					// confirmed: this terminal renders the PUA glyph single-width
+					// (1 cell), so display width is 3 (glyph 1 + spaces 2).
+					const gutter = "\uF11C  ";
+					const gutterWidth = 3;
+					if (this.getPaddingX() < gutterWidth) this.setPaddingX(gutterWidth);
 					const lines = super.render(width);
 					// lines[0] is the top border; lines[1] is the first content line,
-					// which starts with paddingX spaces — overwrite two of them.
-					if (lines.length > 1 && lines[1]!.startsWith("  ")) {
-						lines[1] = uiTheme.fg("accent", "> ") + lines[1]!.slice(2);
+					// which starts with paddingX spaces — overwrite gutterWidth of them.
+					if (lines.length > 1 && lines[1]!.startsWith(" ".repeat(gutterWidth))) {
+						lines[1] = uiTheme.fg("accent", gutter) + lines[1]!.slice(gutterWidth);
 					}
 					return lines;
 				}
@@ -226,12 +231,34 @@ export default function (pi: ExtensionAPI) {
 		},
 	});
 
-	// Claude-style prompt gutter: "> first line / indented continuation" (display-only)
-	pi.registerMarkdownTransformer((markdown, { messageType }) => {
-		if (messageType !== "user") return markdown;
-		return markdown
-			.split("\n")
-			.map((line, i) => (i === 0 ? `» ${line}` : `  ${line}`))
-			.join("\n");
+	// First-line message icons (display-only). PUA glyphs render single-width
+	// in this terminal (empirically confirmed) and get two trailing spaces. Terminal-wrap continuation lines are
+	// untouched: transformers run pre-wrap, so hanging indent is impossible
+	// there — but hard newlines in the source can be indented (user messages).
+	const nf = nerdFontEnabled();
+	const MESSAGE_ICONS: Record<string, string> = {
+		user: nf ? "\uED35  " : "› ",
+		assistant: nf ? "\uEE0D  " : "● ",
+		"assistant-thinking": nf ? "\uE28C  " : "○ ",
+	};
+	pi.registerMarkdownTransformer((markdown, { messageType, availableWidth }) => {
+		const icon = MESSAGE_ICONS[messageType];
+		let prefixed = icon ? icon + markdown : markdown;
+		if (messageType !== "user") return prefixed;
+		// Indent source lines after the first by the icon's display width
+		// (empirically confirmed: NF PUA glyphs render single-width here, so
+		// glyph 1 + 2 spaces = 3 cols; fallback "› " = 2 cols) so multi-line
+		// user input starts in the same column. Bonus: 3-space indent also
+		// avoids markdown's 4-space code-block interpretation.
+		if (icon) {
+			const indent = " ".repeat(nf ? 3 : 2);
+			prefixed = prefixed.split("\n").map((l, i) => (i === 0 ? l : indent + l)).join("\n");
+		}
+		// Dashed rules above/below user messages. "╌" is not a markdown
+		// thematic-break char, but the leading ANSI dim escape also guards
+		// against any block-level reinterpretation by the parser.
+		const ruleWidth = Math.max(1, availableWidth ?? 80);
+		const rule = `\x1b[2m${"╌".repeat(ruleWidth)}\x1b[22m`;
+		return `${rule}\n${prefixed}\n${rule}`;
 	});
 }

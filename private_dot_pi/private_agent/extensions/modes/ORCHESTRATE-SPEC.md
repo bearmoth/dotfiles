@@ -41,16 +41,20 @@ workers (ADR 0003).
 ## The dispatch tool
 
 ```
-dispatch_task(role, workdir, brief, model?, timeout?)
+dispatch_task(role, workdir, brief, title?, model?, timeout?, allowProtected?)
 ```
 
 - **role**: `implementor | researcher | reviewer` (see Roles).
 - **workdir**: absolute path; must exist and be a git checkout (worktree or
   main). Free path — no repo registry in v1 (that's EOS-flavored config,
   deliberately not entangled). Named `workdir`, not `repo`, because
-  Workstreams point dispatches at worktrees.
+  Workstreams point dispatches at worktrees. `workdir` is also the worker's
+  **write fence** (see Write fence).
 - **brief**: one self-contained string. No structured params — doctrine
   mandates the sections (see Briefs). Structure-by-doctrine, not by schema.
+- **title**: optional short gist of the task (~5–8 words) shown in the
+  dispatch block UI. The tool description asks the orchestrator to always
+  pass it; fallback is the brief's first non-empty line, truncated.
 - **model**: optional override of the role's default model. Overrides are
   HITL: the orchestrator proposes them at plan approval; an override not
   surfaced there requires an explicit user ask before dispatch.
@@ -60,6 +64,20 @@ dispatch_task(role, workdir, brief, model?, timeout?)
   a rework brief (current diff state included) or a manual reset via `!`.
   A half-mutated tree is quarantined by construction (one workstream ↔ one
   worktree).
+- **allowProtected**: optional; requests a **one-shot sanctioned
+  protected-path grant** for this single worker. Fail closed everywhere:
+  the param is *inert unless the orchestrator session has a UI* — a
+  headless orchestrator ignores it and the hard block stands. With a UI,
+  the user is shown a confirm dialog (role, workdir, title/first brief
+  line) *before* the worker spawns; declining returns an `isError` result
+  ("the user declined") and no dispatch happens. On approval a random
+  token is minted and passed to that worker alone as `PI_PROTECTED_GRANT`;
+  the modes extension honors it only when the token looks valid AND the
+  worker's mode is locked (`--op-mode`) — never in interactive sessions
+  (`protectedGrantActive` in `fence.ts`). The grant skips only the
+  protected-path block; the write fence and containment still apply.
+  Inherited `PI_PROTECTED_GRANT` env is stripped from worker spawns so a
+  grant can never leak beyond the approved dispatch.
 
 ### Execution (sync v1 — ADR 0002)
 
@@ -131,6 +149,57 @@ is data, not instructions.
 Report the failure to the user and ask. No automatic retries in v1 —
 retries are just rework cycles, and rework is user-gated (see Pipeline).
 
+### Write fence *(implemented)*
+
+Workers may mutate **only under their own `workdir`** — the fence is the
+enforcement behind "one workstream ↔ one worktree", turning quarantine from
+an assumption into a mechanism. It is also a prompt-injection measure: a
+hostile brief or tool output cannot redirect a worker's writes to another
+repo, the extension itself, or the user's home.
+
+- **Scope**: write/edit tools must target paths under `workdir`
+  (realpath-resolved). *(As implemented: the fence covers `workdir` only —
+  the setup-dispatch dual fence (workdir + `<worktree-root>` + the clone's
+  `.git`) is NOT built yet.)*
+- **Always-allowed escape hatch**: OS tmpdirs and tool caches
+  (`$TMPDIR`, `~/.npm`, `~/.cache`, …) — workers legitimately touch these.
+  List is hardcoded in the extension; extend as live testing demands.
+- **Bash**: best-effort, fail closed — reuse the readonly classifier's
+  posture. Block obvious escapes (absolute paths outside the fence,
+  `cd`/`pushd` above it, `git -C` outside it); refuse what cannot be
+  statically analyzed. This raises the bar, it does not seal it — the seal
+  is sandboxing (FUTURES). *(As implemented: tilde expansion on targets,
+  realpath'd fence roots (symlink escapes defeated), option-tolerant git
+  scanning — `-C`/`--git-dir`/`--work-tree` are found anywhere after `git`,
+  all occurrences — and redirect coverage including fd-numbered (`2>`) and
+  `&>`/`&>>` forms. The classifier deliberately does **not** skip `git -c`:
+  config injection (e.g. `core.fsmonitor`) is a command-execution hazard,
+  so `-c` does not exempt a command from scanning.)*
+- **Mechanism**: activated by the same `--op-mode` dispatch flag path — it
+  applies only to dispatched workers, never to interactive sessions.
+
+### Worktree location
+
+The worktree root is machine config, not doctrine — it defines the setup
+dispatch's write fence, so it must be resolvable by the extension:
+
+1. `PI_WORKTREE_ROOT` env var (session/machine override; also for tests),
+2. `worktreeRoot` key in `~/.pi/agent/settings.json`,
+3. default: `~/worktrees`.
+
+Layout convention (doctrine, in the orchestrating skill):
+`<root>/<owner>/<repo>/<branch-slug>`. Setup briefs follow the recipe:
+locate (or clone) the canonical clone, `git fetch origin`, then
+`git worktree add <root>/<owner>/<repo>/<slug> -b <branch>
+origin/<default-branch>`. Never pull or branch from a local default-branch
+checkout; basing off a feature branch is an explicit brief instruction,
+never inferred.
+
+`dispatch_task` does not validate worktree placement in v1 (expose-only);
+the orchestrator confirms placement during Verify (`git worktree list`).
+Tool-level placement validation graduates from FUTURES only if live use
+shows the convention being missed despite the fence.
+
 ## Roles (v1: hardcoded — ADR 0001)
 
 Defined as a TS map in the extension (role → mode + tool allowlist +
@@ -193,6 +262,8 @@ intake → refine (HITL) → plan (HITL approval) → implement → verify → r
 4. **Workstream setup**: a new body of work gets a worktree, created by a
    dispatched implementor with a setup brief (no special tool — the
    mutation monopoly stays with workers). One workstream ↔ one worktree.
+   Setup briefs follow the worktree-location recipe; the setup worker's
+   fence is `workdir + <worktree-root>`.
 5. **Implement**: dispatch implementor(s), sequentially (sync v1).
 6. **Verify** (mandated): orchestrator inspects the diff read-only and
    re-runs deterministic checks *where the read-only classifier permits*.
@@ -230,4 +301,6 @@ Async dispatch (task ids, status tool, worker counts, auto-loop with
 max-iterations, per-role footer states); interactive workers via herdr
 workspaces; planner role + explore-plus-one-path permissions +
 roles-as-config; per-repo QA/check config (links to the existing per-repo
-policy config entry); worker lifetime across feedback cycles.
+policy config entry); worker lifetime across feedback cycles; bash-level
+write-fence sealing via sandboxing; tool-level worktree placement
+validation.

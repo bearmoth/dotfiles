@@ -25,6 +25,7 @@ import sys
 # Cross-machine intent only: keys where pi's default is not what Phil wants.
 DESIRED = {
     "defaultThinkingLevel": "high",
+    "nerdFont": True
 }
 
 

@@ -99,6 +99,27 @@ function checkSubcommandExtras(cmd: string, args: string[], opts: ClassifyOption
 	return undefined;
 }
 
+// Skip git global options that appear before the subcommand, so
+// `git -C /path status` classifies on `status`. Unknown pre-subcommand
+// options are left in place and fail closed downstream.
+function skipGitGlobalOptions(args: string[]): string[] {
+	let i = 0;
+	while (i < args.length) {
+		const a = args[i];
+		// NOTE: `-c <key>=<val>` is deliberately NOT skipped: it can inject
+		// executable config (e.g. core.fsmonitor) — fail closed downstream.
+		if (["-C", "--git-dir", "--work-tree"].includes(a)) {
+			if (i + 1 >= args.length) return []; // option missing its argument: no subcommand
+			i += 2;
+		} else if (/^(--git-dir|--work-tree)=/.test(a) || a === "--no-pager" || a === "-P") {
+			i += 1;
+		} else {
+			break;
+		}
+	}
+	return args.slice(i);
+}
+
 // Redirections that provably cannot write files: /dev/null targets and fd duplication.
 const SAFE_REDIRECTS = /\d?>>?\s*\/dev\/null|&>\s*\/dev\/null|\d?>&\d/g;
 
@@ -136,7 +157,8 @@ export function classifyBashCommand(command: string, opts: ClassifyOptions = {})
 	if (segments.length === 0) return no("empty command");
 
 	for (const segment of segments) {
-		const words = segment.split(/\s+/).filter((w) => !/^[A-Za-z_][A-Za-z0-9_]*=/.test(w)); // skip VAR=x prefixes
+		const words = segment.split(/\s+/);
+		while (words.length > 0 && /^[A-Za-z_][A-Za-z0-9_]*=/.test(words[0])) words.shift(); // skip VAR=x prefixes
 		let cmd = words[0] ?? "";
 		let args = words.slice(1);
 
@@ -183,6 +205,7 @@ export function classifyBashCommand(command: string, opts: ClassifyOptions = {})
 
 		const rule = SUBCOMMAND_RULES[cmd];
 		if (rule) {
+			if (cmd === "git") args = skipGitGlobalOptions(args);
 			const sub = args.find((a) => !a.startsWith("-")) ?? "";
 			if (!rule.sub.has(sub)) return no(`\`${rule.label} ${sub || "(none)"}\` is not a read-only subcommand`);
 			const extra = checkSubcommandExtras(cmd, args, opts);

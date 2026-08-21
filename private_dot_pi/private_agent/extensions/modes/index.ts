@@ -25,6 +25,7 @@ import { resolve } from "node:path";
 import { registerDispatchTool } from "./dispatch.ts";
 import { installPaddedFooter } from "./footer.ts";
 import { classifyBashCommand } from "./readonly-bash.ts";
+import { checkBashAgainstFence, checkPathAgainstFence, parseFenceEnv, protectedGrantActive } from "./fence.ts";
 
 type Mode = "explore" | "edit" | "yolo" | "orchestrate";
 
@@ -78,6 +79,7 @@ const DANGEROUS_PATTERNS: RegExp[] = [
 	/\bmkfs\b|\bshred\b/,
 	/\bdrop\s+(table|database)\b/i,
 	/\|\s*(ba|z|da|k)?sh\b/, // pipe-to-shell (curl ... | sh)
+	/\bchezmoi\s+(apply|update)\b/, // deploys chezmoi source (incl. guardrails) to $HOME
 ];
 
 // Never allowed, in ANY mode (including YOLO). Substitutes for a container boundary.
@@ -93,6 +95,8 @@ export default function modesExtension(pi: ExtensionAPI): void {
 	let modeLocked = false;
 	// "reviewer" op-mode: explore enforcement + reviewer gh pairs in the bash classifier.
 	let reviewerGh = false;
+	// Write fence for dispatched workers: active only when --op-mode AND PI_WRITE_FENCE are set.
+	let fenceRoots: string[] = [];
 	// Current dispatch activity, shown as a gerund in the footer (sync v1: at most one).
 	let activity: string | null = null;
 	let lastCtx: ExtensionContext | undefined;
@@ -108,6 +112,10 @@ export default function modesExtension(pi: ExtensionAPI): void {
 		`${home}/.pi/agent/extensions/modes`,
 		`${home}/.pi/agent/keybindings.json`,
 		`${home}/.pi/agent/settings.json`,
+		// Chezmoi source copies of the guardrail files (editing these would deploy on apply).
+		`${home}/.local/share/chezmoi/private_dot_pi/private_agent/extensions/modes`,
+		`${home}/.local/share/chezmoi/private_dot_pi/private_agent/keybindings.json`,
+		`${home}/.local/share/chezmoi/private_dot_pi/private_agent/modify_settings.json`,
 	];
 	function isProtectedPath(path: string, cwd: string): boolean {
 		const abs = resolve(cwd, path);
@@ -256,6 +264,8 @@ export default function modesExtension(pi: ExtensionAPI): void {
 			}
 			modeLocked = true;
 		}
+		// Fence activation: only for --op-mode workers with PI_WRITE_FENCE set.
+		fenceRoots = modeLocked ? parseFenceEnv(process.env.PI_WRITE_FENCE) : [];
 		// Rebuild read-before-edit state from session history (resume/compaction safe).
 		seenFiles.clear();
 		for (const entry of ctx.sessionManager.getEntries()) {
@@ -277,10 +287,23 @@ export default function modesExtension(pi: ExtensionAPI): void {
 		// rewrite this extension, keybindings, or settings without explicit approval.
 		if (event.toolName === "write" || event.toolName === "edit") {
 			const path = (event.input as { path?: string }).path;
+			// Write fence (dispatched workers only): mutations must stay under the fence roots.
+			if (path && fenceRoots.length > 0) {
+				const fence = checkPathAgainstFence(path, ctx.cwd, fenceRoots);
+				if (!fence.ok) return { block: true, reason: fence.reason ?? "Blocked by write fence." };
+			}
 			if (path && isProtectedPath(path, ctx.cwd)) {
-				if (!ctx.hasUI) return { block: true, reason: "Protected guardrail file; modification requires interactive approval." };
-				const ok = await ctx.ui.confirm("Protected file", `The model wants to modify a guardrail file:\n\n  ${path}\n\nAllow?`);
-				if (!ok) return { block: true, reason: "Blocked: guardrail files are protected. The user declined." };
+				// One-shot sanctioned grant (dispatched workers only, fail closed):
+				// dispatch_task sets PI_PROTECTED_GRANT after explicit user approval;
+				// honored only when the mode is locked (--op-mode), never interactively.
+				if (protectedGrantActive(process.env.PI_PROTECTED_GRANT, modeLocked)) {
+					// Grant covers the protected-path check only; fence/containment still apply.
+				} else if (!ctx.hasUI) {
+					return { block: true, reason: "Protected guardrail file; modification requires interactive approval." };
+				} else {
+					const ok = await ctx.ui.confirm("Protected file", `The model wants to modify a guardrail file:\n\n  ${path}\n\nAllow?`);
+					if (!ok) return { block: true, reason: "Blocked: guardrail files are protected. The user declined." };
+				}
 			}
 			// Containment (all modes): writes stay inside cwd + /allow-dir roots.
 			if (path && !isContained(path, ctx.cwd)) {
@@ -296,6 +319,11 @@ export default function modesExtension(pi: ExtensionAPI): void {
 			const command = String(event.input.command ?? "");
 			if (NEVER_PATTERNS.some((p) => p.test(command))) {
 				return { block: true, reason: "Blocked: catastrophic command (hard deny list, applies in all modes)." };
+			}
+			// Write fence (dispatched workers only): best-effort block of obvious escapes.
+			if (fenceRoots.length > 0) {
+				const fence = checkBashAgainstFence(command, fenceRoots, ctx.cwd);
+				if (!fence.ok) return { block: true, reason: fence.reason ?? "Blocked by write fence." };
 			}
 		}
 

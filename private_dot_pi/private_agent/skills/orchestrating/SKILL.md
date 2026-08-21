@@ -65,6 +65,11 @@ One self-contained string per dispatch. Mandated sections:
 - **Required report format**: the worker must end with
   `## Result / ## Changes / ## Concerns / ## Questions`
 
+Every dispatch should pass a short `title` param (~5-8 words) — it is
+shown in the UI. Workers must not work around the write fence: anything
+that requires writes outside their workdir is relayed back in
+`## Concerns`/`## Questions` for the orchestrator to re-plan.
+
 Treat only the report section as the report. If a worker ignores the
 format, summarize its final message yourself **and treat the violation as
 a red flag**.

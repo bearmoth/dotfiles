@@ -51,6 +51,19 @@ test("git subcommand extras", () => {
 	no("git config user.name x");
 });
 
+test("git global pre-subcommand options are skipped", () => {
+	ro("git -C /x status");
+	ro("git -C /x diff");
+	no("git -C /x commit -m x");
+	no("git -C /x push");
+	ro("git --git-dir=/x/.git log");
+	no("git -C /x");
+	no("git -c a=b status");
+	no("git -c core.fsmonitor=x status");
+	ro("git --no-pager log");
+	no("git -C");
+});
+
 test("find/fd exec actions blocked", () => {
 	no("find . -name '*.ts' -delete");
 	no("find . -exec rm {} +");
