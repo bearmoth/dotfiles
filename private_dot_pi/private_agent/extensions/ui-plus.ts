@@ -9,6 +9,9 @@
  * 2. Copilot credit usage (provider-dynamic; only shown on github-copilot).
  * 3. First-line message icons on user/assistant/thinking blocks (display-only).
  * 4. Compaction nudge at 50% context (thresholds: green <30%, yellow 30-60%, red >60%).
+ * 5. Double-escape clears the editor when idle with text (Claude Code style);
+ *    other escape behavior (abort, autocomplete cancel, double-escape tree
+ *    on empty editor) intact.
  */
 
 import { readFileSync } from "node:fs";
@@ -16,7 +19,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { CustomEditor } from "@earendil-works/pi-coding-agent";
-import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
+import { matchesKey, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import { nerdFontEnabled } from "./modes/fence.ts";
 
 const BAR_WIDTH = 10;
@@ -98,6 +101,28 @@ export default function (pi: ExtensionAPI) {
 		const uiTheme = ctx.ui.theme;
 		ctx.ui.setEditorComponent((tui, theme, keybindings) => {
 			class PromptEditor extends CustomEditor {
+				private lastEscape = 0;
+
+				handleInput(data: string): void {
+					// Double-escape clears input when idle (Claude Code style)
+					if (
+						matchesKey(data, "escape") &&
+						!this.isShowingAutocomplete() &&
+						ctx.isIdle() &&
+						this.getText().length > 0
+					) {
+						const now = Date.now();
+						if (now - this.lastEscape < 500) {
+							this.lastEscape = 0;
+							this.setText("");
+						} else {
+							this.lastEscape = now;
+						}
+						return;
+					}
+					super.handleInput(data);
+				}
+
 				render(width: number): string[] {
 					// Gutter: Nerd Font keyboard glyph + two spaces. Empirically
 					// confirmed: this terminal renders the PUA glyph single-width
