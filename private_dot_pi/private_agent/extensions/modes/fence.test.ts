@@ -8,6 +8,7 @@ import {
 	checkBashAgainstFence,
 	checkPathAgainstFence,
 	parseFenceEnv,
+	resolveRealPath,
 	resolveWorktreeRoot,
 } from "./fence.ts";
 
@@ -53,6 +54,25 @@ test("symlink under fence pointing outside is blocked", () => {
 	} finally {
 		fs.rmSync(fence, { recursive: true, force: true });
 		fs.rmSync(outside, { recursive: true, force: true });
+	}
+});
+
+test("macOS firmlink alias /System/Volumes/Data/<x> collapses to /<x>", () => {
+	const home = os.homedir();
+	if (process.platform !== "darwin" || !fs.existsSync("/System/Volumes/Data" + home)) return;
+	// Existing path: alias collapses to canonical.
+	assert.equal(resolveRealPath("/System/Volumes/Data" + home, "/"), fs.realpathSync(home));
+	// Nonexistent path: still collapses (fail closed), so the alias can't dodge
+	// protected-path/containment prefix checks.
+	const ghost = "/System/Volumes/Data" + path.join(home, "no-such-dir-xyz", "f.md");
+	assert.equal(resolveRealPath(ghost, "/"), path.join(fs.realpathSync(home), "no-such-dir-xyz", "f.md"));
+	// Fence check: alias of an outside path is blocked.
+	const fence = mkFence();
+	try {
+		const target = "/System/Volumes/Data" + path.join(home, ".fence-test-outside.md");
+		assert.equal(checkPathAgainstFence(target, "/", [fence]).ok, false);
+	} finally {
+		fs.rmSync(fence, { recursive: true, force: true });
 	}
 });
 

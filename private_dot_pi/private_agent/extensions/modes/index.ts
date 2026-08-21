@@ -30,7 +30,7 @@ import { join, resolve } from "node:path";
 import { registerDispatchTool } from "./dispatch.ts";
 import { installPaddedFooter } from "./footer.ts";
 import { classifyBashCommand } from "./readonly-bash.ts";
-import { checkBashAgainstFence, checkPathAgainstFence, parseFenceEnv, protectedGrantActive } from "./fence.ts";
+import { checkBashAgainstFence, checkPathAgainstFence, parseFenceEnv, protectedGrantActive, resolveRealPath } from "./fence.ts";
 
 type Mode = "explore" | "edit" | "yolo" | "orchestrate";
 
@@ -123,15 +123,22 @@ export default function modesExtension(pi: ExtensionAPI): void {
 		`${home}/.local/share/chezmoi/private_dot_pi/private_agent/modify_settings.json`,
 	];
 	function isProtectedPath(path: string, cwd: string): boolean {
-		const abs = resolve(cwd, path);
-		return PROTECTED_PATHS.some((p) => abs === p || abs.startsWith(`${p}/`));
+		// realpath both sides so symlinks/firmlinks (/System/Volumes/Data/...) can't
+		// spell a protected file under an unprotected-looking prefix.
+		const abs = resolveRealPath(path, cwd);
+		return PROTECTED_PATHS.some((raw) => {
+			const p = resolveRealPath(raw, cwd);
+			return abs === p || abs.startsWith(`${p}/`);
+		});
 	}
 
 	// Workspace containment: writes/edits allowed only under cwd + user-approved dirs.
 	const allowedDirs = new Set<string>();
 	function isContained(path: string, cwd: string): boolean {
-		const abs = resolve(cwd, path);
-		const roots = [resolve(cwd), ...allowedDirs];
+		// realpath defeats symlink escapes: a link under cwd pointing outside
+		// resolves to its real target, which then fails containment.
+		const abs = resolveRealPath(path, cwd);
+		const roots = [resolve(cwd), ...allowedDirs].map((r) => resolveRealPath(r, cwd));
 		return roots.some((r) => abs === r || abs.startsWith(`${r}/`));
 	}
 

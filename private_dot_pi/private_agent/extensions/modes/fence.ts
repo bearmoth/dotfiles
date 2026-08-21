@@ -39,11 +39,32 @@ function isUnder(abs: string, root: string): boolean {
 }
 
 /**
+ * Collapse macOS firmlink aliases: /System/Volumes/Data/<x> is the same file
+ * as /<x>, but realpath does NOT normalize it (firmlinks aren't symlinks).
+ * Verified by dev/ino comparison when both sides exist; otherwise collapsed
+ * textually (fail closed: the alias must never dodge a prefix check).
+ */
+const FIRMLINK_PREFIX = "/System/Volumes/Data";
+function collapseFirmlink(abs: string): string {
+	if (abs !== FIRMLINK_PREFIX && !abs.startsWith(FIRMLINK_PREFIX + path.sep)) return abs;
+	const stripped = abs.slice(FIRMLINK_PREFIX.length) || "/";
+	try {
+		const a = fs.statSync(abs);
+		const b = fs.statSync(stripped);
+		if (a.dev !== b.dev || a.ino !== b.ino) return abs; // genuinely different files
+	} catch {
+		// one side missing → still collapse, so nonexistent-yet paths can't dodge checks
+	}
+	return stripped;
+}
+
+/**
  * Resolve `p` against `cwd`, then realpath the deepest existing ancestor so
  * symlink escapes (a link under the fence pointing outside) are defeated.
+ * macOS firmlink aliases (/System/Volumes/Data/...) are collapsed.
  */
 export function resolveRealPath(p: string, cwd: string): string {
-	const abs = path.resolve(cwd, p);
+	const abs = collapseFirmlink(path.resolve(cwd, p));
 	// Find the deepest existing ancestor (the path itself may not exist yet).
 	let existing = abs;
 	let tail = "";
@@ -59,7 +80,7 @@ export function resolveRealPath(p: string, cwd: string): string {
 	} catch {
 		real = existing; // fail closed elsewhere; keep resolved path
 	}
-	return tail ? path.join(real, tail) : real;
+	return collapseFirmlink(tail ? path.join(real, tail) : real);
 }
 
 /** Is a write/edit to `p` (relative to `cwd`) allowed under the fence? */
