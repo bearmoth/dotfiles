@@ -2,7 +2,7 @@
  * ui-plus: UX improvements
  *
  * 1. Full custom footer (hybrid layout):
- *      ~/dev/herdr main · ctx ▮▮▮░░░░░░░ 31% of 1M · $0.42 · copilot 2027cr resets 09-01
+ *      ~/dev/herdr main · ctx ███▌       31% of 1M · $0.42 · copilot 2027cr resets 09-01
  *      ● Edit                                          claude-fable-5 · thinking high
  *    - line 1: location + usage data, grouped with dim separators
  *    - line 2: mode (from `modes` extension status) left, model+thinking right
@@ -136,11 +136,16 @@ export default function (pi: ExtensionAPI) {
 					const windowSize = usage?.contextWindow ?? ctx.model?.contextWindow;
 					if (usage && usage.percent !== null) {
 						const pct = Math.min(100, Math.max(0, usage.percent));
-						const filled = Math.round((pct / 100) * BAR_WIDTH);
-						const bar = "▮".repeat(filled) + "░".repeat(BAR_WIDTH - filled);
+						const halves = Math.round((pct / 100) * BAR_WIDTH * 2);
+						const full = Math.floor(halves / 2);
+						const hasHalf = halves % 2 === 1;
 						const color = pct > 60 ? "error" : pct > 30 ? "warning" : "success";
+						let bar = theme.fg(color, "█".repeat(full));
+						if (hasHalf) bar += theme.bg("selectedBg", theme.fg(color, "▌"));
+						const rest = BAR_WIDTH - full - (hasHalf ? 1 : 0);
+						if (rest > 0) bar += theme.bg("selectedBg", " ".repeat(rest));
 						const ofStr = windowSize ? theme.fg("dim", ` of ${formatWindow(windowSize)}`) : "";
-						parts.push(`${theme.fg("dim", "ctx ")}${theme.fg(color, bar)} ${pct.toFixed(0)}%${ofStr}`);
+						parts.push(`${theme.fg("dim", "ctx ")}${bar} ${pct.toFixed(0)}%${ofStr}`);
 					} else if (windowSize) {
 						parts.push(theme.fg("dim", `ctx ?% of ${formatWindow(windowSize)}`));
 					}
