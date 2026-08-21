@@ -296,6 +296,9 @@ export default function (pi: ExtensionAPI) {
 		// against any block-level reinterpretation by the parser.
 		const ruleWidth = Math.max(1, availableWidth ?? 80);
 		const rule = `\x1b[32m${"╌".repeat(ruleWidth)}\x1b[39m`;
-		return `${rule}\n${prefixed}\n${rule}`;
+		// Blank lines keep the rules as standalone blocks; without them the
+		// bottom rule lazily continues the last (indented) paragraph and
+		// inherits its indent, overflowing the line.
+		return `${rule}\n\n${prefixed}\n\n${rule}`;
 	});
 }
