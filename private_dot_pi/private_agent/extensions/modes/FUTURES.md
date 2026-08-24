@@ -90,10 +90,16 @@ arms race; effect-gating already caps damage.
 
 ## Dispatch log groundwork
 The extension already sees every dispatch (role, title, status, timing) via
-dispatch_task's params and result details. Once async dispatch lands, a
-future overlay or sidebar could list dispatches per workstream from that
-same data — no new plumbing needed, just a place to render it.
-- Status: groundwork noted while adding dispatch rendering.
+dispatch_task's params and result details.
+- Status: implemented (sidebar + detail pane + widget strip; see
+  dispatch-panel.ts / dispatch-log.ts). Split presentation is a fullscreen
+  prototype over ViewportTUI.setLayoutRoot (undocumented; falls back to
+  overlay). Deferred: workstream grouping (by workdir), actions from the log
+  (rework/kill — async pass), pinned-unfocused ambient sidebar.
+- Multi-session note: DispatchLog is per-process and rebuilt from the
+  session's own entries, so concurrent orchestrator sessions don't conflict
+  at the UI level; two orchestrators sharing one worktree remains a
+  user-discipline gap (one workstream → one worktree).
 
 ## YOLO residual hole: DANGEROUS_PATTERNS in interactive yolo
 DANGEROUS_PATTERNS (including `chezmoi apply`) are not checked in

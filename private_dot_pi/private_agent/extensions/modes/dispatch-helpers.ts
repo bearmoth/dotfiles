@@ -5,6 +5,22 @@
  */
 
 /**
+ * UI fallback when no title param was given: first non-empty brief line,
+ * stripped of leading markdown markers, truncated.
+ */
+export function titleFromBrief(brief: string | undefined): string {
+	const line = (brief ?? "").split("\n").find((l) => l.trim()) ?? "";
+	const cleaned = line.replace(/^[#*\s]+/, "").trim();
+	return cleaned.length > 60 ? `${cleaned.slice(0, 60)}…` : cleaned;
+}
+
+/** "3m 12s" / "42s" duration formatting shared by dispatch renderers. */
+export function formatDuration(ms: number): string {
+	const s = Math.round(ms / 1000);
+	return s >= 60 ? `${Math.floor(s / 60)}m ${s % 60}s` : `${s}s`;
+}
+
+/**
  * Collapsed-result preview: first sentences under "## Result" (fallback:
  * first non-empty lines), at most `maxLines` lines / `maxChars` chars.
  */

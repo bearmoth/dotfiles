@@ -41,6 +41,22 @@ A dispatched child pi session running one brief in one workdir under one
 role's permissions.
 _Avoid_: subagent (reserve for the general pi concept)
 
+**Dispatch log**:
+The per-session record of every dispatch (role, title, status, timing,
+report), rebuilt from session history on resume. Feeds all dispatch UI
+surfaces.
+_Avoid_: task list, history
+
+**Sidebar**:
+The toggleable pane listing the dispatch log. "Split" presentation reflows
+the transcript (fullscreen); "overlay" floats above it.
+
+**Detail pane**:
+The pane showing one dispatch's full report, opened from the sidebar.
+
+**Widget strip**:
+The one-line dispatch summary above the editor in Orchestrate mode.
+
 **Rework gate**:
 The mandatory user approval between a review's findings and dispatching a
 corrective implementor.

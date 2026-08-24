@@ -19,7 +19,8 @@ import { StringEnum } from "@earendil-works/pi-ai";
 import { Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { nerdFontEnabled, resolveWorktreeRoot } from "./fence.ts";
-import { reportPreview } from "./dispatch-helpers.ts";
+import { formatDuration, reportPreview, titleFromBrief } from "./dispatch-helpers.ts";
+import { logDispatchProgress, logDispatchSettle, logDispatchStart } from "./dispatch-log.ts";
 
 // Icon (see DESIGN.md): Nerd Font paper_plane U+F1D8 when enabled, else the
 // plain-Unicode ⧈ fallback (single-width; one trailing space).
@@ -112,19 +113,6 @@ function getPiInvocation(args: string[]): { command: string; args: string[] } {
 
 // Role → mode label for the dispatch header (display only).
 const ROLE_MODE_LABEL: Record<string, string> = { implementor: "edit", researcher: "explore", reviewer: "review" };
-
-// UI fallback when no title param was given: first non-empty brief line,
-// stripped of leading markdown markers, truncated.
-function titleFromBrief(brief: string | undefined): string {
-	const line = (brief ?? "").split("\n").find((l) => l.trim()) ?? "";
-	const cleaned = line.replace(/^[#*\s]+/, "").trim();
-	return cleaned.length > 60 ? `${cleaned.slice(0, 60)}…` : cleaned;
-}
-
-function formatDuration(ms: number): string {
-	const s = Math.round(ms / 1000);
-	return s >= 60 ? `${Math.floor(s / 60)}m ${s % 60}s` : `${s}s`;
-}
 
 function isGitCheckout(dir: string): boolean {
 	// Worktrees have a .git *file*; main checkouts a .git dir. Either counts.
@@ -280,6 +268,7 @@ export function registerDispatchTool(pi: ExtensionAPI, hooks: DispatchHooks): vo
 			const timeoutMs = (params.timeout ?? DEFAULT_TIMEOUT_MS / 1000) * 1000;
 			const start = Date.now();
 			hooks.setActivity(role.gerund);
+			logDispatchStart(toolCallId, params.role, params.title || titleFromBrief(params.brief), workdir);
 
 			let finalMessage: string | null = null;
 			let stopReason: string | undefined;
@@ -326,6 +315,7 @@ export function registerDispatchTool(pi: ExtensionAPI, hooks: DispatchHooks): vo
 							const text = msg.content?.filter((p: any) => p.type === "text").map((p: any) => p.text).join("\n");
 							if (text) finalMessage = text;
 							onUpdate?.({ content: [{ type: "text", text: `[${params.role}] turn ${usage.turns}…` }], details: { turns: usage.turns } });
+							logDispatchProgress(toolCallId, usage.turns);
 						}
 					};
 
@@ -386,6 +376,7 @@ export function registerDispatchTool(pi: ExtensionAPI, hooks: DispatchHooks): vo
 							: "error";
 
 				const result: DispatchResult = { status, exitCode, finalMessage, sessionFile, durationMs, usage };
+				logDispatchSettle(toolCallId, result);
 				const summary = [
 					`status: ${status}${errorMessage ? ` (${errorMessage})` : ""}`,
 					`durationMs: ${durationMs}`,

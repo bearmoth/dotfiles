@@ -28,6 +28,8 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { registerDispatchTool } from "./dispatch.ts";
+import { rebuildDispatchLog } from "./dispatch-log.ts";
+import { DispatchUi } from "./dispatch-panel.ts";
 import { installPaddedFooter } from "./footer.ts";
 import { classifyBashCommand } from "./readonly-bash.ts";
 import { bashMentionsProtected, checkBashAgainstFence, checkPathAgainstFence, parseFenceEnv, protectedGrantActive, resolveRealPath } from "./fence.ts";
@@ -111,6 +113,8 @@ export default function modesExtension(pi: ExtensionAPI): void {
 	const seenFiles = new Set<string>();
 	// Exact command strings the user approved for the rest of this session.
 	const approvedCommands = new Set<string>();
+	// Dispatch log UI (widget strip + sidebar + detail; see dispatch-panel.ts).
+	const dispatchUi = new DispatchUi();
 
 	// Guardrail self-protection: files the model must not modify without approval, in any mode.
 	const home = process.env.HOME ?? "";
@@ -184,6 +188,8 @@ export default function modesExtension(pi: ExtensionAPI): void {
 		updateStatus(ctx);
 		if (changed) {
 			pi.appendEntry("mode-state", { mode });
+			dispatchUi.updateStrip();
+			if (mode !== "orchestrate") dispatchUi.close();
 			if (!opts?.silent && ctx.hasUI) {
 				ctx.ui.notify(`Switched to ${MODE_INFO[mode].label} — ${MODE_INFO[mode].note}`, "info");
 			}
@@ -242,6 +248,27 @@ export default function modesExtension(pi: ExtensionAPI): void {
 	pi.registerShortcut("ctrl+alt+m", {
 		description: "Cycle mode (Explore → Edit → Yolo)",
 		handler: cycleMode,
+	});
+
+	// The sidebar toggle key is handled via ctx.ui.onTerminalInput inside
+	// DispatchUi.attach (not registerShortcut): extension shortcuts only fire
+	// while the editor has focus, so they can never close a focused pane.
+
+	pi.registerCommand("dispatches", {
+		description: "Dispatch sidebar: no arg toggles (also ctrl+d in orchestrate); [overlay|split|auto] sets presentation; 'key' captures next keypress",
+		handler: async (args, ctx) => {
+			const arg = args?.trim().toLowerCase();
+			if (arg === "overlay" || arg === "split" || arg === "auto") {
+				dispatchUi.setPresentation(arg);
+				if (ctx.hasUI) ctx.ui.notify(`Dispatch sidebar presentation: ${arg} (split requires --tui-mode fullscreen)`, "info");
+				return;
+			}
+			if (arg === "key") {
+				dispatchUi.armKeyCapture();
+				return;
+			}
+			dispatchUi.toggle({ forceClose: true });
+		},
 	});
 
 	pi.registerCommand("allow-dir", {
@@ -334,6 +361,9 @@ export default function modesExtension(pi: ExtensionAPI): void {
 		}
 		applyToolPolicy();
 		updateStatus(ctx);
+		// Dispatch log: rebuild from history, then bind the UI surfaces.
+		rebuildDispatchLog(ctx.sessionManager.getEntries());
+		dispatchUi.attach(ctx, () => mode === "orchestrate");
 		// installPaddedFooter(ctx); // disabled: ui-plus.ts owns the footer now
 	});
 
