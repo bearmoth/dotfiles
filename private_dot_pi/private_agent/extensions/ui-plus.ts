@@ -169,8 +169,8 @@ export default function (pi: ExtensionAPI) {
 						if (hasHalf) bar += theme.bg("selectedBg", theme.fg(color, "▌"));
 						const rest = BAR_WIDTH - full - (hasHalf ? 1 : 0);
 						if (rest > 0) bar += theme.bg("selectedBg", " ".repeat(rest));
-						const ofStr = windowSize ? theme.fg("dim", ` of ${formatWindow(windowSize)}`) : "";
-						parts.push(`${theme.fg("dim", "ctx ")}${bar} ${pct.toFixed(0)}%${ofStr}`);
+						const ofStr = windowSize ? theme.fg("muted", ` of ${formatWindow(windowSize)}`) : "";
+						parts.push(`${theme.fg("dim", "ctx ")}${bar} ${theme.fg("muted", `${pct.toFixed(0)}%`)}${ofStr}`);
 					} else if (windowSize) {
 						parts.push(theme.fg("dim", `ctx ?% of ${formatWindow(windowSize)}`));
 					}
@@ -188,7 +188,7 @@ export default function (pi: ExtensionAPI) {
 							cost += (e.message as any).details?.usage?.cost ?? 0;
 						}
 					}
-					if (cost > 0) parts.push(theme.fg("dim", `$${cost.toFixed(2)}`));
+					if (cost > 0) parts.push(theme.fg("muted", `$${cost.toFixed(2)}`));
 
 					// provider-dynamic quota slot
 					if (ctx.model?.provider === "github-copilot" && quota) {
@@ -196,7 +196,7 @@ export default function (pi: ExtensionAPI) {
 							? `${quota.creditsUsed}cr`
 							: `${quota.percentRemaining.toFixed(0)}% left`;
 						parts.push(
-							`${theme.fg("dim", "copilot ")}${cap}${theme.fg("dim", ` resets ${quota.resetDate.slice(5)}`)}`,
+							`${theme.fg("dim", "copilot ")}${theme.fg("muted", cap)}${theme.fg("muted", ` resets ${quota.resetDate.slice(5)}`)}`,
 						);
 					}
 
@@ -212,7 +212,7 @@ export default function (pi: ExtensionAPI) {
 						pathStr = avail > 1 ? `…${plainPath.slice(plainPath.length - (avail - 1))}` : "";
 					}
 					const loc =
-						theme.fg("dim", pathStr) + (branch ? ` ${theme.fg("accent", branch)}` : "") + " ";
+						theme.fg("muted", pathStr) + (branch ? ` ${theme.fg("accent", branch)}` : "") + " ";
 					const pad1 = Math.max(1, width - visibleWidth(line1Left) - visibleWidth(loc));
 					const line1 = truncateToWidth(line1Left + " ".repeat(pad1) + loc, width);
 
@@ -220,10 +220,18 @@ export default function (pi: ExtensionAPI) {
 					const modeStatus = footerData.getExtensionStatuses().get("mode") ?? "";
 					const left = ` ${modeStatus}`;
 
-					let right = theme.fg("dim", ctx.model?.id ?? "no-model");
+					let right = theme.fg("text", ctx.model?.id ?? "no-model");
 					if (ctx.model?.reasoning) {
 						const lvl = ctx.thinkingLevel ?? "off";
-						right += sep + theme.fg("dim", lvl === "off" ? "thinking off" : `thinking ${lvl}`);
+						const lvlToken = (`thinking${lvl.charAt(0).toUpperCase()}${lvl.slice(1)}`) as
+							| "thinkingOff"
+							| "thinkingMinimal"
+							| "thinkingLow"
+							| "thinkingMedium"
+							| "thinkingHigh"
+							| "thinkingXhigh"
+							| "thinkingMax";
+						right += sep + theme.fg("dim", "thinking ") + theme.fg(lvlToken, lvl);
 					}
 					right += " ";
 
