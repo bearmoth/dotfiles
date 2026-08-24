@@ -18,8 +18,13 @@
  *   ctrl+d (global, any focus; raw listener — see attach())
  *                   closed → open+focus · unfocused → focus · focused list → close
  *                   (detail pane keeps ctrl+d as nvim page-down; esc/ctrl+c close)
- *   sidebar         ↑↓/jk cursor · enter open detail+focus · esc close · ctrl+l focus detail
- *   detail          ↑↓/jk line · pgup/pgdn + ctrl+u/d page · esc close → sidebar · ctrl+h focus sidebar
+ *   sidebar         ↑↓/jk cursor · enter open detail+focus · esc/q close ·
+ *   sidebar (left)  ↑↓/jk cursor · enter open detail+focus · esc/q close ·
+ *                   ctrl+l → detail if open, else chat (sidebar stays open)
+ *   detail (right)  ↑↓/jk line · pgup/pgdn + ctrl+u/d page · esc close → sidebar ·
+ *                   ctrl+h → sidebar (detail stays open)
+ *   Spatial model (nvim windows): sidebar is leftmost — ctrl+h there is a no-op.
+ *   chat → sidebar is ctrl+d (editor owns ctrl+h: it doubles as backspace).
  */
 
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
@@ -57,6 +62,9 @@ class DispatchListPane implements Component {
 	onEnter?: (record: DispatchRecord) => void;
 	onClose?: () => void;
 	onFocusDetail?: () => void;
+	onFocusChat?: () => void;
+	/** Injected by DispatchUi: does this pane currently hold TUI focus? */
+	hasFocus: () => boolean = () => false;
 
 	constructor(private theme: ThemeLike) {}
 
@@ -89,9 +97,15 @@ class DispatchListPane implements Component {
 		} else if (matchesKey(data, Key.escape) || data === "q") {
 			this.onClose?.();
 		} else if (matchesKey(data, Key.ctrl("l"))) {
-			this.onFocusDetail?.();
+			// Spatial hop right: detail if one is open, otherwise the chat
+			// (sidebar stays open). ctrl+h is a no-op — nothing is left of us.
+			if (this.onFocusDetail && !this.focusDetailNoop()) this.onFocusDetail();
+			else this.onFocusChat?.();
 		}
 	}
+
+	/** True when there is no detail pane to hop to. Set by DispatchUi. */
+	focusDetailNoop: () => boolean = () => true;
 
 	render(width: number): string[] {
 		try {
@@ -103,13 +117,19 @@ class DispatchListPane implements Component {
 
 	private renderInner(width: number): string[] {
 		const t = this.theme;
+		const focused = this.hasFocus();
+		const inv = (s: string) => `\x1b[7m${s}\x1b[27m`;
 		const records = getDispatchRecords();
 		this.cursor = Math.min(this.cursor, Math.max(0, records.length - 1));
 		const lines: string[] = [];
+		// Header stays plain; focus is signalled by the selection bar (or the
+		// placeholder when the list is empty).
 		lines.push(truncateToWidth(t.fg("accent" as never, t.bold(" Dispatches")), width));
 		lines.push(t.fg("dim" as never, "─".repeat(Math.max(0, width))));
 		if (records.length === 0) {
-			lines.push(t.fg("dim" as never, " (no dispatches this session)"));
+			const ph = " (no dispatches this session)";
+			const padded = ph + " ".repeat(Math.max(0, width - visibleWidth(ph)));
+			lines.push(focused ? inv(padded) : t.fg("dim" as never, ph));
 		}
 		records.forEach((r, i) => {
 			const sel = i === this.cursor;
@@ -119,20 +139,19 @@ class DispatchListPane implements Component {
 			if (dur) meta.push(dur);
 			if (r.turns !== undefined) meta.push(`${r.turns}t`);
 			if (r.cost !== undefined && r.cost > 0) meta.push(`$${r.cost.toFixed(2)}`);
-			const prefix = sel ? "› " : "  ";
-			const head = truncateToWidth(`${prefix}${glyph} ${r.role} · ${r.title}`, width);
-			// Re-color: glyph in status color, rest per selection.
-			const body = `${r.role} · ${r.title}`;
-			const headText =
-				(sel ? t.fg("accent" as never, prefix) : prefix) +
-				t.fg(color as never, glyph) +
-				" " +
-				(sel ? t.fg("accent" as never, truncateToWidth(body, Math.max(1, width - visibleWidth(head) + visibleWidth(body)))) : truncateToWidth(body, Math.max(1, width - 5)));
-			lines.push(truncateToWidth(headText, width));
+			const row = truncateToWidth(`${sel ? "›" : " "} ${glyph} ${r.role} · ${r.title}`, width);
+			if (sel) {
+				// Selected row: inverse video — unambiguous on any theme. Dimmer
+				// (accent-only) when the pane itself is unfocused.
+				const padded = row + " ".repeat(Math.max(0, width - visibleWidth(row)));
+				lines.push(focused ? inv(padded) : t.fg("accent" as never, padded));
+			} else {
+				lines.push(`  ${t.fg(color as never, glyph)} ${truncateToWidth(`${r.role} · ${r.title}`, Math.max(1, width - 5))}`);
+			}
 			if (meta.length) lines.push(truncateToWidth(t.fg("dim" as never, `      ${meta.join(" · ")}`), width));
 		});
 		lines.push("");
-		lines.push(truncateToWidth(t.fg("dim" as never, " ↑↓/jk · ⏎ detail · esc close"), width));
+		lines.push(truncateToWidth(t.fg("dim" as never, " ↑↓/jk · ⏎ detail · ^l chat · esc close"), width));
 		return lines;
 	}
 
@@ -145,6 +164,8 @@ class DispatchDetailPane implements Component {
 	private lastHeight = 20;
 	onClose?: () => void;
 	onFocusList?: () => void;
+	/** Injected by DispatchUi: does this pane currently hold TUI focus? */
+	hasFocus: () => boolean = () => false;
 
 	constructor(
 		private theme: ThemeLike,
@@ -191,9 +212,13 @@ class DispatchDetailPane implements Component {
 		const t = this.theme;
 		const r = this.record;
 		const { glyph, color } = statusGlyph(r.status, 0);
-		const header = ` ${glyph} ${r.role} · ${r.title}`;
+		const header = ` ${glyph} ${r.role} · ${r.title} `;
 		const lines: string[] = [];
-		lines.push(truncateToWidth(t.fg(color as never, t.bold(header)), width));
+		// Focused ⇒ inverse-video header bar: unmistakable "you are here".
+		const headerLine = this.hasFocus()
+			? `\x1b[7m${t.bold(truncateToWidth(header, width) + " ".repeat(Math.max(0, width - visibleWidth(truncateToWidth(header, width)))))}\x1b[27m`
+			: t.fg(color as never, t.bold(truncateToWidth(header, width)));
+		lines.push(headerLine);
 		const meta: string[] = [];
 		if (r.durationMs !== undefined) meta.push(formatDuration(r.durationMs));
 		if (r.turns !== undefined) meta.push(`${r.turns} turns`);
@@ -203,16 +228,27 @@ class DispatchDetailPane implements Component {
 		if (r.sessionFile) lines.push(truncateToWidth(t.fg("dim" as never, ` session: ${r.sessionFile}`), width));
 		lines.push(t.fg("dim" as never, "─".repeat(Math.max(0, width))));
 
-		const report = r.finalMessage ?? (r.status === "running" ? "(running — no report yet)" : "(no report — the worker died before replying)");
+		const report =
+			r.finalMessage ??
+			(r.status === "running"
+				? r.progressText
+					? `_running — latest turn output:_\n\n${r.progressText}`
+					: "(running — no output yet)"
+				: "(no report — the worker died before replying)");
 		const md = new Markdown(report, 1, 0, getMarkdownTheme());
 		const body = md.render(width);
-		const maxOffset = Math.max(0, body.length - Math.max(1, this.lastHeight - lines.length - 2));
+		const bodyRows = Math.max(1, this.lastHeight - lines.length - 1);
+		const maxOffset = Math.max(0, body.length - bodyRows);
 		this.offset = Math.min(this.offset, maxOffset);
-		const visibleBody = body.slice(this.offset, this.offset + Math.max(1, this.lastHeight - lines.length - 2));
+		const visibleBody = body.slice(this.offset, this.offset + bodyRows);
 		lines.push(...visibleBody);
+		// Pad to full height: the overlay compositor only covers rows we emit,
+		// so short content would let the chat bleed through underneath.
+		while (lines.length < this.lastHeight - 1) lines.push("");
 		const scrollHint = body.length > visibleBody.length ? ` ${this.offset + 1}–${this.offset + visibleBody.length}/${body.length} · ` : " ";
-		lines.push(truncateToWidth(t.fg("dim" as never, `${scrollHint}jk/↑↓ · ctrl+u/d · esc back`), width));
-		return lines;
+		lines.push(truncateToWidth(t.fg("dim" as never, `${scrollHint}jk/↑↓ · ctrl+u/d · ^h sidebar · esc back`), width));
+		// Pad every row to full width so no chat shows through mid-line gaps.
+		return lines.map((l) => l + " ".repeat(Math.max(0, width - visibleWidth(l))));
 	}
 
 	/** Overlay maxHeight is enforced by the TUI; track a nominal height for paging. */
@@ -237,6 +273,7 @@ export class DispatchUi {
 	private detail?: DispatchDetailPane;
 	private detailHandle?: OverlayHandle;
 	private prevFocus: Component | null = null;
+	private unwrapEditorRender?: () => void;
 	private tickTimer?: ReturnType<typeof setInterval>;
 	private unsubscribeLog?: () => void;
 	private unsubscribeInput?: () => void;
@@ -275,6 +312,13 @@ export class DispatchUi {
 					const focused = (this.tui as { getFocusedComponent?: () => Component | null } | undefined)?.getFocusedComponent?.();
 					if (this.detail && focused === this.detail) return undefined;
 					if (!isKeyRelease(data) && !isKeyRepeat(data)) this.toggle();
+					return { consume: true };
+				}
+				// ctrl+h from chat → sidebar (spatial: go left). Safe on kitty
+				// protocol only: legacy \x08 parses as "backspace", never "ctrl+h",
+				// so this cannot eat backspace. Only when open + focus is elsewhere.
+				if (parseKey(data) === "ctrl+h" && this.isOrchestrate() && this.isOpen && !this.isFocused) {
+					if (!isKeyRelease(data) && !isKeyRepeat(data)) this.focusList();
 					return { consume: true };
 				}
 				return undefined;
@@ -362,10 +406,25 @@ export class DispatchUi {
 		this.list.onFocusDetail = () => {
 			if (this.detail) tui.setFocus(this.detail);
 		};
+		this.list.focusDetailNoop = () => !this.detail;
+		this.list.hasFocus = () => {
+			const f = (tui as { getFocusedComponent?: () => Component | null }).getFocusedComponent?.();
+			return f === this.list;
+		};
+		this.list.onFocusChat = () => {
+			// Hop to the chat editor; sidebar stays mounted. ctrl+d refocuses it.
+			// Overlay mounting must hand off via unfocus(), else the TUI's
+			// overlay-focus-restore snaps focus back on the next keypress.
+			if (!this.prevFocus) return;
+			if (this.listHandle) this.listHandle.unfocus({ target: this.prevFocus });
+			else tui.setFocus(this.prevFocus);
+		};
 		this.prevFocus = (tui as { getFocusedComponent?: () => Component | null }).getFocusedComponent?.() ?? null;
+		this.wrapEditorCursor(tui);
 
-		// Split is opt-in (/dispatches split): it rides undocumented internals.
-		const wantSplit = this.presentation === "split";
+		// auto: prefer split (validated by headless shakedown); mountSplit
+		// bails safely to overlay when not fullscreen or too narrow.
+		const wantSplit = this.presentation === "split" || this.presentation === "auto";
 		if (wantSplit && this.mountSplit(this.list)) {
 			tui.setFocus(this.list);
 		} else {
@@ -388,6 +447,8 @@ export class DispatchUi {
 		if (typeof tui.setLayoutRoot !== "function") return false; // not viewport TUI
 		const originalRoot = tui.layoutRoot; // private read; undefined → bail
 		if (!originalRoot) return false;
+		// Too narrow for sidebar + usable chat → fall back to overlay.
+		if ((process.stdout.columns || 80) < SIDEBAR_COLS + 42) return false;
 		const split = new HStack([
 			// No visible() predicate: an invisible-but-focused pane is a lockout trap.
 			{ component: list, basis: SIDEBAR_COLS, grow: 0, shrink: 0 },
@@ -406,11 +467,22 @@ export class DispatchUi {
 			this.detail = new DispatchDetailPane(this.theme(), record);
 			this.detail.onClose = () => this.closeDetail();
 			this.detail.onFocusList = () => this.focusList();
-			this.detail.setNominalHeight(Math.floor((process.stdout.rows || 40) * 0.8));
+			this.detail.hasFocus = () => {
+				const f = (tui as { getFocusedComponent?: () => Component | null }).getFocusedComponent?.();
+				return f === this.detail;
+			};
+			this.detail.setNominalHeight(Math.max(5, (process.stdout.rows || 40) - 2));
+			// Cover the chat area (right of the sidebar), not a centered float.
+			// In overlay presentation there is no sidebar column; cover everything.
+			const cols = process.stdout.columns || 80;
+			const overSplit = !!this.splitRestore;
+			const left = overSplit ? SIDEBAR_COLS : 0;
 			this.detailHandle = tui.showOverlay(this.detail, {
-				anchor: "center",
-				width: "80%",
-				maxHeight: "80%",
+				anchor: "top-left",
+				row: 0,
+				col: left,
+				width: Math.max(20, cols - left),
+				maxHeight: "100%",
 			});
 		}
 		this.detailHandle?.focus();
@@ -426,10 +498,39 @@ export class DispatchUi {
 	}
 
 	private focusList(): void {
-		if (this.list) {
-			if (this.listHandle) this.listHandle.focus();
-			else this.tui?.setFocus(this.list);
-		}
+		if (!this.list) return;
+		// If the detail overlay is up and focused, plain setFocus away from it
+		// gets reverted by the TUI's overlay-focus-restore on the next keypress.
+		// unfocus({target}) is the sanctioned way to hand focus out of an overlay.
+		if (this.detailHandle && this.detail) {
+			this.detailHandle.unfocus({ target: this.list });
+		} else if (this.listHandle) this.listHandle.focus();
+		else this.tui?.setFocus(this.list);
+	}
+
+	/** While a dispatch pane is focused, suppress the editor's fake block
+	 * cursor — it renders regardless of focus and reads as "editor is active".
+	 * We wrap the focused editor component's render and strip the inverse-video
+	 * cursor cell whenever focus is on our panes. Restored on close. */
+	private wrapEditorCursor(tui: TUI): void {
+		const editor = this.prevFocus as (Component & { render?: (w: number) => string[] }) | null;
+		if (!editor || typeof editor.render !== "function" || this.unwrapEditorRender) return;
+		const original = editor.render.bind(editor);
+		const paneFocused = () => {
+			const f = (tui as { getFocusedComponent?: () => Component | null }).getFocusedComponent?.();
+			return !!f && (f === this.list || f === this.detail);
+		};
+		editor.render = (w: number) => {
+			const lines = original(w);
+			if (!paneFocused()) return lines;
+			// Strip the first inverse-video cell (the fake cursor): \x1b[7m<one
+			// grapheme>\x1b[0m. Replace with the grapheme, preserving width.
+			return lines.map((l) => l.replace(/\x1b\[7m(.[\u0300-\u036f]*|\s)\x1b\[0m/, "$1"));
+		};
+		this.unwrapEditorRender = () => {
+			editor.render = original;
+			this.unwrapEditorRender = undefined;
+		};
 	}
 
 	close(): void {
@@ -446,6 +547,7 @@ export class DispatchUi {
 		this.splitRestore = undefined;
 		this.list = undefined;
 		this.stopTicker();
+		this.unwrapEditorRender?.();
 		if (!hadHandle && this.prevFocus) this.tui?.setFocus(this.prevFocus);
 		this.prevFocus = null;
 		this.tui?.requestRender();

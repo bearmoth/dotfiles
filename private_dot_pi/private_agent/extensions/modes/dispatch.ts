@@ -315,7 +315,7 @@ export function registerDispatchTool(pi: ExtensionAPI, hooks: DispatchHooks): vo
 							const text = msg.content?.filter((p: any) => p.type === "text").map((p: any) => p.text).join("\n");
 							if (text) finalMessage = text;
 							onUpdate?.({ content: [{ type: "text", text: `[${params.role}] turn ${usage.turns}…` }], details: { turns: usage.turns } });
-							logDispatchProgress(toolCallId, usage.turns);
+							logDispatchProgress(toolCallId, usage.turns, text || undefined);
 						}
 					};
 

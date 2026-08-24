@@ -25,6 +25,8 @@ export interface DispatchRecord {
 	tokens?: number;
 	cost?: number;
 	finalMessage?: string | null;
+	/** Latest assistant text while running (per-turn stream; not the final report). */
+	progressText?: string;
 	sessionFile?: string;
 }
 
@@ -57,10 +59,11 @@ export function logDispatchStart(id: string, role: string, title: string, workdi
 	emit();
 }
 
-export function logDispatchProgress(id: string, turns: number): void {
+export function logDispatchProgress(id: string, turns: number, progressText?: string): void {
 	const r = records.get(id);
 	if (!r) return;
 	r.turns = turns;
+	if (progressText !== undefined) r.progressText = progressText;
 	emit();
 }
 
