@@ -16,8 +16,15 @@ tests/
 !.claude/CLAUDE.md
 !.claude/skills/**
 !.claude/commands/**
-# pi modes extension docs (spec, ADRs, glossary, futures) travel with the code
-!.pi/agent/extensions/modes/*.md
+# pi modes extension docs (spec, ADRs, glossary, futures) travel with the code.
+# JOURNAL.md deliberately excluded: it's machine-local troubleshooting notes
+# ("what isn't working well on THIS machine"), not portable state — managing
+# it meant constant drift. Exceptions are listed per-file because a broad
+# `!*.md` exception would out-rank any JOURNAL.md ignore line.
+!.pi/agent/extensions/modes/CONTEXT.md
+!.pi/agent/extensions/modes/DESIGN.md
+!.pi/agent/extensions/modes/FUTURES.md
+!.pi/agent/extensions/modes/ORCHESTRATE-SPEC.md
 !.pi/agent/extensions/modes/docs/**
 # orchestrating skill travels with the modes extension (its doctrine lives there)
 !.pi/agent/skills/orchestrating/**
