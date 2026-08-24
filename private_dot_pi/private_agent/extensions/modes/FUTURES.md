@@ -22,6 +22,11 @@ CYCLE_ORDER when implementing).
   in parallel (in-conversation planning doesn't scale to that).
 - Per-repo QA/check config (how to run tests/lint deterministically before
   review) — folds into per-repo policy config below.
+- Setup-dispatch dual fence: a worktree-setup worker needs a fence of
+  workdir + `<worktree-root>` + the canonical clone's `.git` (worktree add
+  writes there). v1 fences workdir only, so a setup brief creating a
+  worktree outside workdir gets fence-refused; interim: user runs setup
+  via `!`. Spec'd in ORCHESTRATE-SPEC.md (Write fence), not yet built.
 - Status: recorded during the Orchestrate design pass.
 
 ## Subagent dispatch / cross-repo delegation

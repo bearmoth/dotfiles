@@ -3,7 +3,8 @@
 Status: **implemented** (2026-02) in this extension (`index.ts`,
 `dispatch.ts`, `readonly-bash.ts`) plus the `orchestrating` skill
 (`~/.pi/agent/skills/orchestrating/`). Designed via grilling session; see
-`docs/adr/0001`–`0004` for the decisions and their v1-pragmatism framing.
+`docs/adr/0001`–0004 for the decisions and their v1-pragmatism framing
+(0005–0006 record security-posture decisions extracted from this spec).
 Glossary terms (Workstream, Role, Brief, Dispatch) are in `CONTEXT.md`.
 Deviations from the original design are marked *(as implemented)* below.
 
@@ -74,7 +75,7 @@ dispatch_task(role, workdir, brief, title?, model?, timeout?, allowProtected?)
   token is minted and passed to that worker alone as `PI_PROTECTED_GRANT`;
   the modes extension honors it only when the token looks valid AND the
   worker's mode is locked (`--op-mode`) — never in interactive sessions
-  (`protectedGrantActive` in `fence.ts`). The grant skips only the
+  (`protectedGrantActive` in `fence.ts`). See ADR 0006. The grant skips only the
   protected-path block; the write fence and containment still apply.
   Inherited `PI_PROTECTED_GRANT` env is stripped from worker spawns so a
   grant can never leak beyond the approved dispatch.
@@ -160,7 +161,7 @@ repo, the extension itself, or the user's home.
 - **Scope**: write/edit tools must target paths under `workdir`
   (realpath-resolved). *(As implemented: the fence covers `workdir` only —
   the setup-dispatch dual fence (workdir + `<worktree-root>` + the clone's
-  `.git`) is NOT built yet.)*
+  `.git`) is NOT built yet; tracked in FUTURES.md.)*
 - **Always-allowed escape hatch**: OS tmpdirs and tool caches
   (`$TMPDIR`, `~/.npm`, `~/.cache`, …) — workers legitimately touch these.
   List is hardcoded in the extension; extend as live testing demands.
@@ -174,7 +175,7 @@ repo, the extension itself, or the user's home.
   all occurrences — and redirect coverage including fd-numbered (`2>`) and
   `&>`/`&>>` forms. The classifier deliberately does **not** skip `git -c`:
   config injection (e.g. `core.fsmonitor`) is a command-execution hazard,
-  so `-c` does not exempt a command from scanning.)*
+  so `-c` does not exempt a command from scanning — see ADR 0005.)*
 - **Mechanism**: activated by the same `--op-mode` dispatch flag path — it
   applies only to dispatched workers, never to interactive sessions.
 
