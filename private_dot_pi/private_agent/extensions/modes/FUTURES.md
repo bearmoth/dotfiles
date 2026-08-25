@@ -4,7 +4,7 @@ Living document. Revisit, refine, implement, or abandon. Keep entries short.
 
 ## ORCHESTRATE mode (was: LEAD)
 Fully designed — see [ORCHESTRATE-SPEC.md](./ORCHESTRATE-SPEC.md),
-[ORCHESTRATE-V2-SPEC.md](./ORCHESTRATE-V2-SPEC.md), and docs/adr/0001–0004.
+[ORCHESTRATE-V2-SPEC.md](./ORCHESTRATE-V2-SPEC.md), and docs/adr/0001–0007.
 Renamed LEAD → ORCHESTRATE. Sync v1: role-typed dispatch
 (implementor/researcher/reviewer), read-everything/write-nothing
 orchestrator, manual rework gate. Excluded from shift+tab cycle (separate
@@ -111,7 +111,8 @@ dispatch_task's params and result details.
 - Multi-session note: DispatchLog is per-process and rebuilt from the
   session's own entries, so concurrent orchestrator sessions don't conflict
   at the UI level; two orchestrators sharing one worktree remains a
-  user-discipline gap (one workstream → one worktree).
+  user-discipline gap. A workstream may own multiple worktrees, but each
+  worktree should belong to one active workstream.
 
 ## YOLO residual hole: DANGEROUS_PATTERNS in interactive yolo
 DANGEROUS_PATTERNS (including `chezmoi apply`) are not checked in

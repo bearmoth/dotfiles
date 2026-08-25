@@ -7,7 +7,8 @@ role-typed dispatch boundaries except where this spec explicitly adds
 control-plane workstream artifacts. Terms follow [CONTEXT.md](./CONTEXT.md);
 the visual surfaces follow [DESIGN.md](./DESIGN.md). The v1 decisions remain
 in force: [ADR 0001](./docs/adr/0001-role-typed-dispatch.md) through [ADR
-0006](./docs/adr/0006-one-shot-protected-path-grant.md).
+0006](./docs/adr/0006-one-shot-protected-path-grant.md). The v2 control-plane
+carve-out is recorded in [ADR 0007](./docs/adr/0007-user-invoked-workstream-control-plane.md).
 
 ## Design stance
 
@@ -33,34 +34,37 @@ provenance to compare strategies against the success metrics below.
 ## Workstream lifecycle and artifacts
 
 A workstream is declared with `/workstream new` and closed with
-`/workstream done`. These commands are registered **only in Orchestrate mode**;
-using either command in another mode returns an error. The lifecycle commands
-are the narrow control-plane exception to the v1 orchestrator's no-write rule:
-they may manage state under the orchestrator state directory, but never mutate
-a target repository. Worker mutation and the v1 write fence remain unchanged.
+`/workstream done`. These are **user-invoked slash commands**: the model may
+explain or propose them, but never invokes either command itself. They are
+registered **only in Orchestrate mode**; using either command in another mode
+returns an error. This is the narrow control-plane exception to the v1
+orchestrator's no-write rule recorded in [ADR
+0003](./docs/adr/0003-orchestrator-reads-everything-writes-nothing.md): the user
+invocation may manage the manifest and cleanup state under the orchestrator
+state directory, but never mutates a target repository. Worker mutation and
+the v1 write fence remain unchanged.
 
 Each workstream has a machine-local artifact directory, for example:
 
 ```
 ~/.pi/agent/orchestrator-workstreams/<slug>/
-├── manifest
+├── manifest              # durable index, not a report or plan
 ├── plan.md
 ├── research/*.md
 └── findings/*.md
 ```
 
-The directory also contains or points to:
+The directory stores workstream artifacts. `manifest` is its durable index of
+those artifacts and of external lifecycle state, including each worktree path
+and branch, dispatch session files, planning strategy, and other metadata
+needed to recover or measure the workstream. It is the source of truth for
+cleanup and resume; the orchestrator session itself is disposable. After
+declaring a workstream done, start a fresh orchestrator session rather than
+relying on conversational state.
 
-- dispatch session files;
-- each worktree path and branch;
-- the planning strategy used; and
-- other lifecycle metadata needed to recover or measure the workstream.
-
-`manifest` is the durable index. At minimum it lists the worktree paths,
-branches, session files, artifact directory, and planning strategy used. The
-manifest is the source of truth for cleanup and resume; the orchestrator
-session itself is disposable. After declaring a workstream done, start a
-fresh orchestrator session rather than relying on conversational state.
+A workstream may own multiple worktrees, normally one per reviewable unit or
+PR. Quarantine and the write fence are applied per worktree, so a dispatch
+working on one unit cannot use another unit's worktree as an escape hatch.
 
 Artifacts are workstream scaffolding, not files to commit to a target repo.
 The exception is a document deliberately owned by the target repo, such as an
@@ -132,7 +136,9 @@ around.
   separate worktrees/workstream branches as appropriate.
 
 The plan records the review-unit decomposition and its rationale. The map's
-hints inform that decision but never silently override user intent.
+hints inform that decision but never silently override user intent. A
+workstream's multiple reviewable units therefore map to multiple worktrees
+when branches are needed; they remain grouped by the workstream manifest.
 
 ## Model and effort configuration
 
@@ -144,9 +150,11 @@ Every model configuration value is a tuple:
 
 Effort is never inherited across a model swap. Models perform very
 differently at the same named effort level, so a fallback or explicit model
-choice must carry its own effort tuple. There are no `low` effort tiers. In this spec, **luna-max** means
-`{gpt-5.6-luna, max}`; that tuple is about $0.61 per run, and the saving from
-lower effort is noise next to the cost of misrouting work.
+choice must carry its own effort tuple. There are no `low` effort tiers in
+this spec; Luna work uses `{gpt-5.6-luna, max}`, where the saving from lower
+effort is noise next to the cost of misrouting work. The tuples below use the
+thinking levels currently advertised for these model IDs on this machine; the
+model registry remains the authority if that availability changes.
 
 The current working defaults, subject to A/B measurement, are:
 
@@ -154,22 +162,27 @@ The current working defaults, subject to A/B measurement, are:
 |---|---|
 | Orchestrator | `{gpt-5.6-luna, max}` |
 | Research | `{gpt-5.6-luna, max}` |
-| Plan | `{claude-opus-5, high}` |
+| Plan | `{claude-opus-5, xhigh}` |
 | Plan critique | `{gpt-5.6-luna, max}` |
 | Implement | `{gpt-5.6-luna, max}` |
 | Verify-run | `{gpt-5.6-luna, max}` |
-| Review | fallback `[{claude-fable-5, high}, {claude-opus-5, xhigh}]`; `downgrade_allowed = [{gpt-5.6-luna, max}]` for trivial diffs |
+| Review | fallback `[{claude-fable-5, xhigh}, {claude-opus-5, xhigh}]`; `downgrade_allowed = [{gpt-5.6-luna, max}]` for trivial diffs |
 | Diagnose | `{gpt-5.6-luna, max}` |
 
-The same tuple rules apply to the orchestrator's own model and to every
-worker step. A future configuration surface may use another serialization,
-but it must preserve tuple semantics.
+This table shows strategy 1, **strong-model-plans + cheap-critique**. Under
+strategy 2, **cheap-model-plans-flagging-help-areas + strong-critique-that-
+resolves-flags**, the Plan and Plan critique tuples swap: Plan uses
+`{gpt-5.6-luna, max}` and Plan critique uses `{claude-opus-5, xhigh}`. The
+same tuple rules apply to the orchestrator's own model and to every worker
+step. A future configuration surface may use another serialization, but it
+must preserve tuple semantics.
 
 Two independent routing concepts make silent degradation impossible:
 
 - **`fallback`** is a chain tried only when the selected model is unavailable.
   When the chain is exhausted, stop and ask the user; never degrade farther
-  or invent another model.
+  or invent another model. A step with no fallback chain stops and asks the
+  user immediately when its selected model is unavailable.
 - **`downgrade_allowed`** is a list of models the orchestrator may explicitly
   choose for trivial work. Such a choice is always surfaced in the plan and
   final report, including the selected tuple and the reason.
@@ -291,10 +304,10 @@ human gates:
    read-only diff/status inspection and reports when a check cannot be safely
    rerun in its own context.
 7. **Review** fans out the specialist profiles selected by the plan.
-8. **Rework** remains user-gated, per [ADR 0004](./docs/adr/0004-manual-rework-gate.md).
-   A corrective dispatch receives the findings and the class-search mandate.
-9. **Report** consolidates diff, verification, review, routing, and model
+8. **Report** consolidates diff, verification, review, routing, and model
    choices. It includes any explicit downgrade and its reason.
+9. **Rework** remains user-gated, per [ADR 0004](./docs/adr/0004-manual-rework-gate.md).
+   A corrective dispatch receives the findings and the class-search mandate.
 10. **Workstream done** prints the manifest and performs guarded cleanup only
     after confirmation.
 
