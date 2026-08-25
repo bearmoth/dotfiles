@@ -169,6 +169,13 @@ export function classifyBashCommand(command: string, opts: ClassifyOptions = {})
 		}
 		cmd = cmd.replace(/^.*\//, ""); // strip path prefix
 
+		// Model enumeration is read-only; keep the pi exception exact so no
+		// other pi invocation can cross the classifier boundary.
+		if (cmd === "pi") {
+			if (args.length === 1 && args[0] === "--list-models") continue;
+			return no("only `pi --list-models` is a read-only pi invocation");
+		}
+
 		if (cmd === "find" || cmd === "fd") {
 			if (args.some((a) => ["-delete", "-exec", "-execdir", "-ok", "-okdir", "-x", "--exec", "--exec-batch", "-X"].includes(a))) {
 				return no("`find`/`fd` with delete/exec actions can mutate");

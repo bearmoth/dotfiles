@@ -19,6 +19,14 @@ test("plain read-only commands pass", () => {
 	ro("rg 'pattern' src/");
 });
 
+test("pi model listing is allowed but other pi invocations are blocked", () => {
+	ro("pi --list-models");
+	no("pi");
+	no("pi --help");
+	no("pi --list-models --json");
+	no("pi -p 'show me the files'");
+});
+
 test("mutation and unknown commands are blocked", () => {
 	no("rm -rf /tmp/x");
 	no("touch foo");
