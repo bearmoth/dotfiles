@@ -1,5 +1,13 @@
+# herdr writes this top-level key back into its own config after first start;
+# keeping it in source stops chezmoi and herdr fighting over the file.
+onboarding = false
+
 [terminal]
-default_shell = "fish"
+# Absolute path, resolved at apply time: when the server is auto-started at
+# login (Ghostty login item) it inherits launchd's minimal PATH without the
+# package-manager bin dir, and a bare "fish" fails every pane spawn — which
+# silently drops all tabs during session restore (seen 2026-08-25).
+default_shell = "{{ lookPath "fish" | default "fish" }}"
 shell_mode = "auto"
 
 [ui.sound]
