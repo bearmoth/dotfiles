@@ -10,6 +10,7 @@
  */
 
 import type { DispatchResult, DispatchRouting } from "./dispatch.ts";
+import { PROFILES, type ProfileName } from "./profiles.ts";
 
 export type DispatchStatus = "running" | "ok" | "error" | "timeout" | "killed";
 
@@ -30,6 +31,8 @@ export interface DispatchRecord {
 	sessionFile?: string;
 	/** Resolved model routing (v2 observability): model, effort, source, defaults. */
 	routing?: DispatchRouting;
+	/** Dispatch profile (v2): resolves role + step tuple + template. */
+	profile?: string;
 }
 
 type Listener = () => void;
@@ -56,8 +59,8 @@ export function getDispatchRecord(id: string): DispatchRecord | undefined {
 	return records.get(id);
 }
 
-export function logDispatchStart(id: string, role: string, title: string, workdir: string, routing?: DispatchRouting): void {
-	records.set(id, { id, role, title, workdir, status: "running", startedAt: Date.now(), routing });
+export function logDispatchStart(id: string, role: string, title: string, workdir: string, routing?: DispatchRouting, profile?: string): void {
+	records.set(id, { id, role, title, workdir, status: "running", startedAt: Date.now(), routing, profile });
 	emit();
 }
 
@@ -77,6 +80,7 @@ export function logDispatchSettle(id: string, result: DispatchResult): void {
 	r.finalMessage = result.finalMessage;
 	r.sessionFile = result.sessionFile;
 	if (result.routing) r.routing = result.routing;
+	if (result.profile) r.profile = result.profile;
 	if (result.usage) {
 		r.turns = result.usage.turns;
 		r.tokens = result.usage.tokens;
@@ -93,7 +97,7 @@ export function logDispatchSettle(id: string, result: DispatchResult): void {
 export function rebuildDispatchLog(entries: Iterable<unknown>): void {
 	records.clear();
 	// Tool *calls* carry role/title/workdir; tool *results* carry the outcome.
-	const calls = new Map<string, { role: string; title: string; workdir: string; ts: number }>();
+	const calls = new Map<string, { role: string; title: string; workdir: string; profile?: string; ts: number }>();
 	let order = 0;
 	for (const entry of entries) {
 		const e = entry as {
@@ -103,7 +107,7 @@ export function rebuildDispatchLog(entries: Iterable<unknown>): void {
 				content?: unknown;
 				toolName?: string;
 				toolCallId?: string;
-				input?: { role?: string; title?: string; brief?: string; workdir?: string };
+				input?: { role?: string; title?: string; brief?: string; workdir?: string; profile?: string };
 				details?: DispatchResult;
 				isError?: boolean;
 			};
@@ -112,13 +116,14 @@ export function rebuildDispatchLog(entries: Iterable<unknown>): void {
 		const m = e.message;
 		order++;
 		if (m.role === "assistant" && Array.isArray(m.content)) {
-			for (const part of m.content as Array<{ type?: string; id?: string; name?: string; arguments?: { role?: string; title?: string; brief?: string; workdir?: string } }>) {
+			for (const part of m.content as Array<{ type?: string; id?: string; name?: string; arguments?: { role?: string; title?: string; brief?: string; workdir?: string; profile?: string } }>) {
 				if (part.type === "toolCall" && part.name === "dispatch_task" && part.id) {
 					const a = part.arguments ?? {};
 					calls.set(part.id, {
-						role: a.role ?? "?",
+						role: a.role ?? (a.profile ? (PROFILES[a.profile as ProfileName]?.role ?? "?") : "?"),
 						title: a.title || (a.brief ?? "").split("\n").find((l) => l.trim())?.replace(/^[#*\s]+/, "").trim().slice(0, 60) || "(untitled)",
 						workdir: a.workdir ?? "",
+						profile: a.profile,
 						ts: order,
 					});
 				}
@@ -139,6 +144,7 @@ export function rebuildDispatchLog(entries: Iterable<unknown>): void {
 				finalMessage: d.finalMessage,
 				sessionFile: d.sessionFile,
 				routing: d.routing,
+				profile: d.profile ?? call.profile,
 				turns: d.usage?.turns,
 				tokens: d.usage?.tokens,
 				cost: d.usage?.cost,

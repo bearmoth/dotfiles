@@ -40,3 +40,35 @@ test("rebuild restores routing from result details", () => {
 	assert.equal(rec.id, "tc1");
 	assert.deepEqual(rec.routing, routing);
 });
+
+test("profile is recorded at start and preserved through settle (v2 pass 2)", () => {
+	rebuildDispatchLog([]);
+	logDispatchStart("id2", "reviewer", "security review", "/wt/a", undefined, "reviewer:security");
+	assert.equal(getDispatchRecords()[0].profile, "reviewer:security");
+	logDispatchSettle("id2", { status: "ok", exitCode: 0, finalMessage: "done", sessionFile: "/s", durationMs: 5, profile: "reviewer:security" });
+	assert.equal(getDispatchRecords()[0].profile, "reviewer:security");
+});
+
+test("rebuild restores profile and resolves role from a profile-only call", () => {
+	rebuildDispatchLog([
+		{
+			type: "message",
+			message: {
+				role: "assistant",
+				content: [{ type: "toolCall", name: "dispatch_task", id: "tc2", arguments: { profile: "planner", title: "plan the workstream", workdir: "/wt" } }],
+			},
+		},
+		{
+			type: "message",
+			message: {
+				role: "toolResult",
+				toolName: "dispatch_task",
+				toolCallId: "tc2",
+				details: { status: "ok", exitCode: 0, finalMessage: "ok", sessionFile: "/s", durationMs: 1, profile: "planner" },
+			},
+		},
+	]);
+	const rec = getDispatchRecords()[0];
+	assert.equal(rec.profile, "planner");
+	assert.equal(rec.role, "researcher");
+});

@@ -139,14 +139,15 @@ class DispatchListPane implements Component {
 			if (dur) meta.push(dur);
 			if (r.turns !== undefined) meta.push(`${r.turns}t`);
 			if (r.cost !== undefined && r.cost > 0) meta.push(`$${r.cost.toFixed(2)}`);
-			const row = truncateToWidth(`${sel ? "›" : " "} ${glyph} ${r.role} · ${r.title}`, width);
+			const who = r.profile ?? r.role;
+			const row = truncateToWidth(`${sel ? "›" : " "} ${glyph} ${who} · ${r.title}`, width);
 			if (sel) {
 				// Selected row: inverse video — unambiguous on any theme. Dimmer
 				// (accent-only) when the pane itself is unfocused.
 				const padded = row + " ".repeat(Math.max(0, width - visibleWidth(row)));
 				lines.push(focused ? inv(padded) : t.fg("accent" as never, padded));
 			} else {
-				lines.push(`  ${t.fg(color as never, glyph)} ${truncateToWidth(`${r.role} · ${r.title}`, Math.max(1, width - 5))}`);
+				lines.push(`  ${t.fg(color as never, glyph)} ${truncateToWidth(`${who} · ${r.title}`, Math.max(1, width - 5))}`);
 			}
 			if (meta.length) lines.push(truncateToWidth(t.fg("dim" as never, `      ${meta.join(" · ")}`), width));
 		});
@@ -212,7 +213,7 @@ class DispatchDetailPane implements Component {
 		const t = this.theme;
 		const r = this.record;
 		const { glyph, color } = statusGlyph(r.status, 0);
-		const header = ` ${glyph} ${r.role} · ${r.title} `;
+		const header = ` ${glyph} ${r.profile ? `${r.profile} (${r.role})` : r.role} · ${r.title} `;
 		const lines: string[] = [];
 		// Focused ⇒ inverse-video header bar: unmistakable "you are here".
 		const headerLine = this.hasFocus()
