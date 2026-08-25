@@ -27,6 +27,14 @@ test("pi model listing is allowed but other pi invocations are blocked", () => {
 	no("pi -p 'show me the files'");
 });
 
+test("path-prefixed pi model listing is allowed", () => {
+	ro("/usr/local/bin/pi --list-models");
+});
+
+test("command-prefixed pi model listing is allowed", () => {
+	ro("command pi --list-models");
+});
+
 test("mutation and unknown commands are blocked", () => {
 	no("rm -rf /tmp/x");
 	no("touch foo");
