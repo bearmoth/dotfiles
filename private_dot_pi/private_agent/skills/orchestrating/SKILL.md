@@ -41,27 +41,55 @@ intake → refine (HITL) → plan (HITL approval) → implement → verify → r
    brief and wait for the user before dispatching. Rework = fresh worker
    with prior findings in the brief; workers have no persistent state.
 
-## Roles
+## Roles, profiles, and templates
+
+Configuration layers: **Role → Profile → Template**. A Role defines
+permissions; a Profile combines a role with its default {model, effort}
+step tuple, standing skill references, and standing mandates; a Template is
+the per-dispatch brief skeleton the profile composes around your brief.
+Profiles never change permissions.
+
+Roles (permissions, unchanged from v1):
 
 - `implementor` — edit permissions. Its definition of done includes
-  deterministic QA: the brief must mandate "tests and lint pass before you
-  report".
+  deterministic QA: "tests and lint pass before you report".
 - `researcher` — read-only fact-finding; cheap model; good for fan-out.
 - `reviewer` — read-only plus `gh pr review/comment` and `gh issue comment`.
 
-Debugging/testing are implementor or researcher work with a different
-brief, not separate roles.
+Prefer dispatching by **profile** (the `profile` param resolves role, step
+tuple, and template mandates):
+
+- `implementor:tdd` — test-first implementation.
+- `implementor:diagnose` — diagnosis needing mutation-capable experiments
+  or tests; it fixes only when the brief calls for it. Researchers cannot
+  diagnose when diagnosis requires experiments/tests.
+- `reviewer:standards` / `reviewer:security` / `reviewer:performance` —
+  specialist review fan-out; the plan selects which specialists run per diff.
+- `planner` — researcher permissions; input = refined spec + research
+  artifacts; deliverable = `plan.md` content. You ingest the plan, not the
+  planner's reasoning.
+- `plan-critique` — researcher permissions; grills the plan and returns
+  findings. It never approves or dispatches; user approval stays explicit.
+
+When defects reveal a **class** of problem needing re-planning, dispatch a
+fresh planner rather than asking an old worker to remember state. Use bare
+`role` only when no profile fits. Parameter mechanics live in the
+`dispatch_task` tool description.
 
 ## Briefs
 
-One self-contained string per dispatch. Mandated sections:
+One self-contained string per dispatch. When you pass a `profile`, the
+template prepends the standing mandates (Conventional Commits/Comments,
+tests+lint, report-classes, report format) — do not repeat them; supply the
+per-dispatch sections:
 
 - **Objective**
 - **Relevant paths**
 - **Constraints**
 - **Acceptance criteria** (implementors: including "tests + lint pass")
 - **Prior findings** — required for rework and review dispatches, omitted
-  otherwise
+  otherwise. Rework dispatches set `rework: true` so the template adds the
+  class-search mandate: fix the whole CLASS, report class and count.
 - **Required report format**: the worker must end with
   `## Result / ## Changes / ## Concerns / ## Questions`
 

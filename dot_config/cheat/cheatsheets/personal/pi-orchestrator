@@ -32,6 +32,7 @@ only (exhausted → ask) · downgrade = explicit choice, always surfaced.
 ## Profiles (Role → Profile → Template)
     implementor:tdd        implementor:diagnose
     reviewer:standards     reviewer:security      reviewer:performance
+    planner                plan-critique          (researcher perms; read-only)
     researcher (cannot diagnose when experiments/tests are needed)
 
 ## Template mandates
