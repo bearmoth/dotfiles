@@ -1,0 +1,41 @@
+{{- /* Advisory repo map for pi agents (ORCHESTRATE-V2-SPEC.md "Repo map").
+       Guidance, not a permission gate: a missing entry never makes a repo
+       unavailable. Deliberately separate from the eos registry
+       (.chezmoidata/contexts.yaml) — no context/exposure/permission
+       semantics here. Per-machine entries via isWork; refine incrementally
+       as real work exposes missing or inaccurate guidance. */ -}}
+{
+  "repos": [
+    {
+      "name": "chezmoi",
+      "path": "~/.local/share/chezmoi",
+      "description": "Dotfiles source (chezmoi). Personal repo: deliberately works directly on main; never run chezmoi apply from an agent.",
+      "hints": { "direct_to_main": true }
+    },
+    {
+      "name": "notes-tech",
+      "path": "~/Documents/Tech Notes",
+      "description": "Personal tech wiki vault (Obsidian). Direct to main; content, not code.",
+      "hints": { "direct_to_main": true }
+    },
+    {
+      "name": "notes-journal",
+      "path": "~/Documents/Journal",
+      "description": "Private journal vault. Direct to main; contents sensitive — never quote outward.",
+      "hints": { "direct_to_main": true }
+    }{{ if .isWork }},
+    {
+      "name": "engagement-pkb",
+      "path": "~/Dev/primeslice/engagement-pkb",
+      "description": "Work engagement PKB (org-visible wiki). Direct to main; content, not code.",
+      "hints": { "direct_to_main": true }
+    }{{ else }},
+    {
+      "name": "symbiosis",
+      "path": "~/Dev/bearmoth/symbiosis",
+      "description": "Personal reference repo (bearmoth/symbiosis). Reviewable changes go through branches/PRs.",
+      "worktreeRoot": "~/worktrees/bearmoth/symbiosis",
+      "hints": { "requires_pr": true }
+    }{{ end }}
+  ]
+}

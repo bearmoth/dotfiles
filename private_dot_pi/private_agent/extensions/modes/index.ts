@@ -39,6 +39,7 @@ import {
 	recordDispatchSession,
 	renderManifest,
 } from "./workstream.ts";
+import { loadRepoMap, renderRepoMapAdvisory } from "./repo-map.ts";
 import { DispatchUi } from "./dispatch-panel.ts";
 import { installPaddedFooter } from "./footer.ts";
 import { classifyBashCommand } from "./readonly-bash.ts";
@@ -592,13 +593,22 @@ export default function modesExtension(pi: ExtensionAPI): void {
 	});
 
 	// Keep the model informed of the active mode (short, per-turn).
-	pi.on("before_agent_start", async () => ({
-		message: {
-			customType: `mode-context-${mode}`,
-			content: MODE_INSTRUCTIONS[mode],
-			display: false,
-		},
-	}));
+	pi.on("before_agent_start", async () => {
+		let content = MODE_INSTRUCTIONS[mode];
+		if (mode === "orchestrate") {
+			// Advisory repo map (v2): guidance for repo/worktree decisions, never a gate.
+			const advisory = renderRepoMapAdvisory(loadRepoMap());
+			if (advisory) content += `\n${advisory}`;
+			if (activeWorkstream) content += `\nActive workstream: ${activeWorkstream} (artifacts under ~/.pi/agent/orchestrator-workstreams/${activeWorkstream}/).`;
+		}
+		return {
+			message: {
+				customType: `mode-context-${mode}`,
+				content,
+				display: false,
+			},
+		};
+	});
 
 	// Drop stale mode-context messages from other modes.
 	pi.on("context", async (event) => ({
