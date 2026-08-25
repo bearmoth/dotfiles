@@ -9,7 +9,7 @@
  * timing — parallel workers and workstream grouping slot in without rework.
  */
 
-import type { DispatchResult } from "./dispatch.ts";
+import type { DispatchResult, DispatchRouting } from "./dispatch.ts";
 
 export type DispatchStatus = "running" | "ok" | "error" | "timeout" | "killed";
 
@@ -28,6 +28,8 @@ export interface DispatchRecord {
 	/** Latest assistant text while running (per-turn stream; not the final report). */
 	progressText?: string;
 	sessionFile?: string;
+	/** Resolved model routing (v2 observability): model, effort, source, defaults. */
+	routing?: DispatchRouting;
 }
 
 type Listener = () => void;
@@ -54,8 +56,8 @@ export function getDispatchRecord(id: string): DispatchRecord | undefined {
 	return records.get(id);
 }
 
-export function logDispatchStart(id: string, role: string, title: string, workdir: string): void {
-	records.set(id, { id, role, title, workdir, status: "running", startedAt: Date.now() });
+export function logDispatchStart(id: string, role: string, title: string, workdir: string, routing?: DispatchRouting): void {
+	records.set(id, { id, role, title, workdir, status: "running", startedAt: Date.now(), routing });
 	emit();
 }
 
@@ -74,6 +76,7 @@ export function logDispatchSettle(id: string, result: DispatchResult): void {
 	r.durationMs = result.durationMs;
 	r.finalMessage = result.finalMessage;
 	r.sessionFile = result.sessionFile;
+	if (result.routing) r.routing = result.routing;
 	if (result.usage) {
 		r.turns = result.usage.turns;
 		r.tokens = result.usage.tokens;
@@ -135,6 +138,7 @@ export function rebuildDispatchLog(entries: Iterable<unknown>): void {
 				durationMs: d.durationMs,
 				finalMessage: d.finalMessage,
 				sessionFile: d.sessionFile,
+				routing: d.routing,
 				turns: d.usage?.turns,
 				tokens: d.usage?.tokens,
 				cost: d.usage?.cost,

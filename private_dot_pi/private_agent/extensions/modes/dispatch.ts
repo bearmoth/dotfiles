@@ -332,7 +332,7 @@ export function registerDispatchTool(pi: ExtensionAPI, hooks: DispatchHooks): vo
 			const timeoutMs = (params.timeout ?? DEFAULT_TIMEOUT_MS / 1000) * 1000;
 			const start = Date.now();
 			hooks.setActivity(role.gerund);
-			logDispatchStart(toolCallId, params.role, params.title || titleFromBrief(params.brief), workdir);
+			logDispatchStart(toolCallId, params.role, params.title || titleFromBrief(params.brief), workdir, routing);
 
 			let finalMessage: string | null = null;
 			let stopReason: string | undefined;
