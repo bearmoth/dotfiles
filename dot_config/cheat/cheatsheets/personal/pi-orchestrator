@@ -1,0 +1,47 @@
+---
+tags: [ personal, pi, orchestrate ]
+---
+
+# pi-orchestrator — Orchestrate v2 operational summary
+
+## Pipeline (▮ = user gate)
+    intake → refine ▮ → /workstream new → research → plan → [critique]
+      → plan approval ▮ → implement → verify-run → review → report
+      → [rework ▮] → /workstream done ▮
+
+## Workstream commands (user-invoked, Orchestrate mode only)
+    /workstream new <slug>             # scaffold ~/.pi/agent/orchestrator-workstreams/<slug>/
+    /workstream done [slug] [--force]  # print manifest → confirm → guarded cleanup
+                                       # refuses dirty/unpushed worktrees unless --force
+                                       # merged-branch deletion asked after manifest review
+
+## Step → model tuple (strategy 1: strong-plans + cheap-critique)
+    orchestrator   {gpt-5.6-luna, max}
+    research       {gpt-5.6-luna, max}
+    plan           {claude-opus-5, xhigh}        # strategy 2: swap with critique
+    plan-critique  {gpt-5.6-luna, max}
+    implement      {gpt-5.6-luna, max}
+    verify-run     {gpt-5.6-luna, max}
+    review         {claude-fable-5, xhigh}  fallback → {claude-opus-5, xhigh}
+                   downgrade_allowed → {gpt-5.6-luna, max}   (trivial diffs, explicit)
+    diagnose       {gpt-5.6-luna, max}
+
+Rules: effort never inherited across a model swap · fallback = unavailable
+only (exhausted → ask) · downgrade = explicit choice, always surfaced.
+
+## Profiles (Role → Profile → Template)
+    implementor:tdd        implementor:diagnose
+    reviewer:standards     reviewer:security      reviewer:performance
+    researcher (cannot diagnose when experiments/tests are needed)
+
+## Template mandates
+    reviews: Conventional Comments · commits: Conventional Commits
+    rework: fix the CLASS, report class+count · review: classes not instances
+    verify-only: run checks, change nothing, report
+    implementor: tests+lint pass before report
+    report format: ## Result / ## Changes / ## Concerns / ## Questions
+
+## Reminders
+    dispatch pane shows resolved model+effort; ⚠ flags any deviation
+    repo map (~/.pi/agent/repos.json) is advisory — unregistered repo:
+      use a worktree and ask · after plan approval, consider /compact
