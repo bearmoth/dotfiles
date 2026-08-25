@@ -1,0 +1,272 @@
+/**
+ * Workstream lifecycle core (Orchestrate v2 — see ORCHESTRATE-V2-SPEC.md,
+ * ADR 0007). A workstream is a machine-local artifact directory:
+ *
+ *   <root>/<slug>/
+ *   ├── manifest        # durable JSON index (source of truth for cleanup/resume)
+ *   ├── plan.md         # written by planner dispatches
+ *   ├── research/*.md
+ *   └── findings/*.md
+ *
+ * User-invoked control plane only: /workstream new|done call into this module;
+ * the model has no tool path here. Pure, injectable (root + GitRunner) so it's
+ * unit-testable without touching real git state.
+ */
+
+import { execFileSync } from "node:child_process";
+import * as fs from "node:fs";
+import * as os from "node:os";
+import * as path from "node:path";
+
+export interface WorktreeEntry {
+	path: string;
+	branch: string;
+}
+
+export interface Manifest {
+	slug: string;
+	createdAt: string; // ISO
+	planningStrategy?: string; // recorded for A/B measurement
+	worktrees: WorktreeEntry[];
+	sessionDirs: string[]; // dispatch session dirs/files (removed on cleanup)
+	notes?: string;
+}
+
+export interface WsOptions {
+	root?: string;
+}
+
+/** Default machine-local workstream root. */
+export function defaultWorkstreamRoot(): string {
+	return path.join(os.homedir(), ".pi", "agent", "orchestrator-workstreams");
+}
+
+function rootOf(opts?: WsOptions): string {
+	return opts?.root ?? defaultWorkstreamRoot();
+}
+
+const SLUG_RE = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+
+function wsDir(slug: string, opts?: WsOptions): string {
+	return path.join(rootOf(opts), slug);
+}
+
+function manifestPath(slug: string, opts?: WsOptions): string {
+	return path.join(wsDir(slug, opts), "manifest");
+}
+
+function saveManifest(m: Manifest, opts?: WsOptions): void {
+	fs.writeFileSync(manifestPath(m.slug, opts), JSON.stringify(m, null, 2) + "\n");
+}
+
+/** Create the artifact scaffolding and manifest. Throws on bad/duplicate slug. */
+export function createWorkstream(slug: string, opts?: WsOptions & { planningStrategy?: string }): Manifest {
+	if (!SLUG_RE.test(slug)) {
+		throw new Error(`Invalid workstream slug "${slug}": use kebab-case (a-z, 0-9, hyphens).`);
+	}
+	const dir = wsDir(slug, opts);
+	if (fs.existsSync(dir)) throw new Error(`Workstream "${slug}" already exists at ${dir}.`);
+	fs.mkdirSync(path.join(dir, "research"), { recursive: true });
+	fs.mkdirSync(path.join(dir, "findings"), { recursive: true });
+	const m: Manifest = {
+		slug,
+		createdAt: new Date().toISOString(),
+		...(opts?.planningStrategy ? { planningStrategy: opts.planningStrategy } : {}),
+		worktrees: [],
+		sessionDirs: [],
+	};
+	saveManifest(m, opts);
+	return m;
+}
+
+/** Load a workstream's manifest, or undefined if it doesn't exist / is invalid. */
+export function loadManifest(slug: string, opts?: WsOptions): Manifest | undefined {
+	try {
+		const m = JSON.parse(fs.readFileSync(manifestPath(slug, opts), "utf8")) as Manifest;
+		if (typeof m.slug !== "string") return undefined;
+		m.worktrees ??= [];
+		m.sessionDirs ??= [];
+		return m;
+	} catch {
+		return undefined;
+	}
+}
+
+/** List slugs of existing workstreams (manifest present). */
+export function listWorkstreams(opts?: WsOptions): string[] {
+	try {
+		return fs
+			.readdirSync(rootOf(opts))
+			.filter((d) => fs.existsSync(manifestPath(d, opts)))
+			.sort();
+	} catch {
+		return [];
+	}
+}
+
+/** Record a worktree (path+branch) in the manifest; dedupes by path. */
+export function recordWorktree(slug: string, wt: WorktreeEntry, opts?: WsOptions): void {
+	const m = loadManifest(slug, opts);
+	if (!m) throw new Error(`No manifest for workstream "${slug}".`);
+	if (!m.worktrees.some((w) => w.path === wt.path)) m.worktrees.push(wt);
+	saveManifest(m, opts);
+}
+
+/** Record a dispatch session dir/file in the manifest; dedupes. */
+export function recordDispatchSession(slug: string, sessionPath: string, opts?: WsOptions): void {
+	const m = loadManifest(slug, opts);
+	if (!m) throw new Error(`No manifest for workstream "${slug}".`);
+	if (!m.sessionDirs.includes(sessionPath)) m.sessionDirs.push(sessionPath);
+	saveManifest(m, opts);
+}
+
+/** Human-readable manifest printout (the /workstream done step-1 display). */
+export function renderManifest(m: Manifest, opts?: WsOptions): string {
+	const dir = wsDir(m.slug, opts);
+	const lines: string[] = [
+		`Workstream: ${m.slug}`,
+		`Created:    ${m.createdAt}`,
+		...(m.planningStrategy ? [`Strategy:   ${m.planningStrategy}`] : []),
+		`Artifacts:  ${dir}`,
+	];
+	for (const sub of ["plan.md", "research", "findings"]) {
+		const p = path.join(dir, sub);
+		if (fs.existsSync(p)) {
+			const entries = fs.statSync(p).isDirectory() ? fs.readdirSync(p) : [];
+			lines.push(`  ${sub}${entries.length ? ` (${entries.length} files)` : ""}`);
+		}
+	}
+	lines.push(`Worktrees:  ${m.worktrees.length === 0 ? "(none)" : ""}`);
+	for (const w of m.worktrees) lines.push(`  ${w.path}  [${w.branch}]`);
+	lines.push(`Sessions:   ${m.sessionDirs.length === 0 ? "(none)" : ""}`);
+	for (const s of m.sessionDirs) lines.push(`  ${s}`);
+	return lines.join("\n");
+}
+
+/** Injectable git operations (real implementation: realGitRunner). */
+export interface GitRunner {
+	isDirty(worktreePath: string): boolean;
+	hasUnpushedOrUnmerged(worktreePath: string, branch: string): boolean;
+	exists(worktreePath: string): boolean;
+	removeWorktree(worktreePath: string): void;
+	deleteBranch(branch: string, worktreePath: string): void;
+}
+
+export interface SafetyVerdict {
+	worktree: WorktreeEntry;
+	safe: boolean;
+	reasons: string[];
+}
+
+/** Per-worktree cleanup safety: dirty tree or unpushed/unmerged branch → unsafe. */
+export function checkCleanupSafety(m: Manifest, git: GitRunner): SafetyVerdict[] {
+	return m.worktrees.map((wt) => {
+		const reasons: string[] = [];
+		if (!git.exists(wt.path)) {
+			// Already gone: safe to drop the record.
+			return { worktree: wt, safe: true, reasons: ["worktree missing (already removed)"] };
+		}
+		if (git.isDirty(wt.path)) reasons.push("worktree is dirty (uncommitted changes)");
+		if (git.hasUnpushedOrUnmerged(wt.path, wt.branch)) reasons.push(`branch ${wt.branch} has unpushed or unmerged commits`);
+		return { worktree: wt, safe: reasons.length === 0, reasons };
+	});
+}
+
+export interface CleanupResult {
+	ok: boolean;
+	removedWorktrees: string[];
+	removedSessions: string[];
+	deletedBranches: string[];
+	refusals: string[]; // unsafe worktrees when !force
+	errors: string[];
+}
+
+/**
+ * Guarded cleanup (spec: /workstream done steps 3–5). Refuses unsafe worktrees
+ * unless force; removes session logs and worktrees; optionally deletes merged
+ * branches; deletes the artifact dir only after everything else succeeded.
+ * A refused or failed cleanup leaves the manifest in place.
+ */
+export function cleanupWorkstream(
+	m: Manifest,
+	opts: WsOptions & { force: boolean; git: GitRunner; deleteMergedBranches?: boolean },
+): CleanupResult {
+	const res: CleanupResult = { ok: false, removedWorktrees: [], removedSessions: [], deletedBranches: [], refusals: [], errors: [] };
+	const verdicts = checkCleanupSafety(m, opts.git);
+	const unsafe = verdicts.filter((v) => !v.safe);
+	if (unsafe.length > 0 && !opts.force) {
+		res.refusals = unsafe.map((v) => `${v.worktree.path}: ${v.reasons.join("; ")}`);
+		return res;
+	}
+	for (const v of verdicts) {
+		const wt = v.worktree;
+		if (!opts.git.exists(wt.path)) continue;
+		try {
+			opts.git.removeWorktree(wt.path);
+			res.removedWorktrees.push(wt.path);
+			if (opts.deleteMergedBranches && !opts.git.hasUnpushedOrUnmerged(wt.path, wt.branch)) {
+				opts.git.deleteBranch(wt.branch, wt.path);
+				res.deletedBranches.push(wt.branch);
+			}
+		} catch (err) {
+			res.errors.push(`worktree ${wt.path}: ${err instanceof Error ? err.message : String(err)}`);
+		}
+	}
+	for (const s of m.sessionDirs) {
+		try {
+			if (fs.existsSync(s)) {
+				fs.rmSync(s, { recursive: true, force: true });
+				res.removedSessions.push(s);
+			}
+		} catch (err) {
+			res.errors.push(`session ${s}: ${err instanceof Error ? err.message : String(err)}`);
+		}
+	}
+	if (res.errors.length > 0) return res; // keep the manifest for a later attempt
+	// Artifact dir goes last (spec step 5).
+	try {
+		fs.rmSync(wsDir(m.slug, opts), { recursive: true, force: true });
+		res.ok = true;
+	} catch (err) {
+		res.errors.push(`artifact dir: ${err instanceof Error ? err.message : String(err)}`);
+	}
+	return res;
+}
+
+/** Real GitRunner using git CLI (used by /workstream done). */
+export function realGitRunner(): GitRunner {
+	const git = (dir: string, ...args: string[]): string =>
+		execFileSync("git", ["-C", dir, ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+	return {
+		exists: (p) => fs.existsSync(p),
+		isDirty: (p) => {
+			try {
+				return git(p, "status", "--porcelain").trim().length > 0;
+			} catch {
+				return true; // fail closed: unreadable state counts as unsafe
+			}
+		},
+		hasUnpushedOrUnmerged: (p, branch) => {
+			try {
+				// Unpushed: commits not on any remote-tracking ref of this branch.
+				const upstream = git(p, "rev-parse", "--abbrev-ref", "--symbolic-full-name", `${branch}@{upstream}`).trim();
+				const ahead = git(p, "rev-list", "--count", `${upstream}..${branch}`).trim();
+				return ahead !== "0";
+			} catch {
+				// No upstream: unmerged unless the branch tip is reachable from HEAD
+				// of the default branch — can't cheaply verify, fail closed.
+				return true;
+			}
+		},
+		removeWorktree: (p) => {
+			// Run from the main checkout: git refuses to remove the worktree you're in.
+			const commonDir = path.resolve(p, git(p, "rev-parse", "--git-common-dir").trim());
+			const mainRepo = path.dirname(commonDir);
+			git(mainRepo, "worktree", "remove", "--force", p);
+		},
+		deleteBranch: (branch, p) => {
+			const commonDir = path.resolve(p, git(p, "rev-parse", "--git-common-dir").trim());
+			git(path.dirname(commonDir), "branch", "-d", branch);
+		},
+	};
+}

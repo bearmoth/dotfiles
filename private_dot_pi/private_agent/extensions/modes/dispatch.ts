@@ -123,6 +123,8 @@ export interface DispatchHooks {
 	isOrchestrateMode: () => boolean;
 	setActivity: (gerund: string | null) => void;
 	getOrchestratorModel: () => string | undefined;
+	/** Index a worker's session dir in the active workstream manifest (v2). */
+	recordSessionDir?: (sessionDir: string) => void;
 }
 
 export function registerDispatchTool(pi: ExtensionAPI, hooks: DispatchHooks): void {
@@ -238,6 +240,7 @@ export function registerDispatchTool(pi: ExtensionAPI, hooks: DispatchHooks): vo
 			const sessionsRoot = path.join(process.env.HOME ?? "", ".pi", "agent", "orchestrator-sessions");
 			fs.mkdirSync(sessionsRoot, { recursive: true });
 			const sessionDir = fs.mkdtempSync(path.join(sessionsRoot, `${params.role}-`));
+			hooks.recordSessionDir?.(sessionDir);
 
 			// Sanctioned protected-path dispatch (fail closed): the allowProtected
 			// param is inert without a UI — headless orchestrators keep the hard

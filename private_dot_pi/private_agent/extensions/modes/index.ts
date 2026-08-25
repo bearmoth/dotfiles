@@ -29,6 +29,16 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { registerDispatchTool } from "./dispatch.ts";
 import { rebuildDispatchLog } from "./dispatch-log.ts";
+import {
+	checkCleanupSafety,
+	cleanupWorkstream,
+	createWorkstream,
+	listWorkstreams,
+	loadManifest,
+	realGitRunner,
+	recordDispatchSession,
+	renderManifest,
+} from "./workstream.ts";
 import { DispatchUi } from "./dispatch-panel.ts";
 import { installPaddedFooter } from "./footer.ts";
 import { classifyBashCommand } from "./readonly-bash.ts";
@@ -115,6 +125,9 @@ export default function modesExtension(pi: ExtensionAPI): void {
 	const approvedCommands = new Set<string>();
 	// Dispatch log UI (widget strip + sidebar + detail; see dispatch-panel.ts).
 	const dispatchUi = new DispatchUi();
+	// Active workstream slug (v2): set by /workstream new, cleared by done.
+	// Dispatch session dirs are recorded into its manifest for guarded cleanup.
+	let activeWorkstream: string | undefined;
 
 	// Guardrail self-protection: files the model must not modify without approval, in any mode.
 	const home = process.env.HOME ?? "";
@@ -271,6 +284,91 @@ export default function modesExtension(pi: ExtensionAPI): void {
 		},
 	});
 
+	// Workstream lifecycle (ORCHESTRATE-V2-SPEC.md, ADR 0007): user-invoked
+	// control plane. Only the user runs these; the model has no tool path here.
+	// Registered handlers error outside Orchestrate mode.
+	pi.registerCommand("workstream", {
+		description: "Workstream lifecycle (Orchestrate only): /workstream new <slug> | done [slug] [--force]",
+		handler: async (args, ctx) => {
+			if (!ctx.hasUI) return;
+			if (mode !== "orchestrate") {
+				ctx.ui.notify("/workstream is only available in Orchestrate mode.", "error");
+				return;
+			}
+			const parts = (args ?? "").trim().split(/\s+/).filter(Boolean);
+			const sub = parts[0];
+			if (sub === "new") {
+				let slug = parts[1];
+				if (!slug) slug = (await ctx.ui.input("Workstream slug (kebab-case):"))?.trim();
+				if (!slug) return;
+				try {
+					const m = createWorkstream(slug);
+					activeWorkstream = slug;
+					pi.appendEntry("workstream-state", { slug });
+					ctx.ui.notify(`Workstream created:\n${renderManifest(m)}`, "info");
+				} catch (err) {
+					ctx.ui.notify(err instanceof Error ? err.message : String(err), "error");
+				}
+				return;
+			}
+			if (sub === "done") {
+				const force = parts.includes("--force");
+				let slug = parts.filter((p) => p !== "--force")[1] ?? activeWorkstream;
+				if (!slug) {
+					const all = listWorkstreams();
+					if (all.length === 0) {
+						ctx.ui.notify("No workstreams found.", "warning");
+						return;
+					}
+					slug = await ctx.ui.select("Close which workstream?", all);
+					if (!slug) return;
+				}
+				const m = loadManifest(slug);
+				if (!m) {
+					ctx.ui.notify(`No workstream "${slug}" (or its manifest is unreadable).`, "error");
+					return;
+				}
+				const git = realGitRunner();
+				// Step 1: print the manifest before anything is deleted.
+				const verdicts = checkCleanupSafety(m, git);
+				const unsafe = verdicts.filter((v) => !v.safe);
+				const safetyNote = unsafe.length
+					? `\n\nUNSAFE (needs --force):\n${unsafe.map((v) => `  ${v.worktree.path}: ${v.reasons.join("; ")}`).join("\n")}`
+					: "";
+				// Step 2: explicit confirmation.
+				const ok = await ctx.ui.confirm(
+					`Close workstream "${slug}"?`,
+					`${renderManifest(m)}${safetyNote}\n\nThis removes the recorded session logs, worktrees${force ? " (FORCED — possible loss)" : ""}, and the artifact directory.`,
+				);
+				if (!ok) {
+					ctx.ui.notify("Cleanup cancelled; manifest left in place.", "info");
+					return;
+				}
+				// Merged-branch deletion is a confirmation choice after manifest review.
+				let deleteMergedBranches = false;
+				if (m.worktrees.length > 0) {
+					deleteMergedBranches = await ctx.ui.confirm("Delete merged branches?", `Also delete branches that are already merged/pushed:\n${m.worktrees.map((w) => `  ${w.branch}`).join("\n")}`);
+				}
+				const res = cleanupWorkstream(m, { force, git, deleteMergedBranches });
+				if (!res.ok) {
+					const why = [...res.refusals.map((r) => `refused: ${r}`), ...res.errors.map((e) => `error: ${e}`)].join("\n");
+					ctx.ui.notify(`Cleanup incomplete; manifest kept.\n${why}${res.refusals.length ? "\n\nRe-run with: /workstream done " + slug + " --force to acknowledge possible loss." : ""}`, "warning");
+					return;
+				}
+				if (slug === activeWorkstream) {
+					activeWorkstream = undefined;
+					pi.appendEntry("workstream-state", { slug: null });
+				}
+				ctx.ui.notify(
+					`Workstream "${slug}" closed.\nRemoved: ${res.removedWorktrees.length} worktrees, ${res.removedSessions.length} session logs${res.deletedBranches.length ? `, branches: ${res.deletedBranches.join(", ")}` : ""}.\nStart a fresh orchestrator session for the next workstream.`,
+					"info",
+				);
+				return;
+			}
+			ctx.ui.notify("Usage: /workstream new <slug> | /workstream done [slug] [--force]", "info");
+		},
+	});
+
 	pi.registerCommand("allow-dir", {
 		description: "Allow writes to an additional directory for this session",
 		handler: async (args, ctx) => {
@@ -321,6 +419,10 @@ export default function modesExtension(pi: ExtensionAPI): void {
 			const d = entry as { type: string; customType?: string; data?: { dir?: string } };
 			if (d.type === "custom" && d.customType === "allowed-dir" && d.data?.dir) {
 				allowedDirs.add(d.data.dir);
+			}
+			const w = entry as { type: string; customType?: string; data?: { slug?: string | null } };
+			if (w.type === "custom" && w.customType === "workstream-state") {
+				activeWorkstream = w.data?.slug ?? undefined;
 			}
 		}
 		if (restored) {
@@ -515,6 +617,17 @@ export default function modesExtension(pi: ExtensionAPI): void {
 		getOrchestratorModel: () => {
 			const m = lastCtx?.model;
 			return m ? `${m.provider}/${m.id}` : undefined;
+		},
+		recordSessionDir: (sessionDir) => {
+			// Index the worker's session dir in the active workstream manifest so
+			// /workstream done can clean it up (spec: manifest indexes dispatch
+			// session files). Best-effort: dispatches without a workstream are fine.
+			if (!activeWorkstream) return;
+			try {
+				recordDispatchSession(activeWorkstream, sessionDir);
+			} catch {
+				// manifest gone/unreadable — never fail a dispatch over indexing
+			}
 		},
 	});
 }
