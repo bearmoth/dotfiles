@@ -9,6 +9,8 @@ the visual surfaces follow [DESIGN.md](./DESIGN.md). The v1 decisions remain
 in force: [ADR 0001](./docs/adr/0001-role-typed-dispatch.md) through [ADR
 0006](./docs/adr/0006-one-shot-protected-path-grant.md). The v2 control-plane
 carve-out is recorded in [ADR 0007](./docs/adr/0007-user-invoked-workstream-control-plane.md).
+The read-only classifier's deliberate exception is `pi --list-models` for model
+enumeration; other `pi` invocations remain blocked.
 
 ## Design stance
 
@@ -41,8 +43,10 @@ returns an error. This is the narrow control-plane exception to the v1
 orchestrator's no-write rule recorded in [ADR
 0003](./docs/adr/0003-orchestrator-reads-everything-writes-nothing.md): the user
 invocation may manage the manifest and cleanup state under the orchestrator
-state directory, but never mutates a target repository. Worker mutation and
-the v1 write fence remain unchanged.
+state directory. `/workstream done` also mutates git state by removing
+recorded worktrees and eligible branches, but only after direct user invocation
+and confirmation; it never mutates working-tree content beyond that cleanup.
+Worker mutation and the v1 write fence remain unchanged.
 
 Each workstream has a machine-local artifact directory, for example:
 
@@ -155,6 +159,7 @@ this spec; Luna work uses `{gpt-5.6-luna, max}`, where the saving from lower
 effort is noise next to the cost of misrouting work. The tuples below use the
 thinking levels currently advertised for these model IDs on this machine; the
 model registry remains the authority if that availability changes.
+<!-- Source: /Users/phil/.pi/agent/models-store.json; claude-opus-5 and claude-fable-5 both advertise xhigh. -->
 
 The current working defaults, subject to A/B measurement, are:
 
@@ -170,10 +175,11 @@ The current working defaults, subject to A/B measurement, are:
 | Diagnose | `{gpt-5.6-luna, max}` |
 
 This table shows strategy 1, **strong-model-plans + cheap-critique**. Under
-strategy 2, **cheap-model-plans-flagging-help-areas + strong-critique-that-
-resolves-flags**, the Plan and Plan critique tuples swap: Plan uses
-`{gpt-5.6-luna, max}` and Plan critique uses `{claude-opus-5, xhigh}`. The
-same tuple rules apply to the orchestrator's own model and to every worker
+strategy 2, **cheap-model-plans-flagging-help-areas +
+strong-critique-that-resolves-flags**, the Plan and Plan critique tuples swap:
+Plan uses `{gpt-5.6-luna, max}` and Plan critique uses
+`{claude-opus-5, xhigh}`. The same tuple rules apply to the orchestrator's own
+model and to every worker
 step. A future configuration surface may use another serialization, but it
 must preserve tuple semantics.
 
@@ -196,8 +202,8 @@ Planning strategy is configurable and deliberately A/B-able. The first
 working comparison is:
 
 1. **strong-model-plans + cheap-critique**; versus
-2. **cheap-model-plans-flagging-help-areas + strong-critique-that-resolves-
-   flags**.
+2. **cheap-model-plans-flagging-help-areas +
+   strong-critique-that-resolves-flags**.
 
 The selected strategy is recorded in the workstream manifest and compared via
 success metrics. We do not yet know which strategy is best.
@@ -225,6 +231,13 @@ The orchestrator continues to do these things inline:
 - routing, decomposition, and rework decisions;
 - plan presentation and user approval; and
 - read-only diff verification.
+
+### Dispatch observability
+
+The dispatch log detail pane must show the resolved model and effort for every
+dispatch. When routing uses a downgrade or override instead of the step's
+configured default, the pane must visibly flag it and show both the default and
+resolved tuples. This gives the user an audit trail for model routing.
 
 Routing rework after a known finding is cheap inline work. When defects reveal
 a **class** of problem that requires re-planning, dispatch a fresh,

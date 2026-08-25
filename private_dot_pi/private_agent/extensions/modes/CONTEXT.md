@@ -30,7 +30,7 @@ _Avoid_: mode, persona
 **Template**:
 The per-dispatch Brief skeleton, with step-specific mandates and workstream
 details filled in.
-_Avoid_: prompt, spec
+_Avoid_: boilerplate, skeleton
 
 **Dispatch**:
 One synchronous worker invocation: a role, pointed at a workdir, given a
