@@ -464,9 +464,11 @@ export default function modesExtension(pi: ExtensionAPI): void {
 		}
 		applyToolPolicy();
 		updateStatus(ctx);
-		// Dispatch log: rebuild from history, then bind the UI surfaces.
-		rebuildDispatchLog(ctx.sessionManager.getEntries());
+		// Dispatch log: bind the UI surfaces first (refreshes the ctx captured by
+		// DispatchUi), then rebuild from history. Rebuilding first would emit into
+		// listeners still holding the previous session's stale ctx (errors on /new).
 		dispatchUi.attach(ctx, () => mode === "orchestrate");
+		rebuildDispatchLog(ctx.sessionManager.getEntries());
 		// installPaddedFooter(ctx); // disabled: ui-plus.ts owns the footer now
 	});
 
