@@ -3,13 +3,20 @@
 Living document. Revisit, refine, implement, or abandon. Keep entries short.
 
 ## ORCHESTRATE mode (was: LEAD)
-Fully designed — see [ORCHESTRATE-SPEC.md](./ORCHESTRATE-SPEC.md) and
-docs/adr/0001–0004. Renamed LEAD → ORCHESTRATE. Sync v1: role-typed
-dispatch (implementor/researcher/reviewer), read-everything/write-nothing
+Fully designed — see [ORCHESTRATE-SPEC.md](./ORCHESTRATE-SPEC.md),
+[ORCHESTRATE-V2-SPEC.md](./ORCHESTRATE-V2-SPEC.md), and docs/adr/0001–0004.
+Renamed LEAD → ORCHESTRATE. Sync v1: role-typed dispatch
+(implementor/researcher/reviewer), read-everything/write-nothing
 orchestrator, manual rework gate. Excluded from shift+tab cycle (separate
 CYCLE_ORDER when implementing).
 - Status: designed, awaiting implementation. Check for friction with EOS
   features before/while implementing.
+
+## Orchestrate v2
+- Planner and plan-critique dispatches: see [ORCHESTRATE-V2-SPEC.md](./ORCHESTRATE-V2-SPEC.md#planner-and-plan-critique-dispatches).
+- Per-step model tuples and routing: see [ORCHESTRATE-V2-SPEC.md](./ORCHESTRATE-V2-SPEC.md#model-and-effort-configuration).
+- Workstream lifecycle commands and artifacts: see [ORCHESTRATE-V2-SPEC.md](./ORCHESTRATE-V2-SPEC.md#workstream-lifecycle-and-artifacts).
+- Advisory repo map and worktree decision rule: see [ORCHESTRATE-V2-SPEC.md](./ORCHESTRATE-V2-SPEC.md#repo-map).
 
 ## Orchestrate: deferred to the async pass
 - Async dispatch: task ids, status tool, parallel workers, worker counts
@@ -17,9 +24,9 @@ CYCLE_ORDER when implementing).
 - Interactive workers via herdr workspaces (refiner is the motivating
   case; herdr's blocked-state plumbing already exists). Worker lifetime
   across feedback cycles is the open question.
-- Planner role: needs an "explore-plus-one-path" permission shape; belongs
-  with a roles-as-config refactor. Trigger: running multiple workstreams
-  in parallel (in-conversation planning doesn't scale to that).
+- Planner role (v1): needs an "explore-plus-one-path" permission shape; v2
+  instead designs planner dispatches with researcher permissions. Trigger for
+  further role/config work: running multiple workstreams in parallel.
 - Per-repo QA/check config (how to run tests/lint deterministically before
   review) — folds into per-repo policy config below.
 - Setup-dispatch dual fence: a worktree-setup worker needs a fence of
