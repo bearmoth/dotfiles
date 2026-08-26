@@ -28,6 +28,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { registerDispatchTool } from "./dispatch.ts";
+import { registerSaveArtifactTool } from "./save-artifact-tool.ts";
 import { rebuildDispatchLog } from "./dispatch-log.ts";
 import {
 	checkCleanupSafety,
@@ -176,18 +177,23 @@ export default function modesExtension(pi: ExtensionAPI): void {
 	}
 
 	function applyToolPolicy(): void {
+		// save_artifact (ADR 0008): active only in a mode-locked worker that was
+		// dispatched with an artifact dir; inert (deactivated) everywhere else —
+		// including the orchestrator itself, which writes nothing.
+		const saveArtifactActive = modeLocked && !!process.env.PI_ARTIFACT_DIR?.trim();
+		const dropInert = (tools: string[]) => (saveArtifactActive ? tools : tools.filter((t) => t !== "save_artifact"));
 		if (mode === "explore" || mode === "orchestrate") {
 			const base = toolsBeforeExplore ?? pi.getActiveTools();
 			toolsBeforeExplore = base;
 			const readonly = base.filter((t) => !MUTATING_TOOLS.has(t) && t !== "dispatch_task");
-			pi.setActiveTools(mode === "orchestrate" ? [...readonly, "dispatch_task"] : readonly);
+			pi.setActiveTools(dropInert(mode === "orchestrate" ? [...readonly, "dispatch_task"] : readonly));
 		} else if (toolsBeforeExplore !== undefined) {
-			pi.setActiveTools(toolsBeforeExplore.filter((t) => t !== "dispatch_task"));
+			pi.setActiveTools(dropInert(toolsBeforeExplore.filter((t) => t !== "dispatch_task")));
 			toolsBeforeExplore = undefined;
 		} else {
 			// Registered tools default to active; dispatch_task is orchestrate-only.
-			const active = pi.getActiveTools();
-			if (active.includes("dispatch_task")) pi.setActiveTools(active.filter((t) => t !== "dispatch_task"));
+			const active = dropInert(pi.getActiveTools());
+			pi.setActiveTools(active.filter((t) => t !== "dispatch_task"));
 		}
 	}
 
@@ -391,6 +397,10 @@ export default function modesExtension(pi: ExtensionAPI): void {
 	const modeStashFile = join(tmpdir(), `pi-mode-state-${process.pid}.json`);
 
 	pi.on("session_shutdown", async () => {
+		// Unhook DispatchUi from module-scoped listeners before extensions rebind;
+		// otherwise the new binding's rebuildDispatchLog() emits into this (now
+		// stale-ctx) instance and pi throws on /new.
+		dispatchUi.detach();
 		if (modeLocked) return; // workers must not propagate their locked mode
 		try {
 			writeFileSync(modeStashFile, JSON.stringify({ mode }));
@@ -547,6 +557,13 @@ export default function modesExtension(pi: ExtensionAPI): void {
 
 		if (mode === "explore" || mode === "orchestrate") {
 			if (READONLY_TOOLS.has(event.toolName)) return;
+			// save_artifact (ADR 0008): permitted only for a mode-locked dispatched
+			// worker with an allocated artifact dir. The tool's own execute() also
+			// fails closed; this keeps the mode gate authoritative.
+			if (event.toolName === "save_artifact") {
+				if (modeLocked && process.env.PI_ARTIFACT_DIR?.trim()) return;
+				return { block: true, reason: "save_artifact is only available to dispatched workers with an active workstream." };
+			}
 			if (event.toolName === "bash") {
 				const command = String(event.input.command ?? "");
 				const verdict = classifyBashCommand(command, { reviewerGh });
@@ -619,6 +636,8 @@ export default function modesExtension(pi: ExtensionAPI): void {
 			return !ct?.startsWith("mode-context-") || ct === `mode-context-${mode}`;
 		}),
 	}));
+
+	registerSaveArtifactTool(pi, { isModeLocked: () => modeLocked });
 
 	registerDispatchTool(pi, {
 		isOrchestrateMode: () => mode === "orchestrate",

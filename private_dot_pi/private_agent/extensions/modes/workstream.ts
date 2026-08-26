@@ -4,9 +4,9 @@
  *
  *   <root>/<slug>/
  *   ├── manifest        # durable JSON index (source of truth for cleanup/resume)
- *   ├── plan.md         # written by planner dispatches
- *   ├── research/*.md
- *   └── findings/*.md
+ *   └── artifacts/<seq>-<step>-<title-slug>/*.md
+ *                       # saved by the worker-side save_artifact tool (ADR 0008);
+ *                       # seq assigned at dispatch spawn — never worker-chosen paths
  *
  * User-invoked control plane only: /workstream new|done call into this module;
  * the model has no tool path here. Pure, injectable (root + GitRunner) so it's
@@ -23,12 +23,30 @@ export interface WorktreeEntry {
 	branch: string;
 }
 
+/** Per-dispatch artifact directory, allocated at spawn (ADR 0008). */
+export interface ArtifactDirEntry {
+	seq: number;
+	step: string;
+	dir: string;
+	allocatedAt: string; // ISO
+}
+
+/** One saved artifact file, appended at dispatch settle. */
+export interface ArtifactEntry {
+	path: string;
+	step: string;
+	seq: number;
+	savedAt: string; // ISO
+}
+
 export interface Manifest {
 	slug: string;
 	createdAt: string; // ISO
 	planningStrategy?: string; // recorded for A/B measurement
 	worktrees: WorktreeEntry[];
 	sessionDirs: string[]; // dispatch session dirs/files (removed on cleanup)
+	artifactDirs: ArtifactDirEntry[]; // per-dispatch dirs, seq order
+	artifacts: ArtifactEntry[]; // saved files (durable index; "current plan" = latest plan-step entry)
 	notes?: string;
 }
 
@@ -66,14 +84,16 @@ export function createWorkstream(slug: string, opts?: WsOptions & { planningStra
 	}
 	const dir = wsDir(slug, opts);
 	if (fs.existsSync(dir)) throw new Error(`Workstream "${slug}" already exists at ${dir}.`);
-	fs.mkdirSync(path.join(dir, "research"), { recursive: true });
-	fs.mkdirSync(path.join(dir, "findings"), { recursive: true });
+	// ADR 0008 layout: artifacts/<seq>-<step>-<title-slug>/ per dispatch.
+	fs.mkdirSync(path.join(dir, "artifacts"), { recursive: true });
 	const m: Manifest = {
 		slug,
 		createdAt: new Date().toISOString(),
 		...(opts?.planningStrategy ? { planningStrategy: opts.planningStrategy } : {}),
 		worktrees: [],
 		sessionDirs: [],
+		artifactDirs: [],
+		artifacts: [],
 	};
 	saveManifest(m, opts);
 	return m;
@@ -86,6 +106,8 @@ export function loadManifest(slug: string, opts?: WsOptions): Manifest | undefin
 		if (typeof m.slug !== "string") return undefined;
 		m.worktrees ??= [];
 		m.sessionDirs ??= [];
+		m.artifactDirs ??= [];
+		m.artifacts ??= [];
 		return m;
 	} catch {
 		return undefined;
@@ -120,6 +142,68 @@ export function recordDispatchSession(slug: string, sessionPath: string, opts?: 
 	saveManifest(m, opts);
 }
 
+/** Kebab-case a free-form dispatch title for the artifact dir name. */
+function titleSlug(title: string): string {
+	const s = title
+		.toLowerCase()
+		.replace(/[^a-z0-9]+/g, "-")
+		.replace(/^-+|-+$/g, "")
+		.slice(0, 40)
+		.replace(/-+$/, "");
+	return s || "untitled";
+}
+
+/**
+ * Allocate the next per-dispatch artifact dir at spawn time (ADR 0008):
+ * <ws>/artifacts/<seq>-<step>-<title-slug>/. Seq is assigned here, never by
+ * the worker; collisions are impossible by construction (exclusive mkdir,
+ * seq above both the manifest record and any on-disk dir).
+ */
+export function allocateArtifactDir(
+	slug: string,
+	step: string,
+	title: string,
+	opts?: WsOptions,
+): { seq: number; dir: string } {
+	const m = loadManifest(slug, opts);
+	if (!m) throw new Error(`No manifest for workstream "${slug}".`);
+	const artifactsRoot = path.join(wsDir(slug, opts), "artifacts");
+	fs.mkdirSync(artifactsRoot, { recursive: true });
+	let maxSeq = m.artifactDirs.reduce((acc, d) => Math.max(acc, d.seq), 0);
+	for (const d of fs.readdirSync(artifactsRoot)) {
+		const n = Number.parseInt(d, 10);
+		if (Number.isFinite(n)) maxSeq = Math.max(maxSeq, n);
+	}
+	const seq = maxSeq + 1;
+	const dir = path.join(artifactsRoot, `${String(seq).padStart(3, "0")}-${step}-${titleSlug(title)}`);
+	fs.mkdirSync(dir); // exclusive: throws if it somehow exists
+	m.artifactDirs.push({ seq, step, dir, allocatedAt: new Date().toISOString() });
+	saveManifest(m, opts);
+	return { seq, dir };
+}
+
+/**
+ * Append saved-artifact entries for a dispatch (orchestrator-side, at
+ * settle). The worker never touches the manifest — save_artifact writes only
+ * files inside its dir; this records them. Dedupes by path.
+ */
+export function recordArtifactSaves(slug: string, seq: number, files: string[], opts?: WsOptions): void {
+	const m = loadManifest(slug, opts);
+	if (!m) throw new Error(`No manifest for workstream "${slug}".`);
+	const step = m.artifactDirs.find((d) => d.seq === seq)?.step ?? "?";
+	for (const f of files) {
+		if (m.artifacts.some((a) => a.path === f)) continue;
+		let savedAt = new Date().toISOString();
+		try {
+			savedAt = fs.statSync(f).mtime.toISOString();
+		} catch {
+			// keep the settle timestamp
+		}
+		m.artifacts.push({ path: f, step, seq, savedAt });
+	}
+	saveManifest(m, opts);
+}
+
 /** Human-readable manifest printout (the /workstream done step-1 display). */
 export function renderManifest(m: Manifest, opts?: WsOptions): string {
 	const dir = wsDir(m.slug, opts);
@@ -129,12 +213,9 @@ export function renderManifest(m: Manifest, opts?: WsOptions): string {
 		...(m.planningStrategy ? [`Strategy:   ${m.planningStrategy}`] : []),
 		`Artifacts:  ${dir}`,
 	];
-	for (const sub of ["plan.md", "research", "findings"]) {
-		const p = path.join(dir, sub);
-		if (fs.existsSync(p)) {
-			const entries = fs.statSync(p).isDirectory() ? fs.readdirSync(p) : [];
-			lines.push(`  ${sub}${entries.length ? ` (${entries.length} files)` : ""}`);
-		}
+	for (const d of m.artifactDirs) {
+		const saved = m.artifacts.filter((a) => a.seq === d.seq);
+		lines.push(`  ${path.relative(dir, d.dir)}${saved.length ? ` (${saved.map((a) => path.basename(a.path)).join(", ")})` : " (empty)"}`);
 	}
 	lines.push(`Worktrees:  ${m.worktrees.length === 0 ? "(none)" : ""}`);
 	for (const w of m.worktrees) lines.push(`  ${w.path}  [${w.branch}]`);
