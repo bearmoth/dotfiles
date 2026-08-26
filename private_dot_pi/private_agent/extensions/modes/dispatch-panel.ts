@@ -341,6 +341,19 @@ export class DispatchUi {
 		this.updateStrip();
 	}
 
+	/** Unhook from the shared dispatch log and terminal input. Must run on
+	 * session_shutdown: dispatch-log's listener set is module-scoped and the
+	 * module is cached, so it outlives extension rebinds. Without this, the old
+	 * DispatchUi stays subscribed and the new binding's rebuildDispatchLog()
+	 * emit hits it, touching an invalidated ctx ("stale ctx" error on /new). */
+	detach(): void {
+		this.unsubscribeLog?.();
+		this.unsubscribeLog = undefined;
+		this.unsubscribeInput?.();
+		this.unsubscribeInput = undefined;
+		this.ctx = undefined;
+	}
+
 	setPresentation(p: DispatchPresentation): void {
 		this.presentation = p;
 	}
