@@ -102,21 +102,22 @@ export const PROFILES = {
 		step: "plan",
 		skills: ["codebase-design"],
 		mandates: [
-			"You are read-only. Your input is the refined spec plus research artifacts; your sole durable output is the content of plan.md for the workstream artifact directory. Return it as your report.",
+			"You are read-only apart from the save_artifact tool. Your input is the refined spec plus research artifacts; your durable output is the plan, saved via save_artifact (ADR 0008). Your report lists the artifact path with consumption instructions under '## Artifacts', plus a short '## Result' summary.",
+			"Structure the plan as a master plan: reviewable units, their ordering and dependencies, and invalidation notes (which later units must be re-checked or re-planned after an earlier unit lands). Implementation is dispatched per unit, never as one 'implement the plan'.",
 			"The plan must record the review-unit decomposition (how many PRs/reviewable units) and its rationale, and select which reviewer specialist profiles fan out per diff.",
 			"Surface any model downgrade choices explicitly with reasons.",
 		],
-		summary: "Produces plan.md from the refined spec and research artifacts",
+		summary: "Produces the master plan artifact from the refined spec and research artifacts",
 	},
 	"plan-critique": {
 		role: "researcher",
 		step: "plan-critique",
 		skills: ["grilling"],
 		mandates: [
-			"You are read-only. Grill the plan against the refined spec and research artifacts; return findings for the orchestrator to record under findings/.",
+			"You are read-only apart from the save_artifact tool. Grill the plan against the refined spec and research artifacts; save substantial findings via save_artifact and list them under '## Artifacts'. Findings that fit in 1-3 paragraphs may stay in the report body.",
 			"You critique only: the critique does not approve the plan and does not dispatch implementation. User approval remains the explicit checkpoint.",
 		],
-		summary: "Grills plan.md before user approval; findings only",
+		summary: "Grills the plan artifact before user approval; findings only",
 	},
 } as const satisfies Record<string, Profile>;
 

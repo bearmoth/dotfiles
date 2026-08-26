@@ -88,9 +88,10 @@ test("diagnose deliverable rule: researcher cannot diagnose; implementor:diagnos
 	assert.match(templateSkeleton("implementor:diagnose"), /fix the issue only when the brief calls for it/i);
 });
 
-test("planner template targets plan.md and no repo mutation", () => {
+test("planner template targets the saved plan artifact and no repo mutation", () => {
 	const t = templateSkeleton("planner");
-	assert.match(t, /plan\.md/);
+	assert.match(t, /save_artifact/);
+	assert.match(t, /master plan/i);
 	assert.match(t, /read-only/i);
 });
 

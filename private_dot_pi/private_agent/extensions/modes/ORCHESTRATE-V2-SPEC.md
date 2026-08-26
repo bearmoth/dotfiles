@@ -8,7 +8,8 @@ control-plane workstream artifacts. Terms follow [CONTEXT.md](./CONTEXT.md);
 the visual surfaces follow [DESIGN.md](./DESIGN.md). The v1 decisions remain
 in force: [ADR 0001](./docs/adr/0001-role-typed-dispatch.md) through [ADR
 0006](./docs/adr/0006-one-shot-protected-path-grant.md). The v2 control-plane
-carve-out is recorded in [ADR 0007](./docs/adr/0007-user-invoked-workstream-control-plane.md).
+carve-out is recorded in [ADR 0007](./docs/adr/0007-user-invoked-workstream-control-plane.md);
+artifact production is recorded in [ADR 0008](./docs/adr/0008-worker-side-artifact-tool.md).
 The read-only classifier's deliberate exception is `pi --list-models` for model
 enumeration; other `pi` invocations remain blocked.
 
@@ -53,10 +54,19 @@ Each workstream has a machine-local artifact directory, for example:
 ```
 ~/.pi/agent/orchestrator-workstreams/<slug>/
 ├── manifest              # durable index, not a report or plan
-├── plan.md
-├── research/*.md
-└── findings/*.md
+└── artifacts/<seq>-<step>-<title-slug>/*.md
 ```
+
+Artifacts (plans, research notes, critique findings) are produced by the
+worker-side `save_artifact` tool, recorded in [ADR
+0008](./docs/adr/0008-worker-side-artifact-tool.md): the worker supplies
+content only, and the tool writes into a per-dispatch subdirectory whose
+`<seq>` is assigned by the dispatch machinery at spawn time. Collisions are
+impossible by construction, ordering is commission order, and provenance is
+in the path. Each save appends an entry (path, step, dispatch seq/session,
+timestamp) to the manifest; the current plan is the latest plan-step entry.
+Nothing is edited in place — a revision is a new dispatch producing a new
+artifact directory.
 
 The directory stores workstream artifacts. `manifest` is its durable index of
 those artifacts and of external lifecycle state, including each worktree path
@@ -211,17 +221,27 @@ success metrics. We do not yet know which strategy is best.
 ## Planner and plan-critique dispatches
 
 Planning is a dispatchable step, not an orchestrator-only conversation. The
-planner uses researcher permissions: read-only, with the strong model tuple
+planner uses researcher permissions plus the `save_artifact` tool ([ADR
+0008](./docs/adr/0008-worker-side-artifact-tool.md)): read-only otherwise,
+with the strong model tuple
 selected by the planning strategy. Its input is the refined spec plus the
-research artifacts. Its sole durable output is `plan.md` in the workstream
-artifact directory. The orchestrator ingests `plan.md`, not the planner's
-full reasoning, keeping orchestrator context close to constant and allowing a
+research artifacts. Its sole durable output is the plan artifact, saved via
+`save_artifact` into the workstream artifact directory. The plan is a
+**master plan**: reviewable units, their ordering and dependencies, and
+invalidation notes recording which later units must be re-checked or
+re-planned after an earlier unit lands. The orchestrator reads the plan once
+for the approval gate and dispatches implementation **per unit** — each
+implement brief references the plan artifact's path plus the specific unit
+assigned; there is no single "implement the plan" dispatch. The worker's
+report carries a short `## Result` summary and an `## Artifacts` list (paths
+plus consumption instructions), keeping orchestrator context close to
+constant and allowing a
 cheaper orchestrator model.
 
-An optional plan-critique dispatch also uses researcher permissions. It grills
+An optional plan-critique dispatch uses the same permission shape. It grills
 the plan before user approval, reads the refined spec, research artifacts, and
-`plan.md`, then writes its findings under `findings/` (or returns findings for
-the orchestrator to record).
+the plan artifact, then saves substantial findings via `save_artifact`;
+findings that fit in 1–3 paragraphs may stay in the report body.
 The critique does not approve or dispatch implementation; the user approval
 checkpoint remains explicit.
 
@@ -309,10 +329,14 @@ human gates:
    orchestrator grills until the spec is actionable.
 2. **Workstream new** creates the machine-local manifest and artifact
    scaffolding.
-3. **Research** dispatches produce `research/*.md`.
-4. **Plan** dispatches produce `plan.md`; optional critique dispatches produce
-   findings. The orchestrator presents the plan and waits for approval.
-5. **Implement** dispatches mutate only their assigned worktrees.
+3. **Research** dispatches save research artifacts via `save_artifact` when
+   output is multi-document or worth persisting; paragraph-scale findings may
+   stay in the report.
+4. **Plan** dispatches save the master-plan artifact; optional critique
+   dispatches save findings. The orchestrator presents the plan and waits for
+   approval.
+5. **Implement** dispatches mutate only their assigned worktrees; each brief
+   references the plan artifact path plus its assigned unit.
 6. **Verify-run** is independent and verify-only. The orchestrator also does
    read-only diff/status inspection and reports when a check cannot be safely
    rerun in its own context.

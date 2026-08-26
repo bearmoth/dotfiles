@@ -14,9 +14,30 @@ CYCLE_ORDER when implementing).
 
 ## Orchestrate v2
 - Planner and plan-critique dispatches: see [ORCHESTRATE-V2-SPEC.md](./ORCHESTRATE-V2-SPEC.md#planner-and-plan-critique-dispatches).
+- Artifact production via the worker-side save_artifact tool: see [ADR 0008](./docs/adr/0008-worker-side-artifact-tool.md).
 - Per-step model tuples and routing: see [ORCHESTRATE-V2-SPEC.md](./ORCHESTRATE-V2-SPEC.md#model-and-effort-configuration).
 - Workstream lifecycle commands and artifacts: see [ORCHESTRATE-V2-SPEC.md](./ORCHESTRATE-V2-SPEC.md#workstream-lifecycle-and-artifacts).
 - Advisory repo map and worktree decision rule: see [ORCHESTRATE-V2-SPEC.md](./ORCHESTRATE-V2-SPEC.md#repo-map).
+
+## Orchestrate: artifact fast-follows (post ADR 0008)
+- **plan-unit step**: a distinct step/artifact kind for detailed per-unit
+  plans, produced by fresh planner dispatches when a master-plan unit comes
+  up (possibly fed the preceding unit's actual diff). Today this works as
+  another `plan`-step dispatch producing a new artifact dir; promote to its
+  own step when measurement shows the master-plan mandate alone isn't enough.
+- **Manifest query tool** (`list_artifacts` / `get_artifact_state`): scoped
+  lookups (kind, latest-only, since-seq) over the workstream manifest, usable
+  by the orchestrator and dispatched workers, returning the banana rather
+  than the world. Becomes necessary when async fan-out lands (the
+  orchestrator no longer commissions serially in-context) or when
+  resume-from-manifest is routine; until then, explicit artifact paths in
+  briefs are simpler and more injection-resistant.
+- **Sidebar × manifest**: the dispatch sidebar stays driven by the in-memory
+  DispatchLog (session-scoped, live-updating, rebuilt from session entries).
+  The manifest is workstream-scoped, durable, and has no change feed — wrong
+  granularity to drive the UI. When workstream grouping lands in the sidebar,
+  join the two: DispatchLog remains the live source; the manifest contributes
+  grouping and per-dispatch artifact annotations.
 
 ## Orchestrate: deferred to the async pass
 - Async dispatch: task ids, status tool, parallel workers, worker counts
