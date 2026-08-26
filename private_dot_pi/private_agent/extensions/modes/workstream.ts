@@ -321,6 +321,73 @@ export function renderManifest(m: Manifest, opts?: WsOptions): string {
 	return lines.join("\n");
 }
 
+/** Default retained-report root (a SIBLING of the workstream root, so reports survive /workstream done cleanup). */
+export function defaultReportsRoot(): string {
+	return path.join(os.homedir(), ".pi", "agent", "orchestrator-reports");
+}
+
+/**
+ * Retained workstream report (v2 pass 4): markdown capturing strategy,
+ * metric rollups, per-dispatch table, artifacts index, and worktrees —
+ * enough for strategy A/B comparison after the workstream dir is cleaned up.
+ */
+export function renderReport(m: Manifest, opts?: WsOptions): string {
+	const dir = wsDir(m.slug, opts);
+	const r = computeMetricRollups(m);
+	const ds = m.metrics?.dispatches ?? [];
+	const lines: string[] = [
+		`# Workstream report: ${m.slug}`,
+		"",
+		`- Created: ${m.createdAt}`,
+		`- Closed: ${new Date().toISOString()}`,
+		`- Planning strategy: ${m.planningStrategy ?? "(not recorded)"}`,
+		"",
+		"## Metrics",
+		"",
+		`- Dispatches: ${r.dispatchCount} · total $${r.totalCost.toFixed(2)} · ${r.totalTokens} tokens · ${Math.round(r.totalDurationMs / 1000)}s`,
+		`- Rework cycles: ${r.reworkCycles} (target ≤1)`,
+		`- First-pass verification: ${r.firstPassVerified === undefined ? "(not recorded)" : r.firstPassVerified ? "pass" : "fail"}${m.metrics?.firstPassVerified !== undefined ? " [explicit]" : ""}`,
+		`- Questions raised: ${r.questions}`,
+		`- Trust violations caught: ${r.trustViolationsCaught ?? "(not recorded)"}`,
+	];
+	if (ds.length > 0) {
+		lines.push("", "| step | profile | status | duration | turns | tokens | cost | ? | rework |", "|---|---|---|---|---|---|---|---|---|");
+		for (const d of ds) {
+			lines.push(
+				`| ${d.step ?? "-"} | ${d.profile ?? "-"} | ${d.status} | ${Math.round(d.durationMs / 1000)}s | ${d.turns} | ${d.tokens} | $${d.cost.toFixed(2)} | ${d.questions} | ${d.rework ? "yes" : ""} |`,
+			);
+		}
+	}
+	lines.push("", "## Artifacts", "");
+	if (m.artifacts.length === 0) lines.push("(none)");
+	for (const a of m.artifacts) lines.push(`- ${path.relative(dir, a.path)} (${a.step}, seq ${a.seq}, ${a.savedAt})`);
+	lines.push("", "## Worktrees", "");
+	if (m.worktrees.length === 0) lines.push("(none)");
+	for (const w of m.worktrees) lines.push(`- ${w.path} [${w.branch}]`);
+	return lines.join("\n") + "\n";
+}
+
+/**
+ * Write the retained report OUTSIDE the workstream dir so it survives
+ * /workstream done cleanup (default: ~/.pi/agent/orchestrator-reports/).
+ * Exclusive-create with a numeric suffix on collision — never overwrites.
+ */
+export function writeRetainedReport(m: Manifest, opts?: WsOptions & { reportsRoot?: string }): string {
+	const rootDir = opts?.reportsRoot ?? defaultReportsRoot();
+	fs.mkdirSync(rootDir, { recursive: true });
+	const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+	const content = renderReport(m, opts);
+	for (let i = 0; ; i++) {
+		const file = path.join(rootDir, `${m.slug}-${stamp}${i === 0 ? "" : `-${i}`}.md`);
+		try {
+			fs.writeFileSync(file, content, { flag: "wx" });
+			return file;
+		} catch (err) {
+			if ((err as NodeJS.ErrnoException).code !== "EEXIST") throw err;
+		}
+	}
+}
+
 /** Injectable git operations (real implementation: realGitRunner). */
 export interface GitRunner {
 	isDirty(worktreePath: string): boolean;

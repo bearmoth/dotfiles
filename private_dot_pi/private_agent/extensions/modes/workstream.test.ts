@@ -22,6 +22,8 @@ import {
 	recordDispatchSession,
 	recordWorktree,
 	renderManifest,
+	renderReport,
+	writeRetainedReport,
 	type GitRunner,
 	type Manifest,
 } from "./workstream.ts";
@@ -200,6 +202,52 @@ function fakeGit(state: Record<string, { dirty?: boolean; unpushed?: boolean; me
 		deleteBranch: () => {},
 	};
 }
+
+test("renderReport captures strategy, metrics, and the artifacts index", () => {
+	const root = tmpRoot();
+	createWorkstream("rep", { root, planningStrategy: "strong-plans-cheap-critique" });
+	const a = allocateArtifactDir("rep", "plan", "master plan", { root });
+	fs.writeFileSync(path.join(a.dir, "plan.md"), "# plan");
+	recordArtifactSaves("rep", a.seq, [path.join(a.dir, "plan.md")], { root });
+	recordWorktree("rep", { path: "/wt/rep", branch: "feat/rep" }, { root });
+	recordDispatchMetric("rep", { step: "plan", status: "ok", durationMs: 60000, turns: 4, tokens: 1000, cost: 0.5, questions: 1, rework: false }, { root });
+	const out = renderReport(loadManifest("rep", { root })!, { root });
+	assert.match(out, /^# Workstream report: rep$/m);
+	assert.match(out, /strong-plans-cheap-critique/);
+	assert.match(out, /\$0\.50/);
+	assert.match(out, /plan\.md/);
+	assert.match(out, /feat\/rep/);
+	assert.match(out, /Rework cycles/i);
+	assert.match(out, /First-pass verification/i);
+	assert.match(out, /Trust violations/i);
+});
+
+test("writeRetainedReport lands outside the workstream dir and survives cleanup", () => {
+	const root = tmpRoot();
+	const reportsRoot = fs.mkdtempSync(path.join(os.tmpdir(), "ws-reports-"));
+	createWorkstream("keep", { root });
+	recordDispatchMetric("keep", { step: "implement", status: "ok", durationMs: 1, turns: 1, tokens: 1, cost: 0.01, questions: 0, rework: false }, { root });
+	const m = loadManifest("keep", { root })!;
+	const reportPath = writeRetainedReport(m, { root, reportsRoot });
+	assert.ok(reportPath.startsWith(reportsRoot));
+	assert.ok(!reportPath.startsWith(path.join(root, "keep")));
+	assert.match(fs.readFileSync(reportPath, "utf8"), /Workstream report: keep/);
+	const res = cleanupWorkstream(m, { root, force: false, git: fakeGit({}) });
+	assert.equal(res.ok, true);
+	assert.ok(!fs.existsSync(path.join(root, "keep")), "workstream dir removed");
+	assert.ok(fs.existsSync(reportPath), "retained report survives cleanup");
+});
+
+test("writeRetainedReport never overwrites an existing report", () => {
+	const root = tmpRoot();
+	const reportsRoot = fs.mkdtempSync(path.join(os.tmpdir(), "ws-reports-"));
+	createWorkstream("twice", { root });
+	const m = loadManifest("twice", { root })!;
+	const p1 = writeRetainedReport(m, { root, reportsRoot });
+	const p2 = writeRetainedReport(m, { root, reportsRoot });
+	assert.notEqual(p1, p2);
+	assert.ok(fs.existsSync(p1) && fs.existsSync(p2));
+});
 
 test("checkCleanupSafety flags dirty worktrees and unpushed branches", () => {
 	const root = tmpRoot();
