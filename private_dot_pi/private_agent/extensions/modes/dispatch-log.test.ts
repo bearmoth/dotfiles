@@ -17,7 +17,7 @@ test("routing is recorded at start and preserved through settle", () => {
 });
 
 test("rebuild restores routing from result details", () => {
-	const routing = { model: "gpt-5.6-luna", effort: "max", source: "downgrade" as const, defaultModel: "claude-fable-5", defaultEffort: "xhigh" };
+	const routing = { model: "gpt-5.6-luna", effort: "max", source: "alternative" as const, defaultModel: "claude-fable-5", defaultEffort: "xhigh" };
 	rebuildDispatchLog([
 		{
 			type: "message",

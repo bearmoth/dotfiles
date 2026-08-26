@@ -181,7 +181,7 @@ The current working defaults, subject to A/B measurement, are:
 | Plan critique | `{gpt-5.6-luna, max}` |
 | Implement | `{gpt-5.6-luna, max}` |
 | Verify-run | `{gpt-5.6-luna, max}` |
-| Review | fallback `[{claude-fable-5, xhigh}, {claude-opus-5, xhigh}]`; `downgrade_allowed = [{gpt-5.6-luna, max}]` for trivial diffs |
+| Review | default `{claude-fable-5, xhigh}`; allowed `[{claude-opus-5, xhigh}, {gpt-5.6-luna, max}]` |
 | Diagnose | `{gpt-5.6-luna, max}` |
 
 This table shows strategy 1, **strong-model-plans + cheap-critique**. Under
@@ -193,18 +193,23 @@ model and to every worker
 step. A future configuration surface may use another serialization, but it
 must preserve tuple semantics.
 
-Two independent routing concepts make silent degradation impossible:
+Each step has a single **default** tuple plus an ordered **allowed** list of
+sanctioned alternative tuples. The list serves two roles, and deviations are
+always loud:
 
-- **`fallback`** is a chain tried only when the selected model is unavailable.
-  When the chain is exhausted, stop and ask the user; never degrade farther
-  or invent another model. A step with no fallback chain stops and asks the
-  user immediately when its selected model is unavailable.
-- **`downgrade_allowed`** is a list of models the orchestrator may explicitly
-  choose for trivial work. Such a choice is always surfaced in the plan and
-  final report, including the selected tuple and the reason.
+- **Fallback**: when the default model is unavailable, the allowed list is
+  walked in order. When it is exhausted, stop and ask the user; never degrade
+  farther or invent another model. A step with no allowed list stops and asks
+  the user immediately when its default is unavailable.
+- **Alternative**: the orchestrator may explicitly pick any allowed tuple
+  (up- or downgrade) when the work warrants it — e.g. a cheaper reviewer for
+  a trivial diff. Such a choice is always surfaced in the plan and final
+  report, including the selected tuple and the reason.
 
-An unavailable model is not a quality signal and does not authorize choosing a
-cheaper model from `downgrade_allowed`; the two paths remain distinct.
+An explicit `{model, effort}` pick outside the allowed list is an **override**
+and requires user approval. An unavailable model is not a quality signal and
+does not authorize picking a cheaper alternative; the fallback and alternative
+paths remain distinct in intent even though they share one list.
 
 ### Planning strategy
 
@@ -255,9 +260,10 @@ The orchestrator continues to do these things inline:
 ### Dispatch observability
 
 The dispatch log detail pane must show the resolved model and effort for every
-dispatch. When routing uses a downgrade or override instead of the step's
-configured default, the pane must visibly flag it and show both the default and
-resolved tuples. This gives the user an audit trail for model routing.
+dispatch. When routing uses an alternative, fallback, or override instead of
+the step's configured default, the pane must visibly flag it and show both the
+default and resolved tuples. This gives the user an audit trail for model
+routing.
 
 Routing rework after a known finding is cheap inline work. When defects reveal
 a **class** of problem that requires re-planning, dispatch a fresh,
@@ -342,7 +348,7 @@ human gates:
    rerun in its own context.
 7. **Review** fans out the specialist profiles selected by the plan.
 8. **Report** consolidates diff, verification, review, routing, and model
-   choices. It includes any explicit downgrade and its reason.
+   choices. It includes any explicit alternative/override tuple and its reason.
 9. **Rework** remains user-gated, per [ADR 0004](./docs/adr/0004-manual-rework-gate.md).
    A corrective dispatch receives the findings and the class-search mandate.
 10. **Workstream done** prints the manifest and performs guarded cleanup only

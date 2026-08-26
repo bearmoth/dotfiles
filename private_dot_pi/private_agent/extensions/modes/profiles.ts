@@ -105,7 +105,7 @@ export const PROFILES = {
 			"You are read-only apart from the save_artifact tool. Your input is the refined spec plus research artifacts; your durable output is the plan, saved via save_artifact (ADR 0008). Your report lists the artifact path with consumption instructions under '## Artifacts', plus a short '## Result' summary.",
 			"Structure the plan as a master plan: reviewable units, their ordering and dependencies, and invalidation notes (which later units must be re-checked or re-planned after an earlier unit lands). Implementation is dispatched per unit, never as one 'implement the plan'.",
 			"The plan must record the review-unit decomposition (how many PRs/reviewable units) and its rationale, and select which reviewer specialist profiles fan out per diff.",
-			"Surface any model downgrade choices explicitly with reasons.",
+			"Surface any alternative-tuple routing choices explicitly with reasons.",
 		],
 		summary: "Produces the master plan artifact from the refined spec and research artifacts",
 	},

@@ -227,7 +227,7 @@ class DispatchDetailPane implements Component {
 		if (r.cost !== undefined) meta.push(`$${r.cost.toFixed(4)}`);
 		if (meta.length) lines.push(truncateToWidth(t.fg("dim" as never, ` ${meta.join(" · ")}`), width));
 		// v2 observability: resolved model+effort, with a loud flag when routing
-		// deviated from the step default (override/downgrade/fallback).
+		// deviated from the step default (override/alternative/fallback).
 		const rt = r.routing;
 		if (rt) {
 			const tuple = rt.effort ? `${rt.model} (${rt.effort})` : rt.model;
@@ -235,7 +235,7 @@ class DispatchDetailPane implements Component {
 				lines.push(truncateToWidth(t.fg("dim" as never, ` model: ${tuple}`), width));
 			} else {
 				const def = rt.defaultEffort ? `${rt.defaultModel} (${rt.defaultEffort})` : (rt.defaultModel ?? "?");
-				const color = rt.source === "fallback" ? "warning" : "error";
+				const color = rt.source === "override" ? "error" : "warning";
 				lines.push(truncateToWidth(t.fg(color as never, ` ⚠ ${rt.source}: ${tuple} — default ${def}`), width));
 			}
 		}

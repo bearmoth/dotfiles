@@ -57,7 +57,7 @@ intake → refine (HITL) → /workstream new (user-invoked) → research → pla
    after verification — always, no user gate needed (read-only, always
    valuable). Reviewer findings stay inline in the report.
 10. **Report**: consolidated — diff summary + verification findings +
-    review findings + routing/downgrade choices with reasons.
+    review findings + routing choices (any alternative/override tuple) with reasons.
 11. **Rework gate**: if findings demand rework, *propose* the corrective
     brief and wait for the user before dispatching. Rework = fresh worker
     with prior findings in the brief; workers have no persistent state.

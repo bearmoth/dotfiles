@@ -137,7 +137,7 @@ dispatch_task's params and result details.
   overlay). Deferred: workstream grouping (by workdir), actions from the log
   (rework/kill — async pass), pinned-unfocused ambient sidebar.
 - v2 observability requirement: the detail pane must show each dispatch's
-  resolved model and effort and flag any downgrade or override; see
+  resolved model and effort and flag any alternative, fallback, or override; see
   [Dispatch observability](./ORCHESTRATE-V2-SPEC.md#dispatch-observability).
 - Multi-session note: DispatchLog is per-process and rebuilt from the
   session's own entries, so concurrent orchestrator sessions don't conflict

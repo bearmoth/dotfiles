@@ -3,16 +3,18 @@
  * (ORCHESTRATE-V2-SPEC.md "Model and effort configuration").
  *
  * Every configuration value is a tuple — effort is never inherited across a
- * model swap. Two distinct routing concepts keep degradation loud:
+ * model swap. Each step has a single default plus an ordered allow-list of
+ * sanctioned alternative tuples serving two roles:
  *
- * - fallback:          tried only when the selected model is UNAVAILABLE;
- *                      exhausted chain → stop and ask the user.
- * - downgradeAllowed:  models the orchestrator may EXPLICITLY choose for
- *                      trivial work; always surfaced in plan/report/UI.
+ * - fallback:     when the default is UNAVAILABLE the list is walked in
+ *                 order; exhausted → stop and ask the user.
+ * - alternative:  the orchestrator may EXPLICITLY pick any allowed tuple
+ *                 (up- or downgrade) for the work at hand; always surfaced
+ *                 in plan/report/UI with a reason.
  *
- * Unavailability is not a quality signal and never authorizes a downgrade.
- * Availability is read from the pi model registry (models-store.json),
- * injectable for tests.
+ * A {model, effort} pair outside the list is an override and requires user
+ * approval. Availability is read from the pi model registry
+ * (models-store.json), injectable for tests.
  */
 
 import * as fs from "node:fs";
@@ -26,8 +28,8 @@ export interface ModelTuple {
 
 export interface StepDef {
 	default: ModelTuple;
-	fallback?: ModelTuple[];
-	downgradeAllowed?: ModelTuple[];
+	/** Ordered allow-list: availability fallback chain AND the sanctioned alternatives the orchestrator may pick explicitly. */
+	allowed?: ModelTuple[];
 }
 
 export type StepName = "research" | "plan" | "plan-critique" | "implement" | "verify-run" | "review" | "diagnose";
@@ -43,13 +45,14 @@ export const STEP_CONFIG: Record<StepName, StepDef> = {
 	"verify-run": { default: LUNA_MAX },
 	review: {
 		default: { model: "claude-fable-5", effort: "xhigh" },
-		fallback: [{ model: "claude-opus-5", effort: "xhigh" }],
-		downgradeAllowed: [LUNA_MAX], // trivial diffs only; explicit choice
+		// Fallback order on unavailability; also the alternatives the
+		// orchestrator may pick explicitly (luna/max for trivial diffs).
+		allowed: [{ model: "claude-opus-5", effort: "xhigh" }, LUNA_MAX],
 	},
 	diagnose: { default: LUNA_MAX },
 };
 
-export type TupleSource = "default" | "fallback" | "downgrade" | "override";
+export type TupleSource = "default" | "fallback" | "alternative" | "override";
 
 /**
  * Planning strategies (spec "Planning strategy"; A/B-able, recorded in the
@@ -75,11 +78,13 @@ export type ResolveResult =
 export interface ResolveOptions {
 	/** Is this model currently available? Default: registry lookup. */
 	isAvailable?: (model: string) => boolean;
-	/** Explicit user-approved model override (requires overrideEffort). */
+	/**
+	 * Explicit {model, effort} choice (requires overrideEffort). If the tuple
+	 * is in the step's allow-list it resolves as a sanctioned "alternative";
+	 * otherwise it is an "override" and must be user-approved.
+	 */
 	overrideModel?: string;
 	overrideEffort?: string;
-	/** Explicit orchestrator downgrade for trivial work (from downgradeAllowed). */
-	downgrade?: boolean;
 	/** Recorded workstream planning strategy; swaps plan/plan-critique tuples under strategy 2. */
 	strategy?: string;
 }
@@ -96,29 +101,27 @@ export function resolveTuple(step: StepName, opts: ResolveOptions = {}): Resolve
 			return { ok: false, error: `Model override "${opts.overrideModel}" requires its own effort — effort is never inherited across a model swap.` };
 		}
 		if (!available(opts.overrideModel)) {
-			return { ok: false, error: `Override model "${opts.overrideModel}" is unavailable. Stop and ask the user.` };
+			return { ok: false, error: `Model "${opts.overrideModel}" is unavailable. Stop and ask the user.` };
 		}
-		return { ok: true, model: opts.overrideModel, effort: opts.overrideEffort, source: "override", defaultTuple };
-	}
-
-	if (opts.downgrade) {
-		const list = def.downgradeAllowed ?? [];
-		const pick = list.find((t) => available(t.model));
-		if (!pick) {
-			return { ok: false, error: `Step "${step}" has no available downgrade_allowed tuple; downgrade is not permitted here. Use the default tuple or ask the user.` };
+		// Same tuple as the default → not a deviation at all.
+		if (opts.overrideModel === defaultTuple.model && opts.overrideEffort === defaultTuple.effort) {
+			return { ok: true, model: defaultTuple.model, effort: defaultTuple.effort, source: "default", defaultTuple };
 		}
-		return { ok: true, model: pick.model, effort: pick.effort, source: "downgrade", defaultTuple };
+		// In the allow-list → sanctioned alternative (orchestrator judgment,
+		// surfaced but not requiring user approval).
+		const sanctioned = (def.allowed ?? []).some((t) => t.model === opts.overrideModel && t.effort === opts.overrideEffort);
+		return { ok: true, model: opts.overrideModel, effort: opts.overrideEffort, source: sanctioned ? "alternative" : "override", defaultTuple };
 	}
 
 	if (available(defaultTuple.model)) {
 		return { ok: true, model: defaultTuple.model, effort: defaultTuple.effort, source: "default", defaultTuple };
 	}
-	for (const t of def.fallback ?? []) {
+	for (const t of def.allowed ?? []) {
 		if (available(t.model)) return { ok: true, model: t.model, effort: t.effort, source: "fallback", defaultTuple };
 	}
 	return {
 		ok: false,
-		error: `Model for step "${step}" is unavailable (${[defaultTuple, ...(def.fallback ?? [])].map((t) => t.model).join(", ")} all unavailable). Stop and ask the user — never degrade further or invent another model.`,
+		error: `Model for step "${step}" is unavailable (${[defaultTuple, ...(def.allowed ?? [])].map((t) => t.model).join(", ")} all unavailable). Stop and ask the user — never degrade further or invent another model.`,
 	};
 }
 
