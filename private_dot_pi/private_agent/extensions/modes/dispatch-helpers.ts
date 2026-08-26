@@ -14,6 +14,15 @@ export function titleFromBrief(brief: string | undefined): string {
 	return cleaned.length > 60 ? `${cleaned.slice(0, 60)}…` : cleaned;
 }
 
+/**
+ * Steps whose dispatches get a per-dispatch artifact dir + the save_artifact
+ * tool (ADR 0008). Deliberately excludes review: reviewer findings report
+ * inline per v1; only research/plan/plan-critique persist durable artifacts.
+ */
+export function isArtifactStep(step: string | undefined): step is "research" | "plan" | "plan-critique" {
+	return step === "research" || step === "plan" || step === "plan-critique";
+}
+
 /** "3m 12s" / "42s" duration formatting shared by dispatch renderers. */
 export function formatDuration(ms: number): string {
 	const s = Math.round(ms / 1000);

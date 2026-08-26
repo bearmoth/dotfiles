@@ -72,3 +72,16 @@ test("rebuild restores profile and resolves role from a profile-only call", () =
 	assert.equal(rec.profile, "planner");
 	assert.equal(rec.role, "researcher");
 });
+
+test("artifacts are preserved through settle and rebuild (v2 pass 3)", () => {
+	rebuildDispatchLog([]);
+	const artifacts = ["/ws/artifacts/001-plan-x/plan.md"];
+	logDispatchStart("id3", "researcher", "plan it", "/wt");
+	logDispatchSettle("id3", { status: "ok", exitCode: 0, finalMessage: "ok", sessionFile: "/s", durationMs: 1, artifacts });
+	assert.deepEqual(getDispatchRecords()[0].artifacts, artifacts);
+	rebuildDispatchLog([
+		{ type: "message", message: { role: "assistant", content: [{ type: "toolCall", name: "dispatch_task", id: "tc3", arguments: { profile: "planner", title: "t", workdir: "/wt" } }] } },
+		{ type: "message", message: { role: "toolResult", toolName: "dispatch_task", toolCallId: "tc3", details: { status: "ok", exitCode: 0, finalMessage: "ok", sessionFile: "/s", durationMs: 1, artifacts } } },
+	]);
+	assert.deepEqual(getDispatchRecords()[0].artifacts, artifacts);
+});

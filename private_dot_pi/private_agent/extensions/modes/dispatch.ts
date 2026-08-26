@@ -19,7 +19,7 @@ import { StringEnum } from "@earendil-works/pi-ai";
 import { Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { nerdFontEnabled, resolveWorktreeRoot } from "./fence.ts";
-import { formatDuration, reportPreview, titleFromBrief } from "./dispatch-helpers.ts";
+import { formatDuration, isArtifactStep, reportPreview, titleFromBrief } from "./dispatch-helpers.ts";
 import { logDispatchProgress, logDispatchSettle, logDispatchStart } from "./dispatch-log.ts";
 import { resolveTuple, STEP_CONFIG, type StepName } from "./step-config.ts";
 import { composeBrief, PROFILE_NAMES, PROFILES, type ProfileName } from "./profiles.ts";
@@ -92,6 +92,8 @@ export interface DispatchResult {
 	routing?: DispatchRouting;
 	/** Dispatch profile the worker was launched with (v2). */
 	profile?: string;
+	/** Artifact files the worker saved via save_artifact (ADR 0008). */
+	artifacts?: string[];
 }
 
 const DispatchParams = Type.Object({
@@ -163,6 +165,10 @@ export interface DispatchHooks {
 	getOrchestratorModel: () => string | undefined;
 	/** Index a worker's session dir in the active workstream manifest (v2). */
 	recordSessionDir?: (sessionDir: string) => void;
+	/** Allocate a per-dispatch artifact dir at spawn (ADR 0008); undefined = no active workstream. */
+	allocateArtifactDir?: (step: string, title: string) => { seq: number; dir: string } | undefined;
+	/** Record files saved into the dispatch's artifact dir (orchestrator-side, at settle). */
+	recordArtifactSaves?: (seq: number, files: string[]) => void;
 }
 
 export function registerDispatchTool(pi: ExtensionAPI, hooks: DispatchHooks): void {
@@ -299,6 +305,21 @@ export function registerDispatchTool(pi: ExtensionAPI, hooks: DispatchHooks): vo
 			const sessionDir = fs.mkdtempSync(path.join(sessionsRoot, `${roleName}-`));
 			hooks.recordSessionDir?.(sessionDir);
 
+			// Artifact-producing steps (research/plan/plan-critique — review stays
+			// inline per v1): allocate the per-dispatch artifact dir at spawn
+			// (ADR 0008; seq assigned here, never by the worker) and grant the
+			// worker save_artifact via env + tool allowlist. No active workstream
+			// → no allocation → the tool stays inert in the worker.
+			const dispatchTitle = params.title || titleFromBrief(params.brief);
+			let artifactAlloc: { seq: number; dir: string } | undefined;
+			if (isArtifactStep(effectiveStep)) {
+				try {
+					artifactAlloc = hooks.allocateArtifactDir?.(effectiveStep, dispatchTitle);
+				} catch (err) {
+					return { content: [{ type: "text", text: `Failed to allocate the artifact directory: ${err instanceof Error ? err.message : String(err)}` }], isError: true };
+				}
+			}
+
 			// Sanctioned protected-path dispatch (fail closed): the allowProtected
 			// param is inert without a UI — headless orchestrators keep the hard
 			// block. With a UI, the user must approve per dispatch; approval mints
@@ -360,13 +381,16 @@ export function registerDispatchTool(pi: ExtensionAPI, hooks: DispatchHooks): vo
 				args.push("--model", routing.model);
 				if (routing.effort) args.push("--thinking", routing.effort);
 			}
-			if (role.tools) args.push("--tools", role.tools.join(","));
+			if (role.tools) {
+				const tools = artifactAlloc ? [...role.tools, "save_artifact"] : role.tools;
+				args.push("--tools", tools.join(","));
+			}
 			args.push(brief);
 
 			const timeoutMs = (params.timeout ?? DEFAULT_TIMEOUT_MS / 1000) * 1000;
 			const start = Date.now();
 			hooks.setActivity(role.gerund);
-			logDispatchStart(toolCallId, roleName, params.title || titleFromBrief(params.brief), workdir, routing, params.profile);
+			logDispatchStart(toolCallId, roleName, dispatchTitle, workdir, routing, params.profile);
 
 			let finalMessage: string | null = null;
 			let stopReason: string | undefined;
@@ -382,6 +406,9 @@ export function registerDispatchTool(pi: ExtensionAPI, hooks: DispatchHooks): vo
 					// Never leak an inherited grant; only an explicit user-approved one.
 					delete workerEnv.PI_PROTECTED_GRANT;
 					if (protectedGrant) workerEnv.PI_PROTECTED_GRANT = protectedGrant;
+					// Artifact dir env is per-dispatch, never inherited (ADR 0008).
+					delete workerEnv.PI_ARTIFACT_DIR;
+					if (artifactAlloc) workerEnv.PI_ARTIFACT_DIR = artifactAlloc.dir;
 					const proc = spawn(invocation.command, invocation.args, {
 						cwd: workdir,
 						shell: false,
@@ -473,7 +500,23 @@ export function registerDispatchTool(pi: ExtensionAPI, hooks: DispatchHooks): vo
 							? "ok"
 							: "error";
 
-				const result: DispatchResult = { status, exitCode, finalMessage, sessionFile, durationMs, usage, routing, profile: params.profile };
+				// Record saved artifacts in the manifest (orchestrator-side; the
+				// worker never touches the manifest). Scan the dispatch's own dir.
+				let artifacts: string[] | undefined;
+				if (artifactAlloc) {
+					try {
+						artifacts = fs
+							.readdirSync(artifactAlloc.dir)
+							.filter((f) => f.endsWith(".md"))
+							.sort()
+							.map((f) => path.join(artifactAlloc!.dir, f));
+						if (artifacts.length > 0) hooks.recordArtifactSaves?.(artifactAlloc.seq, artifacts);
+					} catch {
+						// dir unreadable — never fail a settled dispatch over indexing
+					}
+				}
+
+				const result: DispatchResult = { status, exitCode, finalMessage, sessionFile, durationMs, usage, routing, profile: params.profile, artifacts };
 				logDispatchSettle(toolCallId, result);
 				const routingLine =
 					routing.source === "role-default"
@@ -485,6 +528,7 @@ export function registerDispatchTool(pi: ExtensionAPI, hooks: DispatchHooks): vo
 					routingLine,
 					`durationMs: ${durationMs}`,
 					`sessionFile: ${sessionFile}`,
+					...(artifacts?.length ? [`artifacts:\n${artifacts.map((a) => `  ${a}`).join("\n")}`] : []),
 					`usage: ${usage.turns} turns, ${usage.tokens} tokens, $${usage.cost.toFixed(4)}`,
 					"",
 					finalMessage ?? "(no report — the worker died before replying)",

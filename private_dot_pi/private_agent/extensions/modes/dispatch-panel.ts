@@ -240,6 +240,10 @@ class DispatchDetailPane implements Component {
 			}
 		}
 		if (r.sessionFile) lines.push(truncateToWidth(t.fg("dim" as never, ` session: ${r.sessionFile}`), width));
+		// Saved artifacts (ADR 0008): the dispatch's durable outputs.
+		for (const a of r.artifacts ?? []) {
+			lines.push(truncateToWidth(t.fg("dim" as never, ` artifact: ${a}`), width));
+		}
 		lines.push(t.fg("dim" as never, "─".repeat(Math.max(0, width))));
 
 		const report =

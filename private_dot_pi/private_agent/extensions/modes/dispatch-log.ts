@@ -33,6 +33,8 @@ export interface DispatchRecord {
 	routing?: DispatchRouting;
 	/** Dispatch profile (v2): resolves role + step tuple + template. */
 	profile?: string;
+	/** Artifact files saved via save_artifact (ADR 0008). */
+	artifacts?: string[];
 }
 
 type Listener = () => void;
@@ -81,6 +83,7 @@ export function logDispatchSettle(id: string, result: DispatchResult): void {
 	r.sessionFile = result.sessionFile;
 	if (result.routing) r.routing = result.routing;
 	if (result.profile) r.profile = result.profile;
+	if (result.artifacts) r.artifacts = result.artifacts;
 	if (result.usage) {
 		r.turns = result.usage.turns;
 		r.tokens = result.usage.tokens;
@@ -145,6 +148,7 @@ export function rebuildDispatchLog(entries: Iterable<unknown>): void {
 				sessionFile: d.sessionFile,
 				routing: d.routing,
 				profile: d.profile ?? call.profile,
+				artifacts: d.artifacts,
 				turns: d.usage?.turns,
 				tokens: d.usage?.tokens,
 				cost: d.usage?.cost,

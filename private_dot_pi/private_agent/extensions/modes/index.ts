@@ -31,12 +31,14 @@ import { registerDispatchTool } from "./dispatch.ts";
 import { registerSaveArtifactTool } from "./save-artifact-tool.ts";
 import { rebuildDispatchLog } from "./dispatch-log.ts";
 import {
+	allocateArtifactDir,
 	checkCleanupSafety,
 	cleanupWorkstream,
 	createWorkstream,
 	listWorkstreams,
 	loadManifest,
 	realGitRunner,
+	recordArtifactSaves,
 	recordDispatchSession,
 	renderManifest,
 } from "./workstream.ts";
@@ -658,6 +660,20 @@ export default function modesExtension(pi: ExtensionAPI): void {
 				recordDispatchSession(activeWorkstream, sessionDir);
 			} catch {
 				// manifest gone/unreadable — never fail a dispatch over indexing
+			}
+		},
+		// ADR 0008: per-dispatch artifact dir, allocated at spawn. No active
+		// workstream → undefined → the worker's save_artifact stays inert.
+		allocateArtifactDir: (step, title) => {
+			if (!activeWorkstream) return undefined;
+			return allocateArtifactDir(activeWorkstream, step, title);
+		},
+		recordArtifactSaves: (seq, files) => {
+			if (!activeWorkstream) return;
+			try {
+				recordArtifactSaves(activeWorkstream, seq, files);
+			} catch {
+				// never fail a settled dispatch over indexing
 			}
 		},
 	});
