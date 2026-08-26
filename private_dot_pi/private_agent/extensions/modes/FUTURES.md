@@ -42,6 +42,13 @@ CYCLE_ORDER when implementing).
 ## Orchestrate: deferred to the async pass
 - Async dispatch: task ids, status tool, parallel workers, worker counts
   and per-role states in the footer, auto-rework-loop with max-iterations.
+- Manifest concurrency: all manifest writes are orchestrator-side
+  read-modify-writes of one JSON file (workstream.ts) — safe while dispatch
+  is synchronous, a lost-update/corruption hazard once parallel dispatches
+  settle concurrently. Needs at least write-temp+rename plus serialization
+  (or per-entry append log) before async lands. Workers deliberately have
+  no manifest hand (save_artifact writes files only), so the fix is
+  orchestrator-local.
 - Interactive workers via herdr workspaces (refiner is the motivating
   case; herdr's blocked-state plumbing already exists). Worker lifetime
   across feedback cycles is the open question.
