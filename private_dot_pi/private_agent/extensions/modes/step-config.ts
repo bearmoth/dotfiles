@@ -51,6 +51,23 @@ export const STEP_CONFIG: Record<StepName, StepDef> = {
 
 export type TupleSource = "default" | "fallback" | "downgrade" | "override";
 
+/**
+ * Planning strategies (spec "Planning strategy"; A/B-able, recorded in the
+ * workstream manifest). Strategy 2 swaps the plan and plan-critique tuples;
+ * everything else is identical.
+ */
+export const PLANNING_STRATEGIES = [
+	{ id: "strong-plans-cheap-critique", summary: "Strategy 1: strong-model plans + cheap critique (plan: claude-opus-5/xhigh)" },
+	{ id: "cheap-plans-strong-critique", summary: "Strategy 2: cheap plans flagging help areas + strong critique (critique: claude-opus-5/xhigh)" },
+] as const;
+export type PlanningStrategy = (typeof PLANNING_STRATEGIES)[number]["id"];
+
+/** The step table under a strategy; unknown/unset strategy = strategy 1. */
+export function stepConfigFor(strategy?: string): Record<StepName, StepDef> {
+	if (strategy !== "cheap-plans-strong-critique") return STEP_CONFIG;
+	return { ...STEP_CONFIG, plan: STEP_CONFIG["plan-critique"], "plan-critique": STEP_CONFIG.plan };
+}
+
 export type ResolveResult =
 	| { ok: true; model: string; effort: string; source: TupleSource; defaultTuple: ModelTuple }
 	| { ok: false; error: string };
@@ -63,11 +80,13 @@ export interface ResolveOptions {
 	overrideEffort?: string;
 	/** Explicit orchestrator downgrade for trivial work (from downgradeAllowed). */
 	downgrade?: boolean;
+	/** Recorded workstream planning strategy; swaps plan/plan-critique tuples under strategy 2. */
+	strategy?: string;
 }
 
 /** Resolve the tuple for a step per the v2 routing rules. */
 export function resolveTuple(step: StepName, opts: ResolveOptions = {}): ResolveResult {
-	const def = STEP_CONFIG[step];
+	const def = stepConfigFor(opts.strategy)[step];
 	if (!def) return { ok: false, error: `Unknown step "${step}". Steps: ${Object.keys(STEP_CONFIG).join(", ")}.` };
 	const available = opts.isAvailable ?? registryAvailability();
 	const defaultTuple = def.default;

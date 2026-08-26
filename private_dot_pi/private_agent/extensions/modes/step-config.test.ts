@@ -5,7 +5,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { resolveTuple, STEP_CONFIG, type StepName } from "./step-config.ts";
+import { PLANNING_STRATEGIES, resolveTuple, STEP_CONFIG, type StepName } from "./step-config.ts";
 
 const allAvailable = () => true;
 const none = () => false;
@@ -98,4 +98,32 @@ test("override of an unavailable model is an error, not a fallback trigger", () 
 test("unknown step name is an error", () => {
 	const r = resolveTuple("nonsense" as StepName, { isAvailable: allAvailable });
 	assert.equal(r.ok, false);
+});
+
+test("strategy 2 swaps only the plan and plan-critique tuples", () => {
+	const strategy = "cheap-plans-strong-critique";
+	const plan = resolveTuple("plan", { isAvailable: allAvailable, strategy });
+	const crit = resolveTuple("plan-critique", { isAvailable: allAvailable, strategy });
+	assert.ok(plan.ok && crit.ok);
+	if (plan.ok) {
+		assert.deepEqual({ model: plan.model, effort: plan.effort }, { model: "gpt-5.6-luna", effort: "max" });
+		assert.deepEqual(plan.defaultTuple, { model: "gpt-5.6-luna", effort: "max" });
+		assert.equal(plan.source, "default");
+	}
+	if (crit.ok) assert.deepEqual({ model: crit.model, effort: crit.effort }, { model: "claude-opus-5", effort: "xhigh" });
+	const impl = resolveTuple("implement", { isAvailable: allAvailable, strategy });
+	if (impl.ok) assert.equal(impl.model, "gpt-5.6-luna");
+});
+
+test("strategy 1 (and unset/unknown) keeps the table defaults", () => {
+	for (const strategy of [undefined, "strong-plans-cheap-critique", "garbage"] as const) {
+		const plan = resolveTuple("plan", { isAvailable: allAvailable, strategy });
+		assert.ok(plan.ok);
+		if (plan.ok) assert.equal(plan.model, "claude-opus-5");
+	}
+});
+
+test("planning strategies enumerate spec strategies 1 and 2 in order", () => {
+	assert.deepEqual(PLANNING_STRATEGIES.map((s) => s.id), ["strong-plans-cheap-critique", "cheap-plans-strong-critique"]);
+	for (const s of PLANNING_STRATEGIES) assert.ok(s.summary.length > 0);
 });

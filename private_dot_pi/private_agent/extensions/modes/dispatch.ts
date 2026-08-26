@@ -163,6 +163,8 @@ export interface DispatchHooks {
 	isOrchestrateMode: () => boolean;
 	setActivity: (gerund: string | null) => void;
 	getOrchestratorModel: () => string | undefined;
+	/** Recorded planning strategy of the active workstream (v2 pass 3). */
+	getPlanningStrategy?: () => string | undefined;
 	/** Index a worker's session dir in the active workstream manifest (v2). */
 	recordSessionDir?: (sessionDir: string) => void;
 	/** Allocate a per-dispatch artifact dir at spawn (ADR 0008); undefined = no active workstream. */
@@ -354,6 +356,7 @@ export function registerDispatchTool(pi: ExtensionAPI, hooks: DispatchHooks): vo
 					overrideModel: params.model,
 					overrideEffort: params.effort,
 					downgrade: params.downgrade,
+					strategy: hooks.getPlanningStrategy?.(),
 				});
 				if (!resolved.ok) {
 					return { content: [{ type: "text", text: resolved.error }], isError: true };

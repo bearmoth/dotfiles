@@ -43,6 +43,7 @@ import {
 	renderManifest,
 } from "./workstream.ts";
 import { loadRepoMap, renderRepoMapAdvisory } from "./repo-map.ts";
+import { PLANNING_STRATEGIES } from "./step-config.ts";
 import { DispatchUi } from "./dispatch-panel.ts";
 import { installPaddedFooter } from "./footer.ts";
 import { classifyBashCommand } from "./readonly-bash.ts";
@@ -310,8 +311,13 @@ export default function modesExtension(pi: ExtensionAPI): void {
 				let slug = parts[1];
 				if (!slug) slug = (await ctx.ui.input("Workstream slug (kebab-case):"))?.trim();
 				if (!slug) return;
+				// Planning strategy (spec: A/B-able, recorded in the manifest).
+				// Escape/no choice defaults to strategy 1.
+				const labels = PLANNING_STRATEGIES.map((s) => s.summary);
+				const choice = await ctx.ui.select("Planning strategy:", labels);
+				const planningStrategy = PLANNING_STRATEGIES[Math.max(0, labels.indexOf(choice ?? ""))].id;
 				try {
-					const m = createWorkstream(slug);
+					const m = createWorkstream(slug, { planningStrategy });
 					activeWorkstream = slug;
 					pi.appendEntry("workstream-state", { slug });
 					ctx.ui.notify(`Workstream created:\n${renderManifest(m)}`, "info");
@@ -650,6 +656,12 @@ export default function modesExtension(pi: ExtensionAPI): void {
 		getOrchestratorModel: () => {
 			const m = lastCtx?.model;
 			return m ? `${m.provider}/${m.id}` : undefined;
+		},
+		// Recorded planning strategy of the active workstream (swaps the
+		// plan/plan-critique tuples under strategy 2; step-config.ts).
+		getPlanningStrategy: () => {
+			if (!activeWorkstream) return undefined;
+			return loadManifest(activeWorkstream)?.planningStrategy;
 		},
 		recordSessionDir: (sessionDir) => {
 			// Index the worker's session dir in the active workstream manifest so
