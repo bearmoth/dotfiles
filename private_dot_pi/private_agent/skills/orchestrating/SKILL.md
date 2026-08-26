@@ -65,7 +65,23 @@ intake → refine (HITL) → /workstream new (user-invoked) → research → pla
     a fresh planner (new plan artifact) rather than patching inline.
 12. **Done**: when the work is merged/settled, suggest the user run
     `/workstream done` (guarded cleanup) and start a fresh orchestrator
-    session.
+    session. Before that, remind the user of the judgment metrics only they
+    set: `/workstream metric first-pass <pass|fail>` (overrides the derived
+    value) and `/workstream metric trust-violations <n>` (worker self-report
+    vs. your independent diff inspection mismatches). You may report what you
+    observed, but you cannot record these — they are user-invoked only.
+
+## Metrics and the retained report
+
+With an active workstream, every dispatch settle mechanically records
+cost/tokens/duration, `## Questions` count, and the rework flag into the
+manifest (orchestrator-side; you never write it). First-pass verification
+derives from the first `verify-run` settle. On `/workstream done` the
+rendered report — metrics rollup, planning strategy, per-dispatch table,
+artifacts index — is shown before confirmation and retained under
+`~/.pi/agent/orchestrator-reports/` (it survives cleanup; that is what makes
+strategy A/B comparison across workstreams possible). Aim for ≤1 rework
+cycle per workstream.
 
 ## Artifacts (save_artifact)
 

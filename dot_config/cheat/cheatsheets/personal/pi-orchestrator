@@ -12,9 +12,12 @@ tags: [ personal, pi, orchestrate ]
 ## Workstream commands (user-invoked, Orchestrate mode only)
     /workstream new <slug>             # scaffold ~/.pi/agent/orchestrator-workstreams/<slug>/
                                        # prompts planning strategy (1 default · 2 swaps plan/critique tuples)
-    /workstream done [slug] [--force]  # print manifest → confirm → guarded cleanup
+    /workstream done [slug] [--force]  # print manifest + report preview → confirm → guarded cleanup
+                                       # retained report written FIRST → ~/.pi/agent/orchestrator-reports/<slug>-<date>.md
                                        # refuses dirty/unpushed worktrees unless --force
                                        # merged-branch deletion asked after manifest review
+    /workstream metric first-pass <pass|fail>     # judgment metrics: user-set only,
+    /workstream metric trust-violations <n>       # never model-inferred
 
 ## Artifacts (ADR 0008)
     research/plan/plan-critique dispatches get save_artifact (worker picks
@@ -23,6 +26,13 @@ tags: [ personal, pi, orchestrate ]
     place (revision = new dispatch) · workers list paths under ## Artifacts
     plan = MASTER plan: units + ordering/deps + invalidation notes;
     implement is dispatched per unit, brief cites the plan artifact path
+
+## Metrics + retained report (v2 pass 4)
+    per-dispatch cost/tokens/duration/questions/rework auto-recorded in the
+    manifest at settle (orchestrator-side); first-pass verification derives
+    from the FIRST verify-run settle unless set explicitly via /workstream
+    metric · rework target ≤1 · report (metrics + strategy + artifacts index)
+    survives cleanup in ~/.pi/agent/orchestrator-reports/ for strategy A/B
 
 ## Step → model tuple (strategy 1: strong-plans + cheap-critique)
     orchestrator   {gpt-5.6-luna, max}

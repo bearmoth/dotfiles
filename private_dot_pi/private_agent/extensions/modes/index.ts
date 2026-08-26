@@ -42,7 +42,9 @@ import {
 	recordDispatchMetric,
 	recordDispatchSession,
 	renderManifest,
+	renderReport,
 	setExplicitMetrics,
+	writeRetainedReport,
 } from "./workstream.ts";
 import { loadRepoMap, renderRepoMapAdvisory } from "./repo-map.ts";
 import { PLANNING_STRATEGIES } from "./step-config.ts";
@@ -381,10 +383,12 @@ export default function modesExtension(pi: ExtensionAPI): void {
 				const safetyNote = unsafe.length
 					? `\n\nUNSAFE (needs --force):\n${unsafe.map((v) => `  ${v.worktree.path}: ${v.reasons.join("; ")}`).join("\n")}`
 					: "";
-				// Step 2: explicit confirmation.
+				// Step 2: explicit confirmation — the rendered report (metrics,
+				// strategy, artifacts index) is shown alongside the manifest so the
+				// user sees what the retained report will capture before cleanup.
 				const ok = await ctx.ui.confirm(
 					`Close workstream "${slug}"?`,
-					`${renderManifest(m)}${safetyNote}\n\nThis removes the recorded session logs, worktrees${force ? " (FORCED — possible loss)" : ""}, and the artifact directory.`,
+					`${renderManifest(m)}\n\n── Retained report preview ──\n${renderReport(m)}${safetyNote}\n\nThe report is retained under ~/.pi/agent/orchestrator-reports/. This removes the recorded session logs, worktrees${force ? " (FORCED — possible loss)" : ""}, and the artifact directory.`,
 				);
 				if (!ok) {
 					ctx.ui.notify("Cleanup cancelled; manifest left in place.", "info");
@@ -395,10 +399,19 @@ export default function modesExtension(pi: ExtensionAPI): void {
 				if (m.worktrees.length > 0) {
 					deleteMergedBranches = await ctx.ui.confirm("Delete merged branches?", `Also delete branches that are already merged/pushed:\n${m.worktrees.map((w) => `  ${w.branch}`).join("\n")}`);
 				}
+				// Retained report: written BEFORE any deletion so a later cleanup
+				// failure still leaves the report (it lives outside the workstream dir).
+				let reportPath: string | undefined;
+				try {
+					reportPath = writeRetainedReport(m);
+				} catch (err) {
+					ctx.ui.notify(`Failed to write the retained report: ${err instanceof Error ? err.message : String(err)}. Cleanup aborted; manifest kept.`, "error");
+					return;
+				}
 				const res = cleanupWorkstream(m, { force, git, deleteMergedBranches });
 				if (!res.ok) {
 					const why = [...res.refusals.map((r) => `refused: ${r}`), ...res.errors.map((e) => `error: ${e}`)].join("\n");
-					ctx.ui.notify(`Cleanup incomplete; manifest kept.\n${why}${res.refusals.length ? "\n\nRe-run with: /workstream done " + slug + " --force to acknowledge possible loss." : ""}`, "warning");
+					ctx.ui.notify(`Cleanup incomplete; manifest kept (retained report: ${reportPath}).\n${why}${res.refusals.length ? "\n\nRe-run with: /workstream done " + slug + " --force to acknowledge possible loss." : ""}`, "warning");
 					return;
 				}
 				if (slug === activeWorkstream) {
@@ -406,7 +419,7 @@ export default function modesExtension(pi: ExtensionAPI): void {
 					pi.appendEntry("workstream-state", { slug: null });
 				}
 				ctx.ui.notify(
-					`Workstream "${slug}" closed.\nRemoved: ${res.removedWorktrees.length} worktrees, ${res.removedSessions.length} session logs${res.deletedBranches.length ? `, branches: ${res.deletedBranches.join(", ")}` : ""}.\nStart a fresh orchestrator session for the next workstream.`,
+					`Workstream "${slug}" closed.\nRemoved: ${res.removedWorktrees.length} worktrees, ${res.removedSessions.length} session logs${res.deletedBranches.length ? `, branches: ${res.deletedBranches.join(", ")}` : ""}.\nRetained report: ${reportPath}\nStart a fresh orchestrator session for the next workstream.`,
 					"info",
 				);
 				return;
