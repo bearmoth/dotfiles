@@ -23,6 +23,29 @@ export function isArtifactStep(step: string | undefined): step is "research" | "
 	return step === "research" || step === "plan" || step === "plan-critique";
 }
 
+/**
+ * Count real items under "## Questions" in a worker report (metrics: the
+ * v2 spec's brief-quality proxy). Mechanical only: list/numbered items, or a
+ * single bare prose line; "none"-style placeholders count as zero.
+ */
+export function countQuestions(finalMessage: string | null | undefined): number {
+	if (!finalMessage) return 0;
+	const m = /^##\s*Questions\s*$/im.exec(finalMessage);
+	if (!m) return 0;
+	const after = finalMessage.slice(m.index + m[0].length);
+	const next = after.search(/^##\s/m);
+	const body = next === -1 ? after : after.slice(0, next);
+	const lines = body
+		.split("\n")
+		.map((l) => l.trim())
+		.filter(Boolean);
+	const isNone = (s: string) => /^[-*\d.)\s]*\(?(none|n\/a|no questions)\.?\)?$/i.test(s);
+	const items = lines.filter((l) => /^([-*]|\d+[.)])\s/.test(l));
+	if (items.length > 0) return items.filter((l) => !isNone(l)).length;
+	// No list markers: a bare prose section counts as one question unless it's a placeholder.
+	return lines.length > 0 && !lines.every(isNone) ? 1 : 0;
+}
+
 /** "3m 12s" / "42s" duration formatting shared by dispatch renderers. */
 export function formatDuration(ms: number): string {
 	const s = Math.round(ms / 1000);

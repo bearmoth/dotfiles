@@ -39,8 +39,10 @@ import {
 	loadManifest,
 	realGitRunner,
 	recordArtifactSaves,
+	recordDispatchMetric,
 	recordDispatchSession,
 	renderManifest,
+	setExplicitMetrics,
 } from "./workstream.ts";
 import { loadRepoMap, renderRepoMapAdvisory } from "./repo-map.ts";
 import { PLANNING_STRATEGIES } from "./step-config.ts";
@@ -302,7 +304,7 @@ export default function modesExtension(pi: ExtensionAPI): void {
 	// control plane. Only the user runs these; the model has no tool path here.
 	// Registered handlers error outside Orchestrate mode.
 	pi.registerCommand("workstream", {
-		description: "Workstream lifecycle (Orchestrate only): /workstream new <slug> | done [slug] [--force]",
+		description: "Workstream lifecycle (Orchestrate only): /workstream new <slug> | done [slug] [--force] | metric first-pass <pass|fail> | metric trust-violations <n>",
 		handler: async (args, ctx) => {
 			if (!ctx.hasUI) return;
 			if (mode !== "orchestrate") {
@@ -325,6 +327,31 @@ export default function modesExtension(pi: ExtensionAPI): void {
 					activeWorkstream = slug;
 					pi.appendEntry("workstream-state", { slug });
 					ctx.ui.notify(`Workstream created:\n${renderManifest(m)}`, "info");
+				} catch (err) {
+					ctx.ui.notify(err instanceof Error ? err.message : String(err), "error");
+				}
+				return;
+			}
+			if (sub === "metric") {
+				// Judgment metrics are user-set only (never model-inferred): ADR 0007
+				// carve-out — the model has no tool path to these fields.
+				const slug = activeWorkstream;
+				if (!slug) {
+					ctx.ui.notify("No active workstream. Run /workstream new first.", "error");
+					return;
+				}
+				const kind = parts[1];
+				const val = parts[2];
+				try {
+					if (kind === "first-pass" && (val === "pass" || val === "fail")) {
+						setExplicitMetrics(slug, { firstPassVerified: val === "pass" });
+					} else if (kind === "trust-violations" && /^\d+$/.test(val ?? "")) {
+						setExplicitMetrics(slug, { trustViolationsCaught: Number(val) });
+					} else {
+						ctx.ui.notify("Usage: /workstream metric first-pass <pass|fail> | trust-violations <n>", "info");
+						return;
+					}
+					ctx.ui.notify(`Recorded ${kind} for workstream "${slug}".`, "info");
 				} catch (err) {
 					ctx.ui.notify(err instanceof Error ? err.message : String(err), "error");
 				}
@@ -384,7 +411,7 @@ export default function modesExtension(pi: ExtensionAPI): void {
 				);
 				return;
 			}
-			ctx.ui.notify("Usage: /workstream new <slug> | /workstream done [slug] [--force]", "info");
+			ctx.ui.notify("Usage: /workstream new <slug> | done [slug] [--force] | metric first-pass <pass|fail> | metric trust-violations <n>", "info");
 		},
 	});
 
@@ -690,6 +717,15 @@ export default function modesExtension(pi: ExtensionAPI): void {
 				recordArtifactSaves(activeWorkstream, seq, files);
 			} catch {
 				// never fail a settled dispatch over indexing
+			}
+		},
+		// v2 pass 4: mechanical per-dispatch metrics, same settle-time RMW path.
+		recordDispatchMetric: (metric) => {
+			if (!activeWorkstream) return;
+			try {
+				recordDispatchMetric(activeWorkstream, metric);
+			} catch {
+				// never fail a settled dispatch over metrics
 			}
 		},
 		// One line, one-shot per workstream, never automatic: plan approval is

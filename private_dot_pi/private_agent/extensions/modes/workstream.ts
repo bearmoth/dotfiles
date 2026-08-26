@@ -39,6 +39,37 @@ export interface ArtifactEntry {
 	savedAt: string; // ISO
 }
 
+/**
+ * Per-dispatch metrics, recorded orchestrator-side at settle (same RMW path
+ * as artifact recording; single-writer while dispatch is synchronous — see
+ * FUTURES "Manifest concurrency"). All fields are mechanical derivations
+ * from the settle; nothing here is model judgment.
+ */
+export interface DispatchMetric {
+	seq?: number; // artifact-dir seq when one was allocated
+	step?: string;
+	profile?: string;
+	status: string; // ok|error|timeout|killed
+	durationMs: number;
+	turns: number;
+	tokens: number;
+	cost: number;
+	questions: number; // ## Questions item count (brief-quality proxy)
+	rework: boolean;
+	settledAt?: string; // ISO, stamped on record
+}
+
+/**
+ * Workstream metrics block. `dispatches` is mechanical; the judgment fields
+ * (firstPassVerified, trustViolationsCaught) are set ONLY via explicit user
+ * invocation (/workstream metric) — never model-inferred silently.
+ */
+export interface WorkstreamMetrics {
+	dispatches: DispatchMetric[];
+	firstPassVerified?: boolean; // explicit override of the derived value
+	trustViolationsCaught?: number; // user/orchestrator judgment, explicit only
+}
+
 export interface Manifest {
 	slug: string;
 	createdAt: string; // ISO
@@ -47,6 +78,7 @@ export interface Manifest {
 	sessionDirs: string[]; // dispatch session dirs/files (removed on cleanup)
 	artifactDirs: ArtifactDirEntry[]; // per-dispatch dirs, seq order
 	artifacts: ArtifactEntry[]; // saved files (durable index; "current plan" = latest plan-step entry)
+	metrics?: WorkstreamMetrics; // per-workstream success metrics (v2 spec)
 	notes?: string;
 }
 
@@ -204,6 +236,61 @@ export function recordArtifactSaves(slug: string, seq: number, files: string[], 
 	saveManifest(m, opts);
 }
 
+/** Append a settled dispatch's mechanical metrics (orchestrator-side RMW). */
+export function recordDispatchMetric(slug: string, metric: DispatchMetric, opts?: WsOptions): void {
+	const m = loadManifest(slug, opts);
+	if (!m) throw new Error(`No manifest for workstream "${slug}".`);
+	m.metrics ??= { dispatches: [] };
+	m.metrics.dispatches.push({ ...metric, settledAt: metric.settledAt ?? new Date().toISOString() });
+	saveManifest(m, opts);
+}
+
+/**
+ * Set the judgment metric fields. User-invoked only (/workstream metric,
+ * ADR 0007 carve-out) — the model has no tool path here and these values are
+ * never inferred.
+ */
+export function setExplicitMetrics(
+	slug: string,
+	fields: { firstPassVerified?: boolean; trustViolationsCaught?: number },
+	opts?: WsOptions,
+): void {
+	const m = loadManifest(slug, opts);
+	if (!m) throw new Error(`No manifest for workstream "${slug}".`);
+	m.metrics ??= { dispatches: [] };
+	if (fields.firstPassVerified !== undefined) m.metrics.firstPassVerified = fields.firstPassVerified;
+	if (fields.trustViolationsCaught !== undefined) m.metrics.trustViolationsCaught = fields.trustViolationsCaught;
+	saveManifest(m, opts);
+}
+
+export interface MetricRollups {
+	dispatchCount: number;
+	totalCost: number;
+	totalTokens: number;
+	totalDurationMs: number;
+	reworkCycles: number;
+	questions: number;
+	/** Explicit value when set; else derived from the FIRST verify-run settle; else undefined. */
+	firstPassVerified?: boolean;
+	trustViolationsCaught?: number;
+}
+
+/** Pure aggregation over the manifest's recorded metrics. */
+export function computeMetricRollups(m: Manifest): MetricRollups {
+	const ds = m.metrics?.dispatches ?? [];
+	const firstVerify = ds.find((d) => d.step === "verify-run");
+	return {
+		dispatchCount: ds.length,
+		totalCost: Math.round(ds.reduce((a, d) => a + d.cost, 0) * 10000) / 10000,
+		totalTokens: ds.reduce((a, d) => a + d.tokens, 0),
+		totalDurationMs: ds.reduce((a, d) => a + d.durationMs, 0),
+		reworkCycles: ds.filter((d) => d.rework).length,
+		questions: ds.reduce((a, d) => a + d.questions, 0),
+		firstPassVerified: m.metrics?.firstPassVerified ?? (firstVerify ? firstVerify.status === "ok" : undefined),
+		trustViolationsCaught: m.metrics?.trustViolationsCaught,
+	};
+}
+
 /** Human-readable manifest printout (the /workstream done step-1 display). */
 export function renderManifest(m: Manifest, opts?: WsOptions): string {
 	const dir = wsDir(m.slug, opts);
@@ -221,6 +308,16 @@ export function renderManifest(m: Manifest, opts?: WsOptions): string {
 	for (const w of m.worktrees) lines.push(`  ${w.path}  [${w.branch}]`);
 	lines.push(`Sessions:   ${m.sessionDirs.length === 0 ? "(none)" : ""}`);
 	for (const s of m.sessionDirs) lines.push(`  ${s}`);
+	if (m.metrics?.dispatches.length || m.metrics?.firstPassVerified !== undefined || m.metrics?.trustViolationsCaught !== undefined) {
+		const r = computeMetricRollups(m);
+		lines.push(
+			"Metrics:",
+			`  dispatches: ${r.dispatchCount} · $${r.totalCost.toFixed(2)} · ${r.totalTokens} tokens · ${Math.round(r.totalDurationMs / 1000)}s`,
+			`  rework cycles: ${r.reworkCycles} (target ≤1) · questions raised: ${r.questions}`,
+			`  first-pass verification: ${r.firstPassVerified === undefined ? "(not recorded)" : r.firstPassVerified ? "pass" : "fail"}${m.metrics?.firstPassVerified !== undefined ? " [explicit]" : ""}`,
+			`  trust violations caught: ${r.trustViolationsCaught ?? "(not recorded — set via /workstream metric)"}`,
+		);
+	}
 	return lines.join("\n");
 }
 

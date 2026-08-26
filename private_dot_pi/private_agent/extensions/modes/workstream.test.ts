@@ -11,6 +11,9 @@ import * as os from "node:os";
 import * as path from "node:path";
 import {
 	allocateArtifactDir,
+	computeMetricRollups,
+	recordDispatchMetric,
+	setExplicitMetrics,
 	checkCleanupSafety,
 	cleanupWorkstream,
 	createWorkstream,
@@ -119,6 +122,73 @@ test("recordArtifactSaves appends artifact entries (orchestrator-side, at settle
 	assert.ok(m.artifacts[0].savedAt);
 	const out = renderManifest(m, { root });
 	assert.match(out, /plan\.md/);
+});
+
+test("recordDispatchMetric appends per-dispatch metrics (orchestrator-side RMW)", () => {
+	const root = tmpRoot();
+	createWorkstream("met", { root });
+	recordDispatchMetric("met", { step: "implement", profile: "implementor:tdd", status: "ok", durationMs: 1000, turns: 3, tokens: 500, cost: 0.12, questions: 1, rework: false }, { root });
+	recordDispatchMetric("met", { step: "implement", status: "ok", durationMs: 2000, turns: 2, tokens: 300, cost: 0.08, questions: 0, rework: true }, { root });
+	const m = loadManifest("met", { root })!;
+	assert.equal(m.metrics?.dispatches.length, 2);
+	assert.equal(m.metrics?.dispatches[0].cost, 0.12);
+	assert.ok(m.metrics?.dispatches[0].settledAt);
+});
+
+test("computeMetricRollups aggregates cost/tokens/duration, rework, questions", () => {
+	const root = tmpRoot();
+	createWorkstream("roll", { root });
+	recordDispatchMetric("roll", { step: "implement", status: "ok", durationMs: 1000, turns: 3, tokens: 500, cost: 0.1, questions: 2, rework: false }, { root });
+	recordDispatchMetric("roll", { step: "verify-run", status: "ok", durationMs: 500, turns: 1, tokens: 100, cost: 0.02, questions: 0, rework: false }, { root });
+	recordDispatchMetric("roll", { step: "implement", status: "ok", durationMs: 800, turns: 2, tokens: 200, cost: 0.05, questions: 1, rework: true }, { root });
+	const r = computeMetricRollups(loadManifest("roll", { root })!);
+	assert.equal(r.dispatchCount, 3);
+	assert.equal(r.totalCost, 0.17);
+	assert.equal(r.totalTokens, 800);
+	assert.equal(r.totalDurationMs, 2300);
+	assert.equal(r.reworkCycles, 1);
+	assert.equal(r.questions, 3);
+	// First verify-run settled ok and no explicit override → first-pass pass.
+	assert.equal(r.firstPassVerified, true);
+});
+
+test("first-pass verification derives from the FIRST verify-run settle", () => {
+	const root = tmpRoot();
+	createWorkstream("fp", { root });
+	recordDispatchMetric("fp", { step: "verify-run", status: "error", durationMs: 1, turns: 1, tokens: 1, cost: 0, questions: 0, rework: false }, { root });
+	recordDispatchMetric("fp", { step: "verify-run", status: "ok", durationMs: 1, turns: 1, tokens: 1, cost: 0, questions: 0, rework: false }, { root });
+	const r = computeMetricRollups(loadManifest("fp", { root })!);
+	assert.equal(r.firstPassVerified, false);
+});
+
+test("first-pass verification is undefined with no verify-run and no explicit value", () => {
+	const root = tmpRoot();
+	createWorkstream("nofp", { root });
+	const r = computeMetricRollups(loadManifest("nofp", { root })!);
+	assert.equal(r.firstPassVerified, undefined);
+});
+
+test("setExplicitMetrics records judgment fields; explicit first-pass wins over derived", () => {
+	const root = tmpRoot();
+	createWorkstream("jud", { root });
+	recordDispatchMetric("jud", { step: "verify-run", status: "ok", durationMs: 1, turns: 1, tokens: 1, cost: 0, questions: 0, rework: false }, { root });
+	setExplicitMetrics("jud", { firstPassVerified: false, trustViolationsCaught: 2 }, { root });
+	const m = loadManifest("jud", { root })!;
+	assert.equal(m.metrics?.firstPassVerified, false);
+	assert.equal(m.metrics?.trustViolationsCaught, 2);
+	const r = computeMetricRollups(m);
+	assert.equal(r.firstPassVerified, false);
+	assert.equal(r.trustViolationsCaught, 2);
+});
+
+test("renderManifest includes a metrics section when metrics exist", () => {
+	const root = tmpRoot();
+	createWorkstream("met-render", { root });
+	recordDispatchMetric("met-render", { step: "implement", status: "ok", durationMs: 60000, turns: 4, tokens: 1000, cost: 0.5, questions: 1, rework: false }, { root });
+	const out = renderManifest(loadManifest("met-render", { root })!, { root });
+	assert.match(out, /Metrics:/);
+	assert.match(out, /\$0\.50/);
+	assert.match(out, /rework cycles: 0/);
 });
 
 function fakeGit(state: Record<string, { dirty?: boolean; unpushed?: boolean; merged?: boolean; missing?: boolean }>): GitRunner {

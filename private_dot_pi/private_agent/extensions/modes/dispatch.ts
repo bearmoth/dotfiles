@@ -19,7 +19,7 @@ import { StringEnum } from "@earendil-works/pi-ai";
 import { Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { nerdFontEnabled, resolveWorktreeRoot } from "./fence.ts";
-import { formatDuration, isArtifactStep, reportPreview, titleFromBrief } from "./dispatch-helpers.ts";
+import { countQuestions, formatDuration, isArtifactStep, reportPreview, titleFromBrief } from "./dispatch-helpers.ts";
 import { logDispatchProgress, logDispatchSettle, logDispatchStart } from "./dispatch-log.ts";
 import { resolveTuple, STEP_CONFIG, type StepName } from "./step-config.ts";
 import { composeBrief, PROFILE_NAMES, PROFILES, type ProfileName } from "./profiles.ts";
@@ -171,6 +171,19 @@ export interface DispatchHooks {
 	allocateArtifactDir?: (step: string, title: string) => { seq: number; dir: string } | undefined;
 	/** Record files saved into the dispatch's artifact dir (orchestrator-side, at settle). */
 	recordArtifactSaves?: (seq: number, files: string[]) => void;
+	/** Record a settled dispatch's mechanical metrics in the workstream manifest (v2 pass 4). */
+	recordDispatchMetric?: (metric: {
+		seq?: number;
+		step?: string;
+		profile?: string;
+		status: string;
+		durationMs: number;
+		turns: number;
+		tokens: number;
+		cost: number;
+		questions: number;
+		rework: boolean;
+	}) => void;
 	/** A plan-step dispatch settled ok — the UI may suggest /compact (one line, never automatic). */
 	onPlanSettled?: () => void;
 }
@@ -522,6 +535,20 @@ export function registerDispatchTool(pi: ExtensionAPI, hooks: DispatchHooks): vo
 				}
 
 				const result: DispatchResult = { status, exitCode, finalMessage, sessionFile, durationMs, usage, routing, profile: params.profile, artifacts };
+				// Workstream metrics (v2 pass 4): mechanical rollup only, recorded via
+				// the same orchestrator-side settle-time RMW path as artifact saves.
+				hooks.recordDispatchMetric?.({
+					seq: artifactAlloc?.seq,
+					step: effectiveStep,
+					profile: params.profile,
+					status,
+					durationMs,
+					turns: usage.turns,
+					tokens: usage.tokens,
+					cost: usage.cost,
+					questions: countQuestions(finalMessage),
+					rework: !!params.rework,
+				});
 				if (status === "ok" && effectiveStep === "plan") hooks.onPlanSettled?.();
 				logDispatchSettle(toolCallId, result);
 				const routingLine =
