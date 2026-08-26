@@ -171,6 +171,8 @@ export interface DispatchHooks {
 	allocateArtifactDir?: (step: string, title: string) => { seq: number; dir: string } | undefined;
 	/** Record files saved into the dispatch's artifact dir (orchestrator-side, at settle). */
 	recordArtifactSaves?: (seq: number, files: string[]) => void;
+	/** A plan-step dispatch settled ok — the UI may suggest /compact (one line, never automatic). */
+	onPlanSettled?: () => void;
 }
 
 export function registerDispatchTool(pi: ExtensionAPI, hooks: DispatchHooks): void {
@@ -520,6 +522,7 @@ export function registerDispatchTool(pi: ExtensionAPI, hooks: DispatchHooks): vo
 				}
 
 				const result: DispatchResult = { status, exitCode, finalMessage, sessionFile, durationMs, usage, routing, profile: params.profile, artifacts };
+				if (status === "ok" && effectiveStep === "plan") hooks.onPlanSettled?.();
 				logDispatchSettle(toolCallId, result);
 				const routingLine =
 					routing.source === "role-default"
