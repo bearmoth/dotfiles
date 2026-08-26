@@ -403,7 +403,9 @@ export function registerDispatchTool(pi: ExtensionAPI, hooks: DispatchHooks): vo
 				const tools = artifactAlloc ? [...role.tools, "save_artifact"] : role.tools;
 				args.push("--tools", tools.join(","));
 			}
-			args.push(brief);
+			// End-of-options delimiter (pi 0.84.3+): a brief starting with "-"
+			// must not be parsed as a CLI option.
+			args.push("--", brief);
 
 			const timeoutMs = (params.timeout ?? DEFAULT_TIMEOUT_MS / 1000) * 1000;
 			const start = Date.now();
