@@ -666,10 +666,10 @@ export default function modesExtension(pi: ExtensionAPI): void {
 	// Keep the model informed of the active mode (short, per-turn).
 	pi.on("before_agent_start", async () => {
 		let content = MODE_INSTRUCTIONS[mode];
+		// Advisory repo map: guidance for repo/vault awareness in all modes, never a gate.
+		const advisory = renderRepoMapAdvisory(loadRepoMap(), { orchestrate: mode === "orchestrate" });
+		if (advisory) content += `\n${advisory}`;
 		if (mode === "orchestrate") {
-			// Advisory repo map (v2): guidance for repo/worktree decisions, never a gate.
-			const advisory = renderRepoMapAdvisory(loadRepoMap());
-			if (advisory) content += `\n${advisory}`;
 			if (activeWorkstream) content += `\nActive workstream: ${activeWorkstream} (artifacts under ~/.pi/agent/orchestrator-workstreams/${activeWorkstream}/).`;
 		}
 		return {
@@ -681,13 +681,19 @@ export default function modesExtension(pi: ExtensionAPI): void {
 		};
 	});
 
-	// Drop stale mode-context messages from other modes.
-	pi.on("context", async (event) => ({
-		messages: event.messages.filter((m) => {
-			const ct = (m as { customType?: string }).customType;
-			return !ct?.startsWith("mode-context-") || ct === `mode-context-${mode}`;
-		}),
-	}));
+	// Keep only the latest mode-context message: drop stale ones from other
+	// modes and earlier same-mode copies (before_agent_start injects a fresh
+	// one each turn; without this they accumulate turn over turn).
+	pi.on("context", async (event) => {
+		const lastIdx = event.messages.reduce((acc, m, i) => ((m as { customType?: string }).customType?.startsWith("mode-context-") ? i : acc), -1);
+		return {
+			messages: event.messages.filter((m, i) => {
+				const ct = (m as { customType?: string }).customType;
+				if (!ct?.startsWith("mode-context-")) return true;
+				return i === lastIdx && ct === `mode-context-${mode}`;
+			}),
+		};
+	});
 
 	registerSaveArtifactTool(pi, { isModeLocked: () => modeLocked });
 

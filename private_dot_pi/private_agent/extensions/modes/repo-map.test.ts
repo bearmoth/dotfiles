@@ -61,6 +61,16 @@ test("advisory rendering includes descriptions and hints, guidance not gate", ()
 	assert.match(out, /advisory/i);
 });
 
+test("advisory header varies by mode: orchestrate gets routing guidance, others neutral", () => {
+	const repos = loadRepoMap(writeMap({ repos: [{ name: "r", path: "/p", description: "d" }] }));
+	const orch = renderRepoMapAdvisory(repos, { orchestrate: true });
+	assert.match(orch, /use a worktree and ask/);
+	const plain = renderRepoMapAdvisory(repos);
+	assert.doesNotMatch(plain, /use a worktree and ask/);
+	assert.match(plain, /known repos\/vaults/);
+	assert.match(plain, /not a permission gate/);
+});
+
 test("advisory rendering of an empty map is empty", () => {
 	assert.equal(renderRepoMapAdvisory([]), "");
 });

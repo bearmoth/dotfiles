@@ -49,13 +49,17 @@ export function loadRepoMap(file?: string): RepoEntry[] {
 }
 
 /**
- * One short advisory block for the orchestrator's context. Guidance, not a
- * gate: unregistered repos remain available (conservative default: use a
- * worktree and ask the user).
+ * One short advisory block for the model's context (all modes). Guidance,
+ * not a gate: unregistered repos remain available. In orchestrate mode the
+ * header adds routing guidance (conservative default: use a worktree and
+ * ask the user); other modes get a neutral header.
  */
-export function renderRepoMapAdvisory(repos: RepoEntry[]): string {
+export function renderRepoMapAdvisory(repos: RepoEntry[], opts?: { orchestrate?: boolean }): string {
 	if (repos.length === 0) return "";
-	const lines = ["Advisory repo map (guidance, not a permission gate; unregistered repos: use a worktree and ask):"];
+	const header = opts?.orchestrate
+		? "Advisory repo map (guidance, not a permission gate; unregistered repos: use a worktree and ask):"
+		: "Advisory repo map (known repos/vaults on this machine; guidance, not a permission gate):";
+	const lines = [header];
 	for (const r of repos) {
 		const hints: string[] = [];
 		if (r.hints?.direct_to_main) hints.push("direct_to_main");
