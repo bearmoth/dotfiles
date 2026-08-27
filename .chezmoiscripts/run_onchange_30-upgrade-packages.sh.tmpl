@@ -24,8 +24,11 @@ failed=()
 
 {{ if eq .chezmoi.os "darwin" -}}
 echo "Upgrading managed Homebrew formulae..."
+echo "Skipping herdr in chezmoi; update it manually outside herdr."
 {{ range .packages.darwin.brews -}}
+{{ if ne . "herdr" -}}
 brew upgrade {{ . }} || failed+=("{{ . }}")
+{{ end -}}
 {{ end -}}
 {{ else if eq .chezmoi.os "linux" -}}
 echo "Upgrading managed dnf packages..."

@@ -3,8 +3,8 @@
 set -euo pipefail
 
 # Re-run weekly: {{ now.Year }}-W{{ div now.YearDay 7 }}
-command -v herdr >/dev/null 2>&1 || exit 0
-
-echo "Checking for Herdr updates..."
-herdr update
+# Intentionally a no-op: `herdr update` fails from inside an attached herdr
+# session, so running it during `chezmoi apply` makes apply flaky. Update
+# herdr manually outside herdr instead.
+exit 0
 {{ end -}}

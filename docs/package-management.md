@@ -31,9 +31,11 @@ trick as the herdr updater) and upgrades **only the managed packages** from
 - both platforms: the npm tier is not swept with `npm install` — pi updates
   itself and its extensions via `pi update --all`; see the pi section below.
 
-herdr on Linux is curl-installed (no package manager), so it keeps its own
-`run_onchange_30-upgrade-herdr.sh.tmpl` (`herdr update`, also weekly). On macOS
-herdr is a brew formula and rides the weekly `brew upgrade` above.
+herdr on Linux is curl-installed (no package manager), but it is **not**
+updated from `chezmoi apply`: `herdr update` must be run manually, outside an
+attached herdr session. On macOS herdr still installs as a brew formula, but
+it is explicitly skipped by the weekly `brew upgrade` sweep for the same
+reason.
 
 Each formula/package is upgraded individually and failures are collected,
 not fatal — one broken package (e.g. installed from a tap Homebrew no
