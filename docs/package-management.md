@@ -1,16 +1,23 @@
 # Package management & upgrades
 
+All run scripts live in `.chezmoiscripts/` and are named into layer bands
+(see `docs/scripts.md` for the convention): `00-migrate`, `10-system`,
+`20-install`, `30-upgrade`, `40-hook`.
+
 ## Install vs. upgrade
 
-Packages are declared in `.chezmoidata/packages.yaml` and **installed** by the
-`run_before_all-*` scripts on every `chezmoi apply`. But `brew install` /
-`dnf install` only add *missing* packages — they never upgrade what's already
-there. So without a separate step, an installed tool sits at whatever version
+Packages are declared in `.chezmoidata/packages.yaml` and **installed** by
+the `run_onchange_before_10-system-repos` / `run_onchange_before_20-install-packages`
+scripts — re-run only when their rendered content changes (a `packages.yaml`
+edit, a template change), not on every apply. Trade-off accepted with
+`run_onchange_`: a manually uninstalled package is not self-healed until the
+data changes. And `brew install` / `dnf install` only add *missing*
+packages — they never upgrade what's already there. So without a separate step, an installed tool sits at whatever version
 first landed (this is why herdr stayed on 0.7.3 until a manual `brew upgrade`).
 
 ## Weekly upgrade
 
-`run_onchange_upgrade-packages.sh.tmpl` fills that gap. It re-runs at most once
+`.chezmoiscripts/run_onchange_30-upgrade-packages.sh.tmpl` fills that gap. It re-runs at most once
 a week (via a date-stamped `now`-comment that only changes weekly, the same
 trick as the herdr updater) and upgrades **only the managed packages** from
 `packages.yaml`:
@@ -25,7 +32,7 @@ trick as the herdr updater) and upgrades **only the managed packages** from
   itself and its extensions via `pi update --all`; see the pi section below.
 
 herdr on Linux is curl-installed (no package manager), so it keeps its own
-`run_onchange_update-herdr.sh.tmpl` (`herdr update`, also weekly). On macOS
+`run_onchange_30-upgrade-herdr.sh.tmpl` (`herdr update`, also weekly). On macOS
 herdr is a brew formula and rides the weekly `brew upgrade` above.
 
 Each formula/package is upgraded individually and failures are collected,
@@ -60,7 +67,7 @@ Fedora settles it independently since metabox has no brew.
   ahead of brew on PATH, so a formula install is silently shadowed: brew's
   inventory claims a chezmoi that never runs, and it drifts from the live one
   in either direction. Found on 2026-08-19 with a v2.67.0 install-script
-  binary shadowing a v2.70.2 formula. `run_once_before_all-00-retire-brew-chezmoi`
+  binary shadowing a v2.70.2 formula. `run_once_before_00-migrate-retire-brew-chezmoi`
   removes the formula, but only when a `~/.local/bin/chezmoi` exists to fall
   back on.
 
@@ -71,7 +78,8 @@ its own updater (ADR-0012, superseding ADR-0011's per-platform routes):
 
 - **Install** (if missing): declared in `packages.yaml` under the top-level
   `npm` tier; mechanism in `.chezmoitemplates/npm-tools` +
-  `npm-tier-install`, included by `run_before_all-02` on both OS branches.
+  `npm-tier-install`, included by `run_onchange_before_20-install-packages`
+  on both OS branches.
   macOS pins wrappers to brew's node (`node` is a declared formula), Fedora
   to dnf's (`nodejs`/`npm` in `fedora.dnf`). Adding a global npm CLI is a
   one-line change to the top-level `npm` tier.
