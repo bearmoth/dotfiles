@@ -74,3 +74,56 @@ export function reportPreview(finalMessage: string | null, maxLines = 3, maxChar
 	if (out.length > maxChars) out = `${out.slice(0, maxChars - 1).trimEnd()}…`;
 	return out;
 }
+
+/**
+ * Parse `git worktree list --porcelain` output into {path, branch} entries.
+ * Detached/bare entries get branch "(detached)"/"(bare)".
+ */
+export function parseWorktreeList(porcelain: string): Array<{ path: string; branch: string }> {
+	const entries: Array<{ path: string; branch: string }> = [];
+	let current: { path?: string; branch?: string } = {};
+	const flush = () => {
+		if (current.path) entries.push({ path: current.path, branch: current.branch ?? "(detached)" });
+		current = {};
+	};
+	for (const line of porcelain.split("\n")) {
+		if (line.startsWith("worktree ")) {
+			flush();
+			current.path = line.slice("worktree ".length).trim();
+		} else if (line.startsWith("branch ")) {
+			current.branch = line.slice("branch ".length).trim().replace(/^refs\/heads\//, "");
+		} else if (line.trim() === "bare") {
+			current.branch = "(bare)";
+		} else if (line.trim() === "detached") {
+			current.branch ??= "(detached)";
+		}
+	}
+	flush();
+	return entries;
+}
+
+/**
+ * Worktrees present in `after` but not in `before` (by path): the ones a
+ * dispatch *created*. Observation-based — never trusts worker self-report.
+ */
+export function newWorktrees(
+	before: Array<{ path: string; branch: string }>,
+	after: Array<{ path: string; branch: string }>,
+): Array<{ path: string; branch: string }> {
+	const seen = new Set(before.map((w) => w.path));
+	return after.filter((w) => !seen.has(w.path));
+}
+
+/**
+ * Step for a dispatch that gave neither `step` nor a profile step.
+ * Roles without a cheap role-default model (implementor/reviewer) route to
+ * their natural pipeline step so they resolve via step-config tuples instead
+ * of silently inheriting the orchestrator's (possibly heavyweight) model.
+ * Roles with a role-default model (researcher) keep it: return undefined.
+ */
+export function defaultStepForRole(role: string, hasRoleDefaultModel: boolean): string | undefined {
+	if (hasRoleDefaultModel) return undefined;
+	if (role === "implementor") return "implement";
+	if (role === "reviewer") return "review";
+	return undefined;
+}

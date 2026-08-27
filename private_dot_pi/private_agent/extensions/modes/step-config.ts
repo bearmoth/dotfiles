@@ -41,7 +41,13 @@ export const STEP_CONFIG: Record<StepName, StepDef> = {
 	research: { default: LUNA_MAX },
 	plan: { default: { model: "claude-opus-5", effort: "xhigh" } },
 	"plan-critique": { default: LUNA_MAX },
-	implement: { default: LUNA_MAX },
+	implement: {
+		default: LUNA_MAX,
+		// Sanctioned cheap alternative for trivial mechanical units (worktree
+		// setup, clones, config bumps) — orchestrator picks explicitly with a
+		// reason; never a silent default.
+		allowed: [{ model: "github-copilot/claude-haiku-4.5", effort: "low" }],
+	},
 	"verify-run": { default: LUNA_MAX },
 	review: {
 		default: { model: "claude-fable-5", effort: "xhigh" },

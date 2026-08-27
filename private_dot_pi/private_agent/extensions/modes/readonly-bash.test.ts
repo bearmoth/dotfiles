@@ -114,3 +114,21 @@ test("reviewer gh pairs only with reviewerGh option", () => {
 	no("gh repo delete foo", { reviewerGh: true });
 	ro("gh pr view 123", { reviewerGh: true });
 });
+
+test("gh api: GET-only reads pass, mutations fail closed", () => {
+	ro("gh api repos/o/r/pulls/1/comments");
+	ro("gh api repos/o/r/pulls/1/comments -q '.[] | .body'");
+	ro("gh api -X GET repos/o/r/pulls/1/comments");
+	ro("gh api --method GET search/issues");
+	ro("gh api --method=GET search/issues");
+	ro("gh api --paginate repos/o/r/issues");
+	no("gh api -X POST repos/o/r/issues");
+	no("gh api --method DELETE repos/o/r");
+	no("gh api --method=PATCH repos/o/r");
+	no("gh api graphql -f query='mutation { x }'");
+	no("gh api repos/o/r/issues -f title=hi");
+	no("gh api repos/o/r/issues --field title=hi");
+	no("gh api repos/o/r/issues -F title=@file");
+	no("gh api repos/o/r/issues --raw-field body=x");
+	no("gh api --input payload.json repos/o/r/issues");
+});

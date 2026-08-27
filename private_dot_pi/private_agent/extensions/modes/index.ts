@@ -41,6 +41,7 @@ import {
 	recordArtifactSaves,
 	recordDispatchMetric,
 	recordDispatchSession,
+	recordWorktree,
 	renderManifest,
 	renderReport,
 	setExplicitMetrics,
@@ -722,6 +723,18 @@ export default function modesExtension(pi: ExtensionAPI): void {
 				recordDispatchSession(activeWorkstream, sessionDir);
 			} catch {
 				// manifest gone/unreadable — never fail a dispatch over indexing
+			}
+		},
+		// Created-worktree ledger (observation-based): index worktrees a
+		// dispatch created so /workstream done can clean them up.
+		recordWorktrees: (worktrees) => {
+			if (!activeWorkstream) return;
+			for (const wt of worktrees) {
+				try {
+					recordWorktree(activeWorkstream, wt);
+				} catch {
+					// manifest gone/unreadable — never fail a dispatch over indexing
+				}
 			}
 		},
 		// ADR 0008: per-dispatch artifact dir, allocated at spawn. No active

@@ -17,7 +17,15 @@ intake → refine (HITL) → /workstream new (user-invoked) → research → pla
 ```
 
 1. **Intake**: read whatever the prompt references yourself (files,
-   `gh issue view` — all read-only).
+   `gh issue view` — all read-only). GitHub scope-checks are fine one-shot
+   (`gh pr view/checks`, `gh pr diff --name-only`), but **PR diffs, comment
+   threads, and feedback synthesis are worker input, never orchestrator
+   context** — dispatch a `researcher` (step `research`) and consume its
+   report/artifact. Example: "read the feedback on PR 823" → dispatch a
+   researcher whose brief mandates reading all three feedback surfaces
+   (review summaries, PR conversation comments, and inline review threads
+   via GET-only `gh api`) and **clustering the comments into issue classes**
+   in its report/artifact.
 2. **Refine**: ask the user clarifying questions directly, in-conversation,
    before planning. Do not skip this for non-trivial work.
 3. **Workstream**: for a non-trivial body of work, ask the user to run
@@ -42,7 +50,10 @@ intake → refine (HITL) → /workstream new (user-invoked) → research → pla
    automatically.
 6. **Worktrees**: each reviewable unit that needs a branch gets its own
    worktree, created by a dispatched implementor with a setup brief. The
-   plan's unit decomposition decides the worktree count.
+   plan's unit decomposition decides the worktree count. Setup/mechanical
+   dispatches (clone, worktree add, config bumps) are trivial: pick the
+   step's sanctioned cheap alternative tuple explicitly (with a one-line
+   reason) — never burn a frontier model on `git clone`.
 7. **Implement**: dispatch implementor(s) sequentially, **one dispatch per
    plan unit** — each brief references the plan artifact's path plus the
    assigned unit. Never one "implement the plan" dispatch.
@@ -70,6 +81,24 @@ intake → refine (HITL) → /workstream new (user-invoked) → research → pla
     value) and `/workstream metric trust-violations <n>` (worker self-report
     vs. your independent diff inspection mismatches). You may report what you
     observed, but you cannot record these — they are user-invoked only.
+
+## Addressing PR feedback
+
+Addressing PR feedback is **always rework** — feedback is defects found
+post-implementation. The anti-churn flow (never comment→fix→push→repeat):
+
+1. **Read**: dispatch a researcher to gather all feedback surfaces (review
+   summaries, PR conversation comments, inline review threads via GET-only
+   `gh api`) and cluster comments into **issue classes**.
+2. **Plan units per class**, not per comment.
+3. **Implement**: one implementor dispatch per class with `rework: true`
+   (the template adds the class-search mandate: fix the whole CLASS across
+   the codebase, not just the flagged instances).
+4. **Validate + respond**: after all classes land, one final
+   reviewer-role dispatch independently verifies each thread's fix against
+   the diff, replies to every thread with its disposition, and resolves
+   only fully-verified threads. The implementor never replies or resolves
+   — the implementor is never the final validator.
 
 ## Metrics and the retained report
 
@@ -111,6 +140,8 @@ Roles (permissions, unchanged from v1):
 - `implementor` — edit permissions. Its definition of done includes
   deterministic QA: "tests and lint pass before you report".
 - `researcher` — read-only fact-finding; cheap model; good for fan-out.
+  Read-only `gh` includes GET-only `gh api` (inline PR review threads etc.);
+  any mutating `gh api` fails closed.
 - `reviewer` — read-only plus `gh pr review/comment` and `gh issue comment`.
 
 Prefer dispatching by **profile** (the `profile` param resolves role, step

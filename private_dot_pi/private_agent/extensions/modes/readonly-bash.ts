@@ -94,8 +94,34 @@ function checkSubcommandExtras(cmd: string, args: string[], opts: ClassifyOption
 		const pair = `${args[0]} ${args[1]}`;
 		if (readonlyPairs.has(pair)) return undefined;
 		if (opts.reviewerGh && REVIEWER_GH_PAIRS.has(pair)) return undefined;
+		if (args[0] === "api") return classifyGhApi(args.slice(1));
 		return no("`gh` subcommand not classified as read-only");
 	}
+	return undefined;
+}
+
+// `gh api` is read-only iff the request is a GET: fail closed on any flag
+// that sets a non-GET method or attaches a body/field (fields flip the
+// method to POST implicitly).
+function classifyGhApi(args: string[]): Verdict | undefined {
+	for (let i = 0; i < args.length; i++) {
+		const a = args[i];
+		if (a === "-X" || a === "--method") {
+			if (args[i + 1]?.toUpperCase() === "GET") {
+				i++;
+				continue;
+			}
+			return no("`gh api` with a non-GET method can mutate");
+		}
+		if (/^(-X|--method)=/.test(a)) {
+			if (a.split("=", 2)[1]?.toUpperCase() === "GET") continue;
+			return no("`gh api` with a non-GET method can mutate");
+		}
+		if (/^(-f|--raw-field|-F|--field|--input)(=|$)/.test(a)) {
+			return no("`gh api` with body/field flags sends a mutation (implies POST)");
+		}
+	}
+	return undefined;
 	return undefined;
 }
 

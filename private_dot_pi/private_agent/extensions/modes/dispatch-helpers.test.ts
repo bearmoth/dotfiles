@@ -5,7 +5,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { countQuestions } from "./dispatch-helpers.ts";
+import { countQuestions, defaultStepForRole, newWorktrees, parseWorktreeList } from "./dispatch-helpers.ts";
 
 test("countQuestions counts list items under ## Questions", () => {
 	const report = [
@@ -40,4 +40,44 @@ test("countQuestions counts numbered items and stops at the next section", () =>
 
 test("countQuestions counts a bare prose question line as one", () => {
 	assert.equal(countQuestions("## Questions\nShould we split this module?"), 1);
+});
+
+test("parseWorktreeList parses porcelain output", () => {
+	const out = [
+		"worktree /repos/app",
+		"HEAD abc123",
+		"branch refs/heads/main",
+		"",
+		"worktree /wt/o/app/feat-x",
+		"HEAD def456",
+		"branch refs/heads/feat/x",
+		"",
+		"worktree /wt/o/app/detached",
+		"HEAD 0123",
+		"detached",
+		"",
+	].join("\n");
+	assert.deepEqual(parseWorktreeList(out), [
+		{ path: "/repos/app", branch: "main" },
+		{ path: "/wt/o/app/feat-x", branch: "feat/x" },
+		{ path: "/wt/o/app/detached", branch: "(detached)" },
+	]);
+});
+
+test("newWorktrees diffs by path", () => {
+	const before = [{ path: "/repos/app", branch: "main" }];
+	const after = [
+		{ path: "/repos/app", branch: "main" },
+		{ path: "/wt/new", branch: "feat/y" },
+	];
+	assert.deepEqual(newWorktrees(before, after), [{ path: "/wt/new", branch: "feat/y" }]);
+	assert.deepEqual(newWorktrees(after, after), []);
+});
+
+test("defaultStepForRole routes bare roles to their natural step", () => {
+	assert.equal(defaultStepForRole("implementor", false), "implement");
+	assert.equal(defaultStepForRole("reviewer", false), "review");
+	// researcher has a cheap role-default model — keep it, no step routing
+	assert.equal(defaultStepForRole("researcher", true), undefined);
+	assert.equal(defaultStepForRole("unknown", false), undefined);
 });
