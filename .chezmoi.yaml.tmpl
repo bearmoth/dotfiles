@@ -3,8 +3,16 @@
 {{-   $osid = printf "%s-%s" .chezmoi.os .chezmoi.osRelease.id -}}
 {{- end -}}
 
-{{- $workHostnames := list "MacBook-Pro" -}}
-{{- $isWork := has .chezmoi.hostname $workHostnames -}}
+{{- /* Work machines are declared by machine id (ADR-0009), never hostname:
+       factory-default names like "MacBook-Pro" are non-unique and macOS
+       mutates hostnames on DHCP collisions. machine.id is prompted at init
+       and carried forward from the existing config on re-init. */ -}}
+{{- $workMachineIds := list "easygo-laptop" -}}
+{{- /* Prompt here (once) so a fresh init has the id before isWork is
+       computed; promptStringOnce reuses the existing config's value on
+       re-init. */ -}}
+{{- $machineId := promptStringOnce . "machine.id" "machine id (unique kebab-case slug for this machine, e.g. mbp-work, metabox)" -}}
+{{- $isWork := has $machineId $workMachineIds -}}
 
 {{- /* Machine-local engineering-os data (mounts, clone/worktree roots) is
        hand-maintained in this config file per machine (wayfinder #9).
@@ -17,12 +25,8 @@
 data:
   osid: {{ $osid | quote }}
   isWork: {{ $isWork }}
-  {{- /* Declared machine identity (ADR-0009): a human-chosen kebab-case
-         slug, prompted once at `chezmoi init` and carried forward on
-         re-inits. Never derived from hostname — factory defaults are
-         non-unique and macOS mutates hostnames on DHCP collisions. */}}
   machine:
-    id: {{ promptStringOnce . "machine.id" "machine id (unique kebab-case slug for this machine, e.g. mbp-work, metabox)" | quote }}
+    id: {{ $machineId | quote }}
 {{- if $eos }}
   eos: {{ toJson $eos }}
 {{- end }}
