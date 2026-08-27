@@ -39,16 +39,30 @@ CYCLE_ORDER when implementing).
   join the two: DispatchLog remains the live source; the manifest contributes
   grouping and per-dispatch artifact annotations.
 
+## Orchestrate: async dispatch (designed — ADR 0009)
+Design accepted: opt-in `background: true` on dispatch_task, pushed settle
+messages (steer + triggerTurn), `dispatch_wait`, in-process serial manifest
+write queue + write-temp+rename, per-repo dispatch serialization, cap 3.
+See [ADR 0009](./docs/adr/0009-async-background-dispatch.md). Deferred out
+of that pass:
+- `dispatch_status` pure-poll tool — only if pushed settles prove noisy.
+- Per-entry manifest append log — only if multi-process orchestration
+  (parallel workstreams in separate pi processes) ever lands.
+- Auto-rework-loop with max-iterations (still gated by ADR 0004 doctrine).
+- Interactive workers via herdr workspaces (refiner case; worker lifetime
+  across feedback cycles remains the open question).
+- Worker counts / per-role states in the footer beyond simple in-flight
+  counts; pinned-unfocused ambient sidebar.
+- Status: designed, awaiting implementation.
+
 ## Orchestrate: deferred to the async pass
-- Async dispatch: task ids, status tool, parallel workers, worker counts
-  and per-role states in the footer, auto-rework-loop with max-iterations.
-- Manifest concurrency: all manifest writes are orchestrator-side
-  read-modify-writes of one JSON file (workstream.ts) — safe while dispatch
-  is synchronous, a lost-update/corruption hazard once parallel dispatches
-  settle concurrently. Needs at least write-temp+rename plus serialization
-  (or per-entry append log) before async lands. Workers deliberately have
-  no manifest hand (save_artifact writes files only), so the fix is
-  orchestrator-local.
+- Async dispatch: designed — see ADR 0009 and the entry above. Original
+  scope note kept for history: task ids, status tool, parallel workers,
+  worker counts and per-role states in the footer, auto-rework-loop with
+  max-iterations.
+- Manifest concurrency: resolved by ADR 0009 (in-process serial write queue
+  + write-temp+rename); the per-entry append log remains the escalation
+  path for multi-process orchestration only.
 - Interactive workers via herdr workspaces (refiner is the motivating
   case; herdr's blocked-state plumbing already exists). Worker lifetime
   across feedback cycles is the open question.

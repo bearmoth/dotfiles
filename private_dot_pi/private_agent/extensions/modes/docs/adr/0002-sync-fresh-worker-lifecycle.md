@@ -11,4 +11,6 @@ gated Orchestrate on the still-undesigned subagent-dispatch work. Fresh
 workers are also more reproducible: everything the worker knows is in the
 brief.
 
-Revisit trigger: the async dispatch design pass (see FUTURES.md).
+Revisit trigger: the async dispatch design pass — now designed, see
+[ADR 0009](./0009-async-background-dispatch.md). Sync remains the default
+lifecycle; background dispatch is opt-in.
