@@ -1,7 +1,7 @@
-[[plugin.deps]]
-use = "yazi-rs/plugins:zoxide"
-rev = "1db18bb"
-hash = "99aa06d3014798d86001c324468d497f"
+# zoxide is deliberately absent: it's a yazi builtin (like fzf), and
+# "yazi-rs/plugins:zoxide" never existed in that monorepo — newer `ya pkg`
+# fails hard trying to deploy it. keymap.toml's `plugin zoxide` uses the
+# builtin.
 
 [[flavor.deps]]
 use = "yazi-rs/flavors:catppuccin-mocha"
