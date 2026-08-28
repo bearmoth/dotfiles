@@ -26,12 +26,19 @@ import sys
 DESIRED = {
     "defaultThinkingLevel": "high",
     "nerdFont": True,
-    "tuiMode": "fullscreen"
+    "tuiMode": "fullscreen",
+    "skills": ["~/.claude/skills"]
 }
 
 
 def merge(target, desired):
-    """Recursive so a nested DESIRED entry can't clobber sibling keys pi owns."""
+    """Recursive so nested DESIRED entries don't clobber sibling keys pi owns.
+
+    List-valued DESIRED entries are additive: keep the managed items first, then
+    preserve any extra user-added items after them. This is important for
+    resource-path settings like `skills`, where Phil may add more sources in the
+    TUI without wanting chezmoi to erase them on the next apply.
+    """
     changed = False
     for key, value in desired.items():
         if isinstance(value, dict):
@@ -39,6 +46,14 @@ def merge(target, desired):
                 target[key] = {}
                 changed = True
             if merge(target[key], value):
+                changed = True
+        elif isinstance(value, list):
+            existing = target.get(key)
+            merged = list(value)
+            if isinstance(existing, list):
+                merged.extend(item for item in existing if item not in value)
+            if existing != merged:
+                target[key] = merged
                 changed = True
         elif target.get(key) != value:
             target[key] = value

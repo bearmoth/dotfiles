@@ -7,16 +7,20 @@ description: Provision a git worktree for any piece of work in any repo — incl
 
 Provisioning is **plain git** (ADR-0003); herdr only observes. Machine
 conventions come from `eos-resolve mounts`: clone root and worktree root.
-Layout is universal: clones at `<clone-root>/<owner>/<repo>`, worktrees at
-`<worktree-root>/<owner>/<repo>/<slug>`. Context derives from the owner
-segment via ownership patterns, never from directory names.
+Worktree layout is universal: `<worktree-root>/<owner>/<repo>/<slug>`.
+Clone layout is per-machine: use the repo's canonical path when one is known
+(e.g. from the repo map); otherwise default new clones to
+`<clone-root>/<owner>/<repo>`. Context derives from the owner segment via
+ownership patterns, never from directory names.
 
 ## Provision
 
-1. **Locate the clone.** Expected at `<clone-root>/<owner>/<repo>`; existing
-   strays elsewhere under a machine root are legal (discovery-only). If no
-   clone exists anywhere on the machine, **auto-clone to the canonical
-   spot** — never fail with "clone it yourself", never guess a location.
+1. **Locate the clone.** Expected at the repo's canonical path for this
+   machine (prefer a repo-map entry when present; otherwise use
+   `<clone-root>/<owner>/<repo>`). Existing strays elsewhere under a machine
+   root are legal (discovery-only). If no clone exists anywhere on the
+   machine, **auto-clone to that canonical spot** — never fail with "clone it
+   yourself", never guess a location.
 2. **Branch name embeds the ticket ref** when one exists: `ABC-123-desc` /
    `dotfiles-13-desc` (a repo's own convention wins where one exists). Slug =
    branch with `/` → `-`. Ticket↔worktree mapping is derived by parsing,

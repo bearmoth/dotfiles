@@ -50,9 +50,10 @@ ensure_repo git@github.com:bearmoth/notes-journal.git "$HOME/Documents/Journal"
 ensure_repo git@github.com:bearmoth/notes-tech.git "$HOME/Documents/Tech Notes"
 
 {{ if not .isWork -}}
-# Reference-only repos, canonical clone layout: <clone-root>/<owner>/<repo>.
-# Personal machines only: symbiosis is personal reference material, not work.
-ensure_repo git@github.com:bearmoth/symbiosis.git "$HOME/Dev/bearmoth/symbiosis"
+# Personal standing repos. Worktrees may stay owner-scoped, but these main
+# clones live flat under ~/Dev.
+ensure_repo git@github.com:bearmoth/symbiosis.git "$HOME/Dev/symbiosis"
+ensure_repo git@github.com:bearmoth/casino.git "$HOME/Dev/casino"
 {{ end -}}
 
 exit "$ANOMALY"

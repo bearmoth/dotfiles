@@ -28,8 +28,11 @@ list would be deleted the first time it was changed in the TUI. So
 the live file, pass every other key through untouched — and emits stdin
 byte-for-byte when already converged, so formatting can't cause diff churn.
 
-`DESIRED` currently holds one key, `defaultThinkingLevel: high`; the script is
-mostly there as the extension point for the next one. Deliberately excluded:
+`DESIRED` currently holds four cross-machine preferences:
+`defaultThinkingLevel: high`, `nerdFont: true`, `tuiMode: "fullscreen"`, and
+`skills: ["~/.claude/skills"]` so pi imports the user-level Claude Code skill
+library (including commands like `grill-me`). The script is still the
+extension point for future keys. Deliberately excluded:
 
 - **`defaultProvider` / `defaultModel`** — `/model` writes the pair together,
   so pinning one and not the other can leave an invalid provider+model

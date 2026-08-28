@@ -86,7 +86,7 @@ An ephemeral working copy provisioned from a repo for one piece of work. Never r
 
 ### Mount
 
-The presence of a context on a machine, declared in that machine's local chezmoi data. A mount declares the context's local facts: `vaults` (role → local path; an undeclared vault is not present on this machine) and `roots` (directory prefixes serving as both path rules and clone-discovery roots). Machines also declare one machine-level **primary clone root** (where new clones land) and one machine-level **worktree root**; beneath both, the layout is always `<owner>/<repo>` — context is derived from the owner segment via ownership patterns, never from a directory name. Other roots persist as discovery-only: existing clones stay legal where they are and are never migrated by convention alone. Contrast with: *context* (what is mounted, machine-independent).
+The presence of a context on a machine, declared in that machine's local chezmoi data. A mount declares the context's local facts: `vaults` (role → local path; an undeclared vault is not present on this machine) and `roots` (directory prefixes serving as both path rules and clone-discovery roots). Machines also declare one machine-level **primary clone root** (the fallback landing zone for new unregistered clones) and one machine-level **worktree root**; worktree layout is always `<owner>/<repo>`, while a standing repo's main clone may instead live at an explicit canonical path. Context is derived from repo ownership patterns, never from a directory name. Other roots persist as discovery-only: existing clones stay legal where they are and are never migrated by convention alone. Contrast with: *context* (what is mounted, machine-independent).
 
 ### Root layer
 
