@@ -36,6 +36,9 @@
 [commit]
 	gpgsign = true
 
+[init]
+	defaultBranch = main
+
 {{- if eq .osid "darwin" }}
 [gpg "ssh"]
 	allowedSignersFile = {{ .chezmoi.homeDir }}/.ssh/allowed_signers
