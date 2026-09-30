@@ -38,13 +38,23 @@ window-show-tab-bar = never
 # `command` applies to every surface including the quick terminal below, which
 # would attach the drop-down to the same herdr session and mirror the main
 # window instead of giving a plain shell. There is no per-surface-type override.
-# lookPath bakes the absolute path at apply time because initial-command
-# replaces the login shell, and a GUI-launched Ghostty inherits launchd's PATH
-# with no Homebrew prefix (`launchctl getenv PATH` is empty), so a bare `herdr`
-# would resolve only when Ghostty was started from a terminal. On a machine
-# without herdr yet this expands to empty, i.e. the default shell.
-initial-command = {{ lookPath "herdr" }}
-
+#
+# Via the login shell, not bare `herdr`: initial-command *replaces* the login
+# shell, and a GUI-launched Ghostty inherits launchd's PATH with no Homebrew or
+# ~/.local/bin (`launchctl getenv PATH` is empty). On macOS Ghostty runs this
+# as `login -flp $USER /bin/bash --noprofile --norc -c "exec -l <this>"`, so
+# nothing rebuilds PATH before herdr starts, and the herdr *server* the first
+# client spawns keeps that environment for life, handing it to every
+# `[[keys.command]]` it runs through `/bin/sh -c`. Bare `lazygit-popup` /
+# `cheat-popup` were then "command not found" (exit 127) and the popup
+# flashed open and shut (seen 2026-09-22, herdr 0.8.2; interactive panes were
+# fine only because shell_mode=auto gives them a login fish). `fish -l -c
+# "exec herdr"` sources the login PATH first, then replaces itself with herdr.
+# lookPath still bakes absolute paths at apply time for the same reason; on a
+# machine without herdr yet the line is omitted, i.e. the default shell.
+{{ with lookPath "herdr" -}}
+initial-command = {{ lookPath "fish" | default "/bin/sh" }} -l -c "exec {{ . }}"
+{{ end }}
 # Splits — mirror LazyVim mnemonics (<leader>- and <leader>|)
 ## Hyper = Caps Lock (tap=Escape, hold=Ctrl+Alt+Super)
 ## Split creation and pane navigation/close are unbound here so
