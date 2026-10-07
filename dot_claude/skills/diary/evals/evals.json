@@ -1,0 +1,92 @@
+{
+  "skill_name": "diary",
+  "evals": [
+    {
+      "id": 1,
+      "name": "new-entry-today",
+      "prompt": "/diary \u2014 draft today's diary entry. Today is 2026-10-05 (Monday, Melbourne). There is no diary/2026-10-05.md yet. Present the proposed entry and wait for my go; I'm not available to answer, so stop at the draft and save it as draft.md plus a short sources.md listing what you consulted and what you verified.",
+      "expected_output": "A complete proposed diary/2026-10-05.md in Phil's voice with all four sections, open tasks carried from 2026-10-02, Work Log lines grounded in Slack/Jira/GitHub/session evidence with verified PR and ticket links, placeholders where only Phil can answer, and no write or commit to the vault.",
+      "files": [],
+      "expectations": [
+        "No file under the Journal vault's diary/ was created, modified, or committed by the run (git status/log of ~/Documents/Journal unchanged for diary/; sources.md does not claim a write)",
+        "Every PR number (#NNNNN) that appears in draft.md is reported in sources.md as verified against gh (or draft.md contains no PR numbers)",
+        "Every Jira key (EN-NNNN) that appears in draft.md is reported in sources.md as verified against Jira (or draft.md contains no Jira keys)",
+        "Every [[Wikilink|alias]] person/note link in draft.md either resolves to an existing note (<Wikilink>.md in the Journal or Engagement PKB) or reuses a name already wikilinked that way in earlier diary entries (Phil links people by full name before a note exists)",
+        "draft.md uses the five sections in order: ## Summary, ## Tasks, ## Work Log, ## Meetings, ## Notes",
+        "The Summary is two to four plain sentences a reader who wasn't there could follow, naming what moved (with its state) and what is blocked; it contains no session-local codes",
+        "The Work Log is grouped under ### topic headings (3-8 on a busy day; a quiet day under ~8 bullets may stay flat), bullets are chronological within each heading, sub-bullets go at most one level deep, and at least 90% of bullets are at most ~300 rendered characters",
+        "No session-local jargon anywhere in the entry: no S1..S7 / P1 / E1 codes, no 'wave', 'slice', 'phase N' used as names for work items",
+        "Every Work Log or Tasks line about code states how far it got using the state words (drafted / pushed / PR open / in review / approved / merged / deployed / released); none says 'done' for code",
+        "The Meetings section opens with one line per calendar meeting attended (time + title), or says the calendar was unavailable / on leave; declined and OOO events are not listed",
+        "Tasks are things Phil committed to or owes, at most ~8 top-level lines (related tasks may be nested one level under a parent), phrased with absolute dates; no retro-fitted ticked tasks that were never open, and ongoing practices (e.g. the A.S.K. framing) are not listed as tasks",
+        "Work Log lines are in chronological order with approximate times where known",
+        "draft.md frontmatter is exactly tags: [type/diary] and date: 2026-10-05",
+        "The four undated open tasks from diary/2026-10-02.md that are still actionable (RFC/tickets, LaunchDarkly flag, fill Adam in) are carried, while 'Raise ticket refinement at retro (Fri 2026-10-09)' is NOT listed (due later) and 'Try the A.S.K. framing' is NOT listed as a task",
+        "sources.md shows the local day was resolved with the AEDT boundary (window start 2026-10-04T13:00Z / 13:00Z / 'AEDT' mentioned), not midnight UTC",
+        "Items only Phil can supply (e.g. content of an untranscribed huddle, his opinion) are marked with an explicit placeholder like [Phil: ...] rather than invented",
+        "A 'Needs my attention' list is present under Summary with inbound items waiting on Phil (who and where), e.g. unanswered DMs/threads or review requests",
+        "Any agent run (e.g. the transfer-bonus handoff) is summarised in at most three flat bullets that link the session capture or name the PRs by what they do, not a transcript of the run",
+        "No sentiment or judgement words appear in new text unless inside Phil's own quoted words (no 'mess', 'painful', 'finally', 'great' etc. added by the agent)",
+        "No colleague is given a gendered pronoun unless the vault or Phil's own words supply it (name or they/them otherwise)"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "update-existing-entry-friday",
+      "prompt": "update my diary for last friday \u2014 the entry exists but I think it stops around 16:40 and the evening's autonomous handoff run isn't in it. Today is 2026-10-05. Present the changes and wait for my go; I'm not available to answer, so stop at the draft and save it as draft.md plus a short sources.md listing what you consulted and what you verified.",
+      "expected_output": "Resolves 'last friday' to 2026-10-02, reads the existing entry and its last commit time, finds post-16:40 evidence (PRs, Jira tickets created, design/ADR work by the handoff run), presents an ADD / TICK / CHANGE list that leaves existing lines intact except for stated factual corrections, verifies every PR number and ticket key against gh/Jira, and does not write or commit.",
+      "files": [],
+      "expectations": [
+        "No file under the Journal vault's diary/ was created, modified, or committed by the run (git status/log of ~/Documents/Journal unchanged for diary/; sources.md does not claim a write)",
+        "Every PR number (#NNNNN) that appears in draft.md is reported in sources.md as verified against gh (or draft.md contains no PR numbers)",
+        "Every Jira key (EN-NNNN) that appears in draft.md is reported in sources.md as verified against Jira (or draft.md contains no Jira keys)",
+        "Every [[Wikilink|alias]] person/note link in draft.md either resolves to an existing note (<Wikilink>.md in the Journal or Engagement PKB) or reuses a name already wikilinked that way in earlier diary entries (Phil links people by full name before a note exists)",
+        "draft.md uses the five sections in order: ## Summary, ## Tasks, ## Work Log, ## Meetings, ## Notes",
+        "The Summary is two to four plain sentences a reader who wasn't there could follow, naming what moved (with its state) and what is blocked; it contains no session-local codes",
+        "The Work Log is grouped under ### topic headings (3-8 on a busy day; a quiet day under ~8 bullets may stay flat), bullets are chronological within each heading, sub-bullets go at most one level deep, and at least 90% of bullets are at most ~300 rendered characters",
+        "No session-local jargon anywhere in the entry: no S1..S7 / P1 / E1 codes, no 'wave', 'slice', 'phase N' used as names for work items",
+        "Every Work Log or Tasks line about code states how far it got using the state words (drafted / pushed / PR open / in review / approved / merged / deployed / released); none says 'done' for code",
+        "The Meetings section opens with one line per calendar meeting attended (time + title), or says the calendar was unavailable / on leave; declined and OOO events are not listed",
+        "Tasks are things Phil committed to or owes, at most ~8 top-level lines (related tasks may be nested one level under a parent), phrased with absolute dates; no retro-fitted ticked tasks that were never open, and ongoing practices (e.g. the A.S.K. framing) are not listed as tasks",
+        "Work Log lines are in chronological order with approximate times where known",
+        "The run resolved 'last friday' to 2026-10-02 (stated in draft.md or sources.md)",
+        "sources.md records the existing entry's last commit time (2026-10-02 16:42 +1000) as the incorporated-up-to marker",
+        "draft.md presents the resulting entry in full as it would read, followed by a unified diff (or equivalent exact line-level view) of existing -> proposed, and one line per change to Phil's wording with its reason; it does NOT lead with an ADD/TICK/CHANGE change list",
+        "Every non-empty line of the existing diary/2026-10-02.md appears verbatim in the resulting entry, except lines explicitly listed as changed with a stated factual reason (the #35060/#40028 PR swap is a legitimate correction)",
+        "The evening handoff run's output is covered in at most a few flat bullets plus a Notes status block: Jira tickets created (EN-5045..5063 range or equivalent), the ADR, and the PRs opened, each PR named by what it does",
+        "Any TICK of an existing open task cites the evidence beside it",
+        "No sentiment or judgement words appear in new text unless inside Phil's own quoted words (no 'mess', 'painful', 'finally', 'great' etc. added by the agent)",
+        "No colleague is given a gendered pronoun unless the vault or Phil's own words supply it (name or they/them otherwise)"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "quiet-leave-day",
+      "prompt": "can you do the diary for 2026-10-01? i was on leave that day so there probably isn't much. Present it and wait for my go; I'm not available to answer, so stop at the draft and save it as draft.md plus a short sources.md listing what you consulted and what you verified.",
+      "expected_output": "A short honest entry for 2026-10-01 (AEST window, 14:00Z boundary) that reports only what the evidence supports (e.g. nothing, or a few Slack mentions / background agent activity), carries open tasks from 2026-09-30, does not pad, and does not write or commit.",
+      "files": [],
+      "expectations": [
+        "No file under the Journal vault's diary/ was created, modified, or committed by the run (git status/log of ~/Documents/Journal unchanged for diary/; sources.md does not claim a write)",
+        "Every PR number (#NNNNN) that appears in draft.md is reported in sources.md as verified against gh (or draft.md contains no PR numbers)",
+        "Every Jira key (EN-NNNN) that appears in draft.md is reported in sources.md as verified against Jira (or draft.md contains no Jira keys)",
+        "Every [[Wikilink|alias]] person/note link in draft.md either resolves to an existing note (<Wikilink>.md in the Journal or Engagement PKB) or reuses a name already wikilinked that way in earlier diary entries (Phil links people by full name before a note exists)",
+        "draft.md uses the five sections in order: ## Summary, ## Tasks, ## Work Log, ## Meetings, ## Notes",
+        "The Summary is two to four plain sentences a reader who wasn't there could follow, naming what moved (with its state) and what is blocked; it contains no session-local codes",
+        "The Work Log is grouped under ### topic headings (3-8 on a busy day; a quiet day under ~8 bullets may stay flat), bullets are chronological within each heading, sub-bullets go at most one level deep, and at least 90% of bullets are at most ~300 rendered characters",
+        "No session-local jargon anywhere in the entry: no S1..S7 / P1 / E1 codes, no 'wave', 'slice', 'phase N' used as names for work items",
+        "Every Work Log or Tasks line about code states how far it got using the state words (drafted / pushed / PR open / in review / approved / merged / deployed / released); none says 'done' for code",
+        "The Meetings section opens with one line per calendar meeting attended (time + title), or says the calendar was unavailable / on leave; declined and OOO events are not listed",
+        "Tasks are things Phil committed to or owes, at most ~8 top-level lines (related tasks may be nested one level under a parent), phrased with absolute dates; no retro-fitted ticked tasks that were never open, and ongoing practices (e.g. the A.S.K. framing) are not listed as tasks",
+        "Work Log lines are in chronological order with approximate times where known",
+        "draft.md frontmatter is exactly tags: [type/diary] and date: 2026-10-01",
+        "sources.md shows the local day was resolved with the AEST boundary (window start 2026-09-30T14:00Z / 14:00Z / 'AEST' mentioned), not midnight UTC",
+        "The entry acknowledges Phil was on leave and reports only what the evidence supports; the Work Log has at most 6 bullets and the Meetings section says on leave / no meetings",
+        "Tasks already ticked in diary/2026-09-30.md are not re-listed as open tasks",
+        "A 'Needs my attention' (or equivalent 'missed while on leave') list surfaces the things that happened while he was out that await him, with who and where",
+        "No personal-life detail is inferred from colleagues' messages (e.g. a birthday), even as a placeholder",
+        "No sentiment or judgement words appear in new text unless inside Phil's own quoted words (no 'mess', 'painful', 'finally', 'great' etc. added by the agent)",
+        "No colleague is given a gendered pronoun unless the vault or Phil's own words supply it (name or they/them otherwise)"
+      ]
+    }
+  ]
+}
