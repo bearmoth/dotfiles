@@ -27,6 +27,7 @@ import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-a
 import { readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { registerDispatchTool } from "./dispatch.ts";
 import { registerSaveArtifactTool } from "./save-artifact-tool.ts";
 import { rebuildDispatchLog } from "./dispatch-log.ts";
@@ -142,6 +143,39 @@ export default function modesExtension(pi: ExtensionAPI): void {
 	// Workstreams already given the one-line post-plan /compact suggestion
 	// (one-shot per workstream; rework-loop plan dispatches stay quiet).
 	const compactNudged = new Set<string>();
+
+	// Narrow Paperclip read contract v1. No generic tool/SSH/just exemption.
+	// These are application controls between trusted extensions, not an OS sandbox.
+	const policyPath = fileURLToPath(import.meta.url);
+	let inspectionReady = false;
+	let removeInspectionPolicy: (() => void) | undefined;
+	function paperclipReadAllowed(input: unknown, clientPath: unknown): boolean {
+		if (!inspectionReady || !(MODE_ORDER as string[]).includes(mode) || typeof clientPath !== "string") return false;
+		if (!clientPath.replaceAll("\\", "/").endsWith("/pi/extensions/paperclip-ops/index.ts")) return false;
+		if (!input || typeof input !== "object" || Array.isArray(input)) return false;
+		const args = input as Record<string, unknown>;
+		if (!Object.keys(args).every((key) => ["view", "company", "limit", "sort"].includes(key)) || args.view !== "pending") return false;
+		if (args.company !== undefined && (typeof args.company !== "string" || !args.company.trim() || args.company.length > 256 || /[\u0000-\u001f\u007f]/.test(args.company))) return false;
+		if (args.limit !== undefined && (!Number.isInteger(args.limit) || Number(args.limit) < 1 || Number(args.limit) > 10)) return false;
+		if (args.sort !== undefined && args.sort !== "decide" && args.sort !== "activity") return false;
+		const commands = pi.getCommands().filter((c) => /^pc(:|$)/.test(c.name));
+		const tools = pi.getAllTools().filter((t) => t.name === "paperclip_inspect");
+		return commands.length === 1 && commands[0].source === "extension" && commands[0].sourceInfo.path === clientPath &&
+			tools.length === 1 && tools[0].sourceInfo.path === clientPath && pi.getActiveTools().includes("paperclip_inspect");
+	}
+	function bindInspectionPolicy(): void {
+		removeInspectionPolicy?.();
+		removeInspectionPolicy = pi.events.on("paperclip:inspect-policy:v1", (raw: unknown) => {
+			if (!raw || typeof raw !== "object") return;
+			const request = raw as { version?: unknown; capability?: unknown; clientPath?: unknown; args?: unknown; reply?: unknown };
+			if (typeof request.reply !== "function") return;
+			let allowed = false;
+			try {
+				allowed = request.version === 1 && request.capability === "paperclip.pending.read.v1" && paperclipReadAllowed(request.args, request.clientPath);
+			} catch { /* Invalid metadata or lifecycle state denies inspection. */ }
+			request.reply(Object.freeze({ version: 1, capability: "paperclip.pending.read.v1", providerPath: policyPath, allowed, mode, locked: modeLocked }));
+		});
+	}
 
 	// Guardrail self-protection: files the model must not modify without approval, in any mode.
 	const home = process.env.HOME ?? "";
@@ -450,6 +484,9 @@ export default function modesExtension(pi: ExtensionAPI): void {
 	const modeStashFile = join(tmpdir(), `pi-mode-state-${process.pid}.json`);
 
 	pi.on("session_shutdown", async () => {
+		inspectionReady = false;
+		removeInspectionPolicy?.();
+		removeInspectionPolicy = undefined;
 		// Unhook DispatchUi from module-scoped listeners before extensions rebind;
 		// otherwise the new binding's rebuildDispatchLog() emits into this (now
 		// stale-ctx) instance and pi throws on /new.
@@ -533,10 +570,17 @@ export default function modesExtension(pi: ExtensionAPI): void {
 		dispatchUi.attach(ctx, () => mode === "orchestrate");
 		rebuildDispatchLog(ctx.sessionManager.getEntries());
 		// installPaddedFooter(ctx); // disabled: ui-plus.ts owns the footer now
+		inspectionReady = !opMode || opMode === "reviewer" || (MODE_ORDER as string[]).includes(opMode);
+		bindInspectionPolicy();
 	});
 
 	// Enforcement layer — independent of model instructions.
 	pi.on("tool_call", async (event, ctx) => {
+		if (event.toolName === "paperclip_inspect") {
+			const owner = pi.getAllTools().find((t) => t.name === "paperclip_inspect")?.sourceInfo.path;
+			if (paperclipReadAllowed(event.input, owner)) return;
+			return { block: true, reason: "Paperclip inspection denied: only the matching bounded pending-read contract is permitted." };
+		}
 		// Guardrail self-protection (all modes, including YOLO): the model must not
 		// rewrite this extension, keybindings, or settings without explicit approval.
 		if (event.toolName === "write" || event.toolName === "edit") {
@@ -667,6 +711,10 @@ export default function modesExtension(pi: ExtensionAPI): void {
 	// Keep the model informed of the active mode (short, per-turn).
 	pi.on("before_agent_start", async () => {
 		let content = MODE_INSTRUCTIONS[mode];
+		const inspectionOwner = pi.getAllTools().find((t) => t.name === "paperclip_inspect")?.sourceInfo.path;
+		if (paperclipReadAllowed({ view: "pending" }, inspectionOwner)) {
+			content += "\n- paperclip_inspect pending reads are permitted with documented temporary helper/auth bookkeeping only. No board/recovery mutations, raw SSH/just permission, or action approval is granted.";
+		}
 		// Advisory repo map: guidance for repo/vault awareness in all modes, never a gate.
 		const advisory = renderRepoMapAdvisory(loadRepoMap(), { orchestrate: mode === "orchestrate" });
 		if (advisory) content += `\n${advisory}`;
