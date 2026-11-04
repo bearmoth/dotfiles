@@ -332,8 +332,16 @@ def window_info(day: date, tz: ZoneInfo, start: datetime, end: datetime) -> dict
         "slack_filters": f"on:{day.isoformat()}",
         "slack_unix": {"after": str(int(start.timestamp())), "before": str(int(end.timestamp()))},
         # JQL dates resolve in the Jira user's profile timezone; quote them.
-        "jql_updated": f'updated >= "{day.isoformat()}" AND updated < "{nxt.isoformat()}"',
-        "jql_updated_by": f'issue in updatedBy(currentUser(), "{day.strftime("%Y/%m/%d")}", "{nxt.strftime("%Y/%m/%d")}")',
+        # `updated` alone is the *last* touch and misses issues someone else
+        # touched later, and updatedBy() does not parse on this site, so use
+        # history functions. DURING is end-inclusive: filter results by day.
+        "jql_touched": (
+            f'(reporter = currentUser() AND created >= "{day.isoformat()}" AND created < "{nxt.isoformat()}")'
+            f' OR status CHANGED BY currentUser() DURING ("{day.isoformat()}", "{nxt.isoformat()}")'
+            f' OR assignee CHANGED BY currentUser() DURING ("{day.isoformat()}", "{nxt.isoformat()}")'
+            f' OR ((assignee = currentUser() OR watcher = currentUser())'
+            f' AND updated >= "{day.isoformat()}" AND updated < "{nxt.isoformat()}")'
+        ),
         # GitHub search `updated:` is UTC-day granular, so widen by a day each
         # side and filter precisely afterwards with the ISO bounds.
         "gh_updated_range": f"{prev.isoformat()}..{nxt.isoformat()}",

@@ -1,29 +1,51 @@
 ---
 name: diary
-description: Create or update one day's diary entry (diary/YYYY-MM-DD.md) in the Journal vault by gathering evidence from Slack, Jira, GitHub, Google Calendar, Claude Code and pi transcripts, and the Journal's own captures, then drafting a readable entry in Phil's voice (summary, tasks, work log, meetings, notes) for his explicit "go" before anything is written or committed. Use whenever Phil asks to write, update, catch up, fill in, or finish the diary or daily note for today or any past day (/diary, "diary for Friday", "update today's entry", "what did I do yesterday, put it in the diary"), including re-runs on a day that already has an entry.
+description: Create or update one day's diary entry (diary/YYYY-MM-DD.md) in the Journal vault by gathering evidence from Slack, Jira, GitHub, Google Calendar, Claude Code and pi transcripts, and the Journal's own captures, then drafting a readable, well-linked entry in Phil's voice (summary, tasks, work log, meetings, notes), writing and committing it directly when the file is new or the change only adds to it, and asking first when it would alter his existing lines. Use whenever Phil asks to write, update, catch up, fill in, or finish the diary or daily note for today or any past day (/diary, "diary for Friday", "update today's entry", "what did I do yesterday, put it in the diary"), including re-runs on a day that already has an entry, and when a day's work belongs to an open thread in threads/ (the thread gets its log entry for the day and the diary links it).
 ---
 
 # Diary
 
-Draft one local calendar day of Phil's diary from evidence, present it,
-and write only on his explicit "go". Safe to run many times for the same
-day.
+Draft one local calendar day of Phil's diary from evidence, write it when
+the write is safe (a new file, or additions to an existing one), and ask
+first when it isn't. Safe to run many times for the same day.
 
-## Why the gate matters
+## The gate, and when it opens
 
-The Journal glossary says the diary is **never agent-written**: an agent
-does not author Phil's first person. The working reconciliation is that
-the agent gathers, verifies, and drafts; Phil reads the draft, edits or
-redirects, and says "go"; only then does the file change. The draft is a
-proposal, so it should be good enough to approve with few edits, honest
-about what it could not know (how a conversation felt, what he thinks),
-and above all readable: Phil said he would stop reading entries that are
-dense and mechanical, which would defeat the whole exercise. Where only
-Phil can supply a judgement, leave a visible placeholder like
-`[Phil: how did this land?]` instead of inventing one.
+The Journal glossary says the diary is **never agent-written**. Phil has
+clarified what that line guards against: agents writing to vaults as a
+side effect of other work (auto-capture). It does not forbid this skill,
+which he invokes by hand to write the diary; do not refuse on the
+strength of that line. What it still means here is that an agent does not
+author Phil's first person: the agent gathers, verifies, and drafts, Phil
+authors by reading and redirecting, and the file changes only in ways he
+can review cheaply. He found the "present, then wait for go" step pure
+friction for the common cases, so the rule turns on what the write does
+to his existing words:
+
+- **Write and commit without asking** when the entry file does not exist
+  yet, or when every existing line survives unchanged and the change is
+  additions (new bullets, headings, sections, a `- Links:` line) plus
+  task ticks with evidence. Appending a `### [[date]]` Log entry to an
+  existing thread is the same case. Git holds the previous state and he
+  reads the result in chat anyway, so a wrong addition costs him one
+  revert, not a rewrite.
+- **Present and wait for "go"** when any existing line would be removed,
+  reworded, moved, or un-ticked; when an earlier entry would change (a
+  thread promotion relinks its origin heading); when a thread's
+  `## Current state` would be rewritten; or when a new thread file would
+  be created. Those are edits to his authorship, and he decides them.
+
+An explicit instruction in the prompt ("show me first", "don't write")
+always wins. Either way the draft must be good enough to approve with few
+edits, honest about what it could not know (how a conversation felt, what
+he thinks), and above all readable: Phil said he would stop reading
+entries that are dense and mechanical, which would defeat the whole
+exercise. Where only Phil can supply a judgement, leave a visible
+placeholder like `[Phil: how did this land?]` instead of inventing one; a
+placeholder is an addition, so it never blocks a write.
 
 If there is no human in the loop (a subagent, an eval, an autonomous run):
-stop after presenting the draft. Never write or commit without the go.
+stop after presenting the draft. Never write or commit.
 
 ## Workflow
 
@@ -50,8 +72,14 @@ Journal root: the `personal journal` mount from the Engineering OS block
   against the evidence timeline, never by reading the entry and deciding
   it "looks complete".
 - `scripts/open_tasks.py --date YYYY-MM-DD` for the tasks that belong in
-  this day: due, carried from the previous entry, stale ones needing a
-  decision, and future-dated ones to leave alone.
+  this day. Its first two buckets (due, carried from the previous entry)
+  **must** appear in the draft, open or ticked with evidence; this is the
+  main defence against dropping a ball. It also lists older open tasks
+  that stopped being carried, with reworded duplicates collapsed, and
+  flags the classic loss: a child task whose parent line was reworded
+  while the thread stayed open (the Datadog-monitor task vanished this
+  way on 2026-10-13). Those go to Phil as a decision list, never dropped
+  silently.
 - The previous entry, as the freshest sample of voice and format.
 - Open threads: `threads/*.md` with `status` other than `done` (the
   `Threads.base` "In flight" view). Read each one's `## Current state` and
@@ -77,6 +105,13 @@ Recipes, identifiers, and pitfalls per source are in
 | Jira | issues he created, transitioned, commented on, was assigned | `searchJiraIssuesUsingJql` |
 | GitHub | PRs opened, reviewed, commented, merged; commits; state reached | `gh` CLI, per repo |
 | Calendar | the day's meetings, for the Meetings section | `list_events` |
+
+Slack takes two passes (`references/sources.md`, "Slack"): list the
+conversations Phil posted in, then read each one, both sides, threads and
+DMs alike. His posts alone are half the story; on a busy day a subagent
+reads the threads and returns a digest. The Summary should carry how the
+day went (how many things he was juggling, his standup blocker), not only
+what shipped.
 
 Run independent sources in parallel. A source that is down narrows the
 draft, it never blocks it: carry on, and say once in the presentation what
@@ -110,6 +145,9 @@ diary line is a long-lived record, so:
   done (PR merged, ticket transitioned, message posted, meeting held) and
   propose ticking it with the evidence in a few words. No evidence, no
   tick.
+- Every Slack conversation from pass 2 lands in the draft (a Work Log
+  line, a task, or an attention item) unless it was banter; check the
+  digest against the draft before presenting.
 - Collect what is waiting on Phil: review requests, unanswered DMs and
   thread questions, decisions others are blocked on. These become the
   "Needs my attention" block.
@@ -143,6 +181,12 @@ worked shape. Read it; the essentials:
 - Tasks are things Phil committed to or owes, few, absolute dates. Dated
   tasks stay in their origin entry until due; practices are Notes, not
   tasks.
+- **Nothing falls off.** Every due and carried task from the script is in
+  the draft, open or ticked with evidence. When a parent task is reworded
+  (a thread's next step changes daily), its open children move under the
+  new wording. The script's stale and flagged items are listed in the
+  presentation for a carry / tick / drop decision; a drop needs Phil's
+  word or a stated reason.
 - Do not pad. A quiet day is a short entry.
 - **Threads.** A topic that continues an open thread gets no Notes
   heading. It gets a Work Log line, a task line
@@ -157,6 +201,14 @@ worked shape. Read it; the essentials:
   body as that first Log entry), and show the origin entry's heading
   becoming a link. Never write `[[date#heading]]` continuation links in a
   new entry. Promotion is proposed, never done unprompted.
+- **Links.** Phil uses the diary to get back to things, so every
+  cross-reference carries a link where one exists: the Slack thread or
+  message, the Jira ticket or the specific comment, the PR, the review
+  comment, the Journal or PKB note or its section. Inline when the
+  sentence names the thing; otherwise a `- Links:` sub-bullet under the
+  bullet, or a `- Links:` line closing the section (`references/voice.md`,
+  "Links"). Collect permalinks while gathering; `references/sources.md`
+  says where each kind comes from.
 
 Then read the draft once as Phil would, at the end of a day, on a phone.
 Anything you would skip, shorten.
@@ -167,12 +219,19 @@ with evidence; change one of Phil's lines only for a factual reason you
 can state. The result must still read as his entry, not as an entry with
 a changelog bolted on.
 
-### 6. Present and wait
+### 6. Present, then write or wait
 
 Show the entry as it would read, in full, as a markdown block. For an
 update, follow it with a unified diff of existing → proposed (fenced,
 `diff`), and one line per change to Phil's own wording with its reason.
 After that, briefly:
+
+- which case from "The gate" this write is, in one line with the reason
+  ("new file", "additions and two ticks only", "rewords one of your
+  lines, waiting for go");
+- open tasks needing a decision: the script's stale and flagged items,
+  each with its origin and the proposed action (carry under X / tick,
+  evidence Y / drop because Z);
 
 - placeholders and what they need from him;
 - one line on verification ("All 9 PR and 12 ticket references checked
@@ -183,13 +242,14 @@ After that, briefly:
 - capture offers when something is ADR-shaped or reflection-shaped, in a
   sentence, not written into the diary.
 
-Then stop and wait. Edits and redirections loop back to the draft; only an
-explicit go proceeds. Nothing about a long gathering phase earns the right
-to skip this step.
+A safe write goes straight on to step 7 in the same turn. An unsafe one
+stops here: edits and redirections loop back to the draft, and only an
+explicit go proceeds. Nothing about a long gathering phase earns the
+right to skip the check.
 
 ### 7. Write and commit
 
-After the go:
+For a safe write, or after the go:
 
 1. Write `diary/YYYY-MM-DD.md` with the approved content, plus any
    approved thread files under `threads/` (and, for a promotion, the
@@ -199,12 +259,14 @@ After the go:
    (name promoted or updated threads in the message). Leave other
    untracked or modified files alone; they belong to other routines. Do
    not push.
-3. Report what was written and committed in one line.
+3. Report what was written and committed in one line. When the write
+   happened without a go, say so in that line; Phil should never have to
+   wonder whether the file changed.
 
 ## Boundaries
 
-- Writes go to `diary/` and `threads/` in the Journal only, both behind
-  the go. Worklogs (`log/`), captures, templates, and other vaults have
+- Writes go to `diary/` and `threads/` in the Journal only, both under
+  the rule in "The gate". Worklogs (`log/`), captures, templates, and other vaults have
   their own routines (knowledge-routing). Reading them is fine; writing
   them is not this skill's job. Settled org knowledge inside a thread
   (requirements, decisions) is a separate write to its org home: offer

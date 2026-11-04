@@ -101,8 +101,10 @@ These exist because Phil won't read what breaks them.
   bullets, in the thread's heading, not the run's.
 - **The sentence first, the link second.** Name the thing ("the rollover
   rename PR"), then attach the link. A bullet must still make sense with
-  every link stripped. Two links per bullet is the comfortable maximum; a
-  list of six PRs is a Notes table or a Jira epic, not a Work Log line.
+  every link stripped. Links don't count against readability while the
+  sentence survives them; when a bullet would carry more than two or
+  three, the extras move to a `- Links:` sub-bullet (see Links). A list
+  of six PRs is a Notes table or a Jira epic, not a Work Log line.
 - **No session-local jargon.** Codes like S1–S7, P1/E1, "wave", "slice",
   "phase 2" mean nothing outside the session that coined them. Phil made
   exactly this complaint about Claude-written tickets. Say what the thing
@@ -160,6 +162,14 @@ doing. If the list passes about eight, something is a note or Jira's job.
   work, nest them under a parent line (a parent task or a bold label) so
   the list reads as three or four groups rather than ten peers. One level
   only. `scripts/open_tasks.py` keeps the parent when it carries a child.
+- **Nothing falls off.** Phil asked for carry-forward specifically so no
+  ball gets dropped. Every task the script lists as due or carried
+  appears in the new entry, open or ticked with evidence. A reworded
+  parent (a thread task whose next step changed) keeps its open children
+  under the new wording; the script flags children that were lost this
+  way. Older open tasks that stopped being carried are not resurrected
+  silently and not dropped silently either: they go in the presentation
+  as a carry / tick / drop list, and a drop has a reason Phil can see.
 - **Practices are not tasks.** "Try the A.S.K. framing in reviews" can
   never be ticked. It goes in Notes once and does not carry.
 - **Ticking.** Tick the copy in the entry being drafted, with the evidence
@@ -218,14 +228,46 @@ doing. If the list passes about eight, something is a note or Jira's job.
 
 ## Links
 
+Phil reads the diary to get back to things: the thread where it was
+decided, the comment that raised it, the review, the ticket, the note. A
+reference without a link is a dead end weeks later, so every
+cross-reference carries one where a link exists. Forms:
+
 - People: `[[Matt Doyle|Matt]]`, `[[Peter Nham|Peter]]`. Always full name,
   even when no note exists yet; that is Phil's practice. Grep earlier
   entries for the spelling already used before linking.
-- Jira: `[EN-4958](https://easygo-group.atlassian.net/browse/EN-4958)`.
+- Jira: `[EN-4958](https://easygo-group.atlassian.net/browse/EN-4958)`; a
+  specific comment: `[Jess's comment](https://easygo-group.atlassian.net/browse/EN-4958?focusedCommentId=123456)`.
 - PRs: `[#35060](https://github.com/primeslice/backend/pull/35060)`, and for
-  other repos `[nats#215](https://github.com/primeslice/nats/pull/215)`.
-- Slack permalinks when the message is the artefact (an RFC thread, a sev
-  issue). Confluence pages by title. Journal notes as wikilinks.
+  other repos `[nats#215](https://github.com/primeslice/nats/pull/215)`. A
+  review or a review comment links to its own URL (`…/pull/35060#pullrequestreview-…`,
+  `…/pull/35060#discussion_r…`, `…#issuecomment-…`).
+- Slack: the permalink of the message, or of the thread's root when the
+  thread is the thing. Label by what it is: `[thread in #eng-lib2](…)`,
+  `[Jess's reply](…)`.
+- Journal and PKB notes as wikilinks; a section as `[[2026-10-02#PR reviews]]`
+  or `[[Transfer bonus rollover#Current state]]` (cross-reference only;
+  not a substitute for a thread, see Notes). Confluence pages by title
+  with the URL.
+
+Placement, in order of preference:
+
+1. **Inline**, when the sentence already names the thing: "Reviewed
+   [Johnny's delivery RPCs PR](…): approved with a nit". The sentence
+   first, the link second; the bullet still reads with every link
+   stripped.
+2. **A `- Links:` sub-bullet** under the bullet, when a bullet has more
+   links than fit in its sentence (the thread plus the two comments that
+   mattered plus the PR) or the link is supporting material rather than
+   the subject: `- Links: [thread](…) · [Adam's objection](…) · [#40096](…)`.
+   Labels of two to four words saying what each one is.
+3. **A `- Links:` line closing the section** (a Work Log topic, a meeting,
+   a Notes topic), for links that belong to the topic as a whole rather
+   than one bullet: the epic, the RFC, the dashboard, the capture.
+
+No page-level links footer: a link far from the line it supports is as
+good as lost. The thread note is the exception, where `## Current state`
+can carry the standing links for the whole piece of work.
 
 ## What the draft never does
 

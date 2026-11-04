@@ -7,7 +7,7 @@ python3 ~/.claude/skills/diary/scripts/session_scan.py --window --date YYYY-MM-D
 ```
 
 It prints `utc_start`/`utc_end`, `unix_start`/`unix_end`, and ready-made
-fragments (`slack_filters`, `slack_unix`, `jql_*`, `gh_updated_range`,
+fragments (`slack_filters`, `slack_unix`, `jql_touched`, `gh_updated_range`,
 `calendar_iso`).
 
 **Shell note.** The Bash tool's shell varies here (fish in some sessions,
@@ -70,29 +70,58 @@ Use it instead of copying the previous entry's task list by hand.
 
 ## Slack
 
-Phil's own activity, keyword-free (keyword searches under-match badly):
+Phil's posts are half the story. The other half (what was asked of him,
+what got decided, what is still waiting on him) is in the replies and the
+other side of each DM, and an entry built from his posts alone loses it
+(2026-10-16: ~140 posts read, the faucet incident, five DMs and two Sev-3
+triages missing until the threads were opened). So Slack is two passes.
+
+**Pass 1: list his conversations.** Keyword-free (keyword searches
+under-match badly):
 
 ```
 slack_search_public_and_private
   filters: "from:<@U01PYT4C7ND> on:YYYY-MM-DD"
   keywords: []            natural_language_query: ""
   sort: timestamp         sort_dir: asc        limit: 20
+  response_format: detailed   (concise drops channel id, thread_ts and permalink,
+                               which pass 2 needs)
   include_context: false  (with context a busy day's first page overflows the inline limit)
   after/before: slack_unix values (exact bounds; `on:` is day-granular)
 ```
 
-Paginate with `cursor` until exhausted; a busy day runs to five pages.
+Paginate with `cursor` until exhausted; a busy day runs to eight pages.
+Group the results into conversations: one per channel + `thread_ts`, one
+per DM or group DM, and one per run of top-level posts in a channel.
+
+**Pass 2: read every conversation, both sides.**
+
+- Thread: `slack_read_thread` on channel + `thread_ts`.
+- DM, group DM, or top-level channel run: `slack_read_channel` with
+  `oldest`/`latest` from his first message minus 30 minutes to his last
+  plus 30 minutes, so the question he answered and the reply he got are
+  both in view.
+- For each, note: time range, where, permalink, what it was about, the
+  outcome, his own words where they carry his view (verbatim), and
+  **waiting on Phil** (a question to him with no reply, something he
+  agreed to do, a meeting he agreed to).
+- Busy day (more than ~8 conversations): hand pass 2 to one subagent with
+  exactly that digest shape (chronological, one block per conversation,
+  under ~1200 words) and draft from the digest. Reading twenty threads
+  inline floods the context; the digest kept every conversation on
+  2026-10-16.
+- Banter can be skipped in the entry, but only after reading it.
+
 Then:
 
-- For every result in a thread (`thread_ts` present), read the thread with
-  `slack_read_thread` so others' replies are in view: what Jess answered
-  matters as much as what Phil asked.
 - Mentions of Phil he may not have replied to (these feed "Needs my
-  attention"): `filters: "on:YYYY-MM-DD"`, `keywords: ["<@U01PYT4C7ND>"]`.
-- DMs: `channel_types: "im,mpim"` with the same `from:` filter. DM content
-  is private vault material; it stays in the Journal.
+  attention"): `keywords: ["<@U01PYT4C7ND>"]` with `after`/`before`, not a
+  filter (as a filter it returns bot noise from alert channels).
+- DM content is private vault material; it stays in the Journal.
 - Standup posts are the single best summary of what Phil thought the day
-  was about. Quote the gist.
+  was about, and its "blockers" line says how the day felt. Quote the gist.
+- Keep the `permalink` of every conversation you use; the diary links the
+  message or the thread root (voice.md, "Links").
 
 ## Jira
 
@@ -102,7 +131,9 @@ Get the cloud id once per session with `getAccessibleAtlassianResources`
 Two facts shape the query. `updated` is the *last* touch, so filtering on it
 alone misses issues Phil touched that day and someone touched again later
 (7 of 27 issues for 2026-10-02). And `updatedBy(currentUser(), …)` does not
-parse on this site. Use history functions instead:
+parse on this site. Use history functions instead; `session_scan.py --window`
+prints this query for the day as `jql_touched`, so paste that rather than
+hand-writing dates:
 
 ```
 searchJiraIssuesUsingJql
@@ -128,6 +159,9 @@ searchJiraIssuesUsingJql
   session scan tells you which; the diary says so (`Claude: created …`).
 - Results over the inline limit land in a tool-result file; extract key,
   summary, status, created, updated with `jq` rather than reading the blob.
+- A comment's link is the issue URL plus its id:
+  `https://easygo-group.atlassian.net/browse/<KEY>?focusedCommentId=<comment.id>`.
+  Keep the ids of comments you cite (Phil's and the replies that matter).
 
 ## GitHub
 
@@ -160,6 +194,17 @@ blocked by the Bash permission classifier, a script is not.
 - `reviews[]` carries `author.login`, `state`, `submittedAt`; a review from
   Phil on a teammate's PR is a Work Log line with the substance of what he
   said. `mergedBy.login` says who merged.
+- Links to a specific review, review comment, or conversation comment
+  come from the REST API's `html_url`:
+
+  ```
+  gh api repos/primeslice/<repo>/pulls/N/reviews  --jq '.[] | [.user.login, .state, .submitted_at, .html_url] | @tsv'
+  gh api repos/primeslice/<repo>/pulls/N/comments --jq '.[] | [.user.login, .created_at, .path, .html_url] | @tsv'
+  gh api repos/primeslice/<repo>/issues/N/comments --jq '.[] | [.user.login, .created_at, .html_url] | @tsv'
+  ```
+
+  Cite the comment, not the PR, when the comment is the point (the nit
+  Phil left, the question Peter asked).
 - Commits by a Claude run under Phil's identity are his commits; the diary
   says `Claude:`.
 - Secondary rate limits (403 with primary quota untouched) clear after a
@@ -183,6 +228,12 @@ list_events
   captures, or Phil.
 - Skip declined and cancelled events, OOO blocks, focus time, WFH markers.
   An all-day leave event means `On leave; no meetings.`
+- Never read the length of Phil's day from the calendar. His recurring
+  15:45 "Out of office" block only stops people interrupting him: he
+  starts around 7:30–8:00, works until 15:45, then keeps working on the
+  train. Don't call a day short, or order priorities around an end time,
+  unless there's a leave event (HiBob leave, annual leave). A 2026-10-19
+  draft called it "a short day: out of office from 15:45".
 - If the connector errors or is unauthenticated, skip it without retrying,
   mention once in the presentation that calendar was unavailable, and leave
   the Meetings section to the other sources.
@@ -219,4 +270,6 @@ eos-queue list | jq '[.[] | select(.ts | startswith("YYYY-MM-DD"))]'
 - The worklog ledger (`log/`) is agent-written and context-tagged; a cross-
   check for Work Log lines, not a source to copy verbatim.
 - For wikilink targets, grep both vaults (`~/Documents/Journal`,
-  `~/Documents/Engagement PKB`) for the person or topic name.
+  `~/Documents/Engagement PKB`) for the person or topic name. A section
+  inside a note links as `[[Note#Heading]]`; check the heading text is
+  exact, Obsidian does not fuzzy-match it.
