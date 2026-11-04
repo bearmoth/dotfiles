@@ -1,0 +1,40 @@
+% tuicr, review, code review, diff, git, pr
+
+# Review uncommitted changes (skip the target picker)
+tuicr -w
+
+# Review a commit range, e.g. a branch against master
+tuicr -r <base>..HEAD
+
+# Review a commit range, one file or directory only
+tuicr -r <base>..HEAD -p <path>
+
+# Review uncommitted changes to one file or directory
+tuicr -p <path>
+
+# Annotate any file with no VCS, starting at a line
+tuicr --file <file> --line <line>
+
+# Review a GitHub PR by number, owner/repo#n or URL
+tuicr pr <pr>
+
+# Review and write the markdown export to a file on quit
+tuicr -r <base>..HEAD --stdout > <output_file>
+
+# Review and copy the markdown export to the clipboard on quit
+tuicr -r <base>..HEAD --stdout | pbcopy
+
+# List saved review sessions for this checkout (active = TUI open)
+tuicr review list --repo .
+
+# Print a session's comments as JSON for an agent
+tuicr review comments --session <slug>
+
+# Add a line comment to a session from the shell
+tuicr review add --session <slug> --target-file <file> --line <line> --side new "<comment>"
+
+# Clear every comment in a session
+tuicr review clearc --session <slug>
+
+# Update tuicr (brew-aware)
+tuicr update

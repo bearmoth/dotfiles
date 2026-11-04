@@ -1,0 +1,55 @@
+---
+tags: [ personal, git, review ]
+---
+
+# tuicr ("tweaker") — code review TUI, local diffs or PRs, vim keys
+
+## Launch (what to review)
+    tuicr                            # picker: working tree / commit range / saved sessions
+    tuicr -w                         # uncommitted changes, skip the picker
+    tuicr -r master..HEAD            # a commit range (any git revset)
+    tuicr -r master..HEAD -p <path>  # that range, one file or directory only
+    tuicr -p <path>                  # uncommitted changes to one file/dir (implies -w)
+    tuicr --file <path> --line <n>   # annotate any file, no VCS needed, cursor on line n
+    tuicr pr <n|owner/repo#n|url>    # a GitHub PR (needs gh auth)
+    tuicr --stdout > review.md       # on quit, print the markdown export instead of copying
+    tuicr update                     # self-update (brew-aware)
+
+## Navigation
+    j / k        # line down / up
+    ctrl-d / u   # half page
+    g / G        # top / bottom
+    { / }        # previous / next file
+    [ / ]        # previous / next hunk
+    m / M        # next / previous comment
+    /  n  N      # regex search the diff; next / previous match; Esc clears
+    :<n>         # jump to source line n
+    ?            # full help
+
+## Commenting
+    c            # line comment at cursor
+    v / V  then c    # select a range, then comment on it
+    C            # file-level comment
+    ;c           # review-level comment (leader is ";")
+    Tab          # in the comment box: cycle comment type (issue / suggestion / ...)
+    e  or :edit  # open the focused file in $EDITOR
+    r / R        # mark file / hunk reviewed (persists across sessions)
+    :summary     # list every pending comment; j/k then Enter jumps to it
+
+## Getting the review out
+    y  or :clip  # copy numbered, file:line-anchored markdown to the clipboard
+    :submit      # push as a real GitHub review (Comment / Approve / Request changes / Draft)
+    :sessions    # reopen a saved local review instead of retyping the range
+
+## Hand the comments to an agent
+    tuicr review list --repo .                       # saved sessions for this checkout; "active": true = TUI open
+    tuicr review comments --session <slug>           # the comments as JSON (slug is printed at startup as tuicr-session:)
+    tuicr review add --session <slug> --target-file <path> --line <n> --side new "<text>"
+    tuicr review clearc --session <slug>             # wipe a session's comments
+
+## Notes
+- Comments are local until `:submit`; a branch with no PR is fine (use -r / -w).
+- For an agent review loop: review in tuicr, then paste `y` output or let the
+  agent read `tuicr review comments`. Upstream ships a Claude Code skill that
+  opens tuicr in a tmux/Zellij/Herdr split: github.com/agavra/tuicr skills/tuicr.
+- Config: ~/.config/tuicr/config.toml (theme, side-by-side, editor, comment_types).

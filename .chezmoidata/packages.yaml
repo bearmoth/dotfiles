@@ -24,6 +24,8 @@ packages:
       # the weekly formula sweep keeps it current (autobumped in core).
       - node
       - ripgrep
+      # code review TUI: comment on local diffs or PRs, export to agents
+      - tuicr
       - wget
       - yazi
       - zoxide
