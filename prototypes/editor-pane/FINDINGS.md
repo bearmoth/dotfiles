@@ -12,14 +12,15 @@ Run it: `prototypes/editor-pane/proto.sh up 1` (or `2`, `3`), `proto.sh reopen 1
 | Check | (1) headless server + `--remote-ui` pane | (2) plain `nvim --listen` pane |
 |---|---|---|
 | LazyVim starts, dashboard on attach | yes ([shot](shots/v1-dashboard.png)): snacks dashboard drawn although `VimEnter` ran headless | yes (it's ordinary nvim) |
-| fzf-lua picker | right size and position, icons and preview ([shot](shots/v1-fzf.png)) | same renderer; not re-shot |
+| fzf-lua picker | right size and position, icons and preview ([shot](shots/v1-fzf.png)) | same renderer; not re-shot (inferred: it's the same builtin TUI) |
 | noice `:` cmdline popup | drawn, text visible ([shot](shots/v1-noice.png)) | n/a (same) |
 | which-key (`<space>`) | clean borders and icons ([shot](shots/v1-whichkey.png)) | n/a (same) |
 | `K` hover (lua_ls) | full hover float ([shot](shots/v1-hover.png)) | n/a (same) |
 | Insert-mode cursor | thin bar ([shot](shots/v1-insert.png)) | n/a (same) |
 | `termguicolors` / `'background'` | `tgc=true` (LazyVim forces it), `bg=dark`. The 0.12.5 bug only bites if the OS/terminal theme is light: bg won't follow it | detected normally |
 | OSC 52 | `g:termfeatures.osc52 = true` after attach | same |
-| Close the editor pane | **server survives** (0 UIs, buffer kept); `proto.sh reopen 1` re-attaches to the **same PID** with the same buffer | **editor dies**, socket gone |
+| Hide with `terminal.park`, show with `terminal.keep` (herdr-nvim's and the cmd-w soft-close's mechanism) | survives: same PID and buffer; the client **stays attached while parked** (1 UI), so it keeps setting the grid size | **survives too**: same PID and buffer, and it redraws cleanly ([shot](shots/v2-kept.png)) |
+| Close the editor pane (`pane.close`) | **server survives** (0 UIs, buffer kept); `proto.sh reopen 1` re-attaches to the **same PID** with the same buffer | **editor dies**, socket gone |
 | `:q` on the last window | quits the server; the pane drops to a fish shell (see wrapper below) | quits nvim; same fish fallback |
 | Focus events on space switch | **none** (`FocusGained`/`FocusLost` never fired), so an external edit was not reloaded | **none** either, so it's not a remote-ui problem |
 
@@ -46,20 +47,36 @@ Not rebuilt. The 2026-11-08 spike already answers it (`~/.local/share/herdr-expe
 Making it real means writing an nvim GUI inside herdr. `proto.sh up 3` restarts the spike if a
 side-by-side look is wanted.
 
-## Verdict (agent's recommendation)
+## Verdict (agent's recommendation, revised after the park/keep test)
 
-Go with **(1)**. (2) renders identically, because it is the same TUI in the same libghostty pane,
-but it loses the editor whenever the pane closes. That is the "persistent nvim per space" the
-destination asks for. (3) needs a GUI rebuild for what (1) gets for free.
+Rendering doesn't separate (1) from (2). Both are the builtin TUI in a libghostty pane. Hide/show
+doesn't separate them either, because both survive `terminal.park`/`keep`. The real trade-off:
 
-(1)'s costs are known and small:
+- **(1) buys:**
+  - the editor survives `pane.close`, `terminal.kill`, a crashed pane and (inferred, not tested) a
+    herdr-core restart, since the setsid'd server lives outside the core;
+  - more than one UI on the same editor;
+  - env and cwd chosen at spawn, not taken from the pane;
+  - a socket that exists before any pane does, so panels and agents can address it while it's hidden.
+- **(1) costs:**
+  - a lifecycle owner to stop servers when the space closes, plus orphan risk;
+  - the launcher;
+  - the 0.12.5 `'background'` gap.
+- **(2) gives:** survival across hide/show, with herdr-core as the only owner. But any real close,
+  kill or crash loses the editor, and unsaved buffers survive only through swap files.
 
-- a launcher (this `pane-remote-ui.sh`);
-- server-mode guards (`<C-z>`, and maybe `:q` → `:detach`);
-- the 0.12.5 `'background'` gap;
-- a focus/autoread trigger.
+Recommendation: **(1)**. The destination wants a *persistent* editor that panels and agents talk to,
+and (2) ties its life to one terminal. Pick (2) if one owner matters more to you than surviving a
+close. (3) stays out: it needs a GUI rebuild.
 
-All of these are lifecycle work, not rendering.
+**Untested:**
+
+- two clients shrinking the grid to the smaller one (a (1)-only risk if a stale or parked client
+  lingers);
+- the `up 3` path (not run);
+- herdr-core restart;
+- mouse;
+- IME.
 
 ## Phil's hands-on checklist (what an agent can't judge)
 
