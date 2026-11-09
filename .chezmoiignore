@@ -70,3 +70,6 @@ tests/
 
 # Fish universal variables — managed by run_onchange_after_tide_config.sh, not synced directly
 .config/fish/fish_variables
+
+# PROTOTYPE branch only: throwaway prototypes are never dotfiles
+prototypes/
