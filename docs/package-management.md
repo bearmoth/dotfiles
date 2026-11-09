@@ -37,6 +37,12 @@ attached herdr session. On macOS herdr still installs as a brew formula, but
 it is explicitly skipped by the weekly `brew upgrade` sweep for the same
 reason.
 
+The Herdr desktop app (`herdr-app`, separate from the herdr TUI) is
+curl-installed on both platforms by `run_once_20-install-herdr-app.sh`
+(upstream's `releases.herdr.dev/app/install.sh`) and then updates itself and
+herdr-core (`hc`) — chezmoi never upgrades it (ADR-0012). The brew cask is
+deliberately not used: its `zap` deletes `~/.config/herdr-app`.
+
 Each formula/package is upgraded individually and failures are collected,
 not fatal — one broken package (e.g. installed from a tap Homebrew no
 longer trusts by default, see `brew trust`/https://docs.brew.sh/Tap-Trust)
