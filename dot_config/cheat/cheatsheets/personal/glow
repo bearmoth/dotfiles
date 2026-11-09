@@ -1,0 +1,30 @@
+---
+tags: [ personal, markdown, viewer, tui ]
+---
+
+# glow — render markdown in the terminal
+
+## Render
+    glow README.md                  # render a file (auto-pages if long)
+    glow                            # TUI file browser for the current dir
+    glow ~/Documents/Tech\ Notes    # TUI browser for a dir
+    glow github.com/charmbracelet/glow   # fetch + render a GitHub repo's README
+    glow https://example.com/x.md   # render a remote file
+    cat notes.md | glow -           # render from stdin
+
+## Display flags
+    -p / --pager                    # force pager (less-style scrolling)
+    -t / --tui                      # force TUI mode for a file
+    -w 100                          # word-wrap at width (0 disables)
+    -s dark | light | dracula | pink | notty   # style (default: auto)
+    -n / --preserve-new-lines       # keep single newlines
+    -l / --line-numbers             # show line numbers (TUI only)
+    -a / --all                      # include hidden files (TUI only)
+
+## Config
+    glow config                     # edit ~/.config/glow/glow.yml
+
+## TUI keys
+    j/k, ↑/↓   move          enter   open file       esc/q   back / quit
+    /          filter files  e       edit in $EDITOR  r       refresh
+    ?          full help

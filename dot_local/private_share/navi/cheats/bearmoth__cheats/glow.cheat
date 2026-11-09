@@ -1,0 +1,27 @@
+% glow, markdown, viewer, pager
+
+# Render a markdown file
+glow <file>
+
+# Render a markdown file in a pager
+glow -p <file>
+
+# Browse markdown files in a directory (TUI)
+glow <dir>
+
+# Render a GitHub repo's README
+glow <github_repo>
+
+# Render markdown from stdin
+<cmd> | glow -
+
+# Render with a specific style and wrap width
+glow -s <style> -w <width> <file>
+
+# Edit glow's config
+glow config
+
+$ file: fd -e md --max-depth 4 2>/dev/null
+$ dir: fd -t d --max-depth 2 2>/dev/null
+$ style: printf 'auto\ndark\nlight\ndracula\npink\nnotty\n'
+$ width: printf '80\n100\n120\n0\n'
