@@ -68,7 +68,7 @@ reopen() {
 
 peek() {
   s="$(sock "$1")"
-  nvim --server "$s" --remote-expr 'luaeval("vim.inspect({uis=vim.tbl_map(function(u) return {chan=u.chan,w=u.width,h=u.height,term=u.term_name,tty=u.stdout_tty} end, vim.api.nvim_list_uis()), bg=vim.o.background, tgc=vim.o.termguicolors, cwd=vim.fn.getcwd(), pid=vim.fn.getpid(), bufs=vim.tbl_map(function(b) return vim.fn.bufname(b) end, vim.tbl_filter(function(b) return vim.bo[b].buflisted end, vim.api.nvim_list_bufs())), termfeatures=vim.g.termfeatures, focus_events=vim.g.pep_focus})")' \
+  nvim --server "$s" --remote-expr 'luaeval("vim.inspect({uis=vim.tbl_map(function(u) return {chan=u.chan,w=u.width,h=u.height,term=u.term_name,tty=u.stdout_tty} end, vim.api.nvim_list_uis()), bg=vim.o.background, tgc=vim.o.termguicolors, cwd=vim.fn.getcwd(), pid=vim.fn.getpid(), bufs=vim.tbl_map(function(b) return vim.fn.bufname(b) end, vim.tbl_filter(function(b) return vim.bo[b].buflisted end, vim.api.nvim_list_bufs())), termfeatures=vim.g.termfeatures, focus_events=vim.g.pep_focus})")' </dev/null 2>&1 | cat \
     || echo "no server on $s"
 }
 
