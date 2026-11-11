@@ -1,14 +1,12 @@
-# ComfyUI as an on-demand user service (managed by chezmoi). Deliberately not
-# enabled at login: it holds GPU memory. `systemctl --user start comfyui`,
-# logs via `journalctl --user -u comfyui -f`.
+# ComfyUI as an on-demand user service (managed by chezmoi). Use
+# `comfyui start` / `comfyui stop`. There is deliberately no [Install]
+# section: the unit is "static" and cannot be enabled, so it never starts at
+# login/boot — it holds VRAM and keeps the NVIDIA dGPU awake.
 [Unit]
 Description=ComfyUI (http://127.0.0.1:8188)
 After=network.target
 
 [Service]
-ExecStart=%h/.local/bin/comfyui
+ExecStart=%h/.local/bin/comfyui run
 Restart=on-failure
 RestartSec=5
-
-[Install]
-WantedBy=default.target

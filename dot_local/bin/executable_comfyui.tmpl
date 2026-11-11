@@ -1,9 +1,80 @@
 #!/bin/bash
-# ComfyUI launcher (managed by chezmoi; see .chezmoidata/comfyui.yaml).
-# Extra args pass through, e.g. `comfyui --listen` or `comfyui --port 8189`.
+# ComfyUI control (managed by chezmoi; metabox only — see .chezmoidata/comfyui.yaml).
+# Off by default and never started at login: it holds VRAM and keeps the
+# NVIDIA dGPU awake. Stopping it lets the dGPU runtime-suspend again.
 set -euo pipefail
+
 APP="$HOME/{{ .comfyui.appDir }}"
-exec "$APP/.venv/bin/python" "$APP/main.py" \
-  --base-directory "$HOME/{{ .comfyui.dataDir }}" \
-  --enable-manager \
-  "$@"
+DATA="$HOME/{{ .comfyui.dataDir }}"
+UNIT=comfyui.service
+URL=http://127.0.0.1:8188
+GPU_PCI=/sys/bus/pci/devices/0000:01:00.0
+
+gpu_state() {
+  local pm="unknown"
+  [ -r "$GPU_PCI/power/runtime_status" ] && pm="$(cat "$GPU_PCI/power/runtime_status")"
+  echo "dGPU: $pm"
+  # nvidia-smi wakes a suspended dGPU, so only query it when it's already up.
+  if [ "$pm" = active ] && command -v nvidia-smi >/dev/null; then
+    nvidia-smi --query-gpu=memory.used,memory.total --format=csv,noheader | sed 's/^/VRAM: /'
+  fi
+}
+
+case "${1:-}" in
+  start)
+    if systemctl --user is-active --quiet "$UNIT"; then
+      echo "ComfyUI already running: $URL"; exit 0
+    fi
+    systemctl --user start "$UNIT"
+    printf 'Starting ComfyUI'
+    for _ in $(seq 1 120); do
+      if curl -sf "$URL/system_stats" >/dev/null; then echo; echo "ComfyUI up: $URL"; exit 0; fi
+      if ! systemctl --user is-active --quiet "$UNIT"; then
+        echo; echo "ComfyUI failed to start; recent logs:" >&2
+        journalctl --user -u "$UNIT" -n 30 --no-pager >&2; exit 1
+      fi
+      printf '.'; sleep 1
+    done
+    echo; echo "ComfyUI still starting after 120s — check: comfyui logs" >&2; exit 1
+    ;;
+  stop)
+    if systemctl --user is-active --quiet "$UNIT"; then
+      systemctl --user stop "$UNIT"; echo "ComfyUI stopped."
+    else
+      echo "ComfyUI not running."
+    fi
+    # Stray foreground `comfyui run` instances also hold the GPU.
+    if pgrep -f "$APP/main.py" >/dev/null; then
+      echo "Stopping foreground ComfyUI processes..."
+      pkill -f "$APP/main.py" || true
+    fi
+    ;;
+  restart) "$0" stop; exec "$0" start ;;
+  status)
+    if systemctl --user is-active --quiet "$UNIT"; then echo "ComfyUI: running ($URL)"
+    elif pgrep -f "$APP/main.py" >/dev/null; then echo "ComfyUI: running in foreground ($URL)"
+    else echo "ComfyUI: stopped"; fi
+    gpu_state
+    ;;
+  logs) exec journalctl --user -u "$UNIT" -f ;;
+  open) exec xdg-open "$URL" ;;
+  run)
+    # Foreground server (also what the systemd unit execs). Extra args pass
+    # through, e.g. `comfyui run --listen` or `comfyui run --port 8189`.
+    shift
+    exec "$APP/.venv/bin/python" "$APP/main.py" --base-directory "$DATA" --enable-manager "$@"
+    ;;
+  *)
+    cat <<USAGE
+usage: comfyui <command>
+  start    start ComfyUI in the background and wait until it's up
+  stop     stop it (frees VRAM; the dGPU can suspend again)
+  restart  stop then start
+  status   running/stopped, plus dGPU power state
+  logs     follow the service log
+  open     open the web UI ($URL)
+  run      run in the foreground (args pass through to main.py)
+USAGE
+    [ -n "${1:-}" ] && exit 2 || exit 0
+    ;;
+esac

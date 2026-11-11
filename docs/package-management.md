@@ -143,9 +143,11 @@ python 3.13, torch from the CUDA index, then `requirements.txt` +
   the next sync force-checks-out the pin.
 - **User data** (models, custom nodes, input/output, user settings) lives in
   `~/ComfyUI` via `--base-directory`, so the app dir is disposable.
-- **Run**: `comfyui` (launcher, args pass through) or
-  `systemctl --user start comfyui` (not enabled: it holds VRAM). Manager is on
-  (`--enable-manager`).
+- **Run**: `comfyui start` / `comfyui stop` (also `status`, `restart`,
+  `logs`, `open`, and `run` for a foreground server). The systemd user unit
+  has no `[Install]` section, so it cannot be enabled and never starts at
+  boot; stopping it frees VRAM and lets the NVIDIA dGPU runtime-suspend.
+  ComfyUI-Manager is on (`--enable-manager`).
 
 ## Known gap (revisit)
 
