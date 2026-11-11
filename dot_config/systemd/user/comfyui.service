@@ -1,0 +1,14 @@
+# ComfyUI as an on-demand user service (managed by chezmoi). Deliberately not
+# enabled at login: it holds GPU memory. `systemctl --user start comfyui`,
+# logs via `journalctl --user -u comfyui -f`.
+[Unit]
+Description=ComfyUI (http://127.0.0.1:8188)
+After=network.target
+
+[Service]
+ExecStart=%h/.local/bin/comfyui
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

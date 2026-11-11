@@ -1,0 +1,9 @@
+#!/bin/bash
+# ComfyUI launcher (managed by chezmoi; see .chezmoidata/comfyui.yaml).
+# Extra args pass through, e.g. `comfyui --listen` or `comfyui --port 8189`.
+set -euo pipefail
+APP="$HOME/{{ .comfyui.appDir }}"
+exec "$APP/.venv/bin/python" "$APP/main.py" \
+  --base-directory "$HOME/{{ .comfyui.dataDir }}" \
+  --enable-manager \
+  "$@"

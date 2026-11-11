@@ -127,6 +127,26 @@ so adopting them means hand-rolling the update path for a tool that ships
 most days; still the right shape only for a host that must run pi with no
 node at all.
 
+## ComfyUI (metabox only)
+
+ComfyUI is not a package anywhere we use, so it gets a pinned, data-driven
+install rather than a tier: `.chezmoidata/comfyui.yaml` holds the release tag,
+python version and torch CUDA index; `run_onchange_20-install-comfyui` clones
+the tag into `~/.local/share/comfyui`, builds a uv venv there (uv-managed
+python 3.13, torch from the CUDA index, then `requirements.txt` +
+`manager_requirements.txt`) and warns if torch can't see CUDA. Gated on
+`machine.id == metabox` in the script and in `.chezmoiignore`.
+
+- **Upgrade** = bump `version` in the data file and apply. It is deliberately
+  outside the weekly sweep (a multi-GB torch re-resolve doesn't belong in a
+  routine apply), and core should not be updated from inside ComfyUI-Manager:
+  the next sync force-checks-out the pin.
+- **User data** (models, custom nodes, input/output, user settings) lives in
+  `~/ComfyUI` via `--base-directory`, so the app dir is disposable.
+- **Run**: `comfyui` (launcher, args pass through) or
+  `systemctl --user start comfyui` (not enabled: it holds VRAM). Manager is on
+  (`--enable-manager`).
+
 ## Known gap (revisit)
 
 Coupling upgrades into `chezmoi apply` is a deliberate trade-off, not an
