@@ -1,0 +1,7 @@
+{{ if and (eq .osid "linux-fedora") (eq .machine.id "metabox") -}}
+#!/bin/bash
+# Reload the user manager when the ComfyUI unit changes.
+# unit hash: {{ include "dot_config/systemd/user/comfyui.service" | sha256sum }}
+set -euo pipefail
+systemctl --user daemon-reload
+{{ end -}}

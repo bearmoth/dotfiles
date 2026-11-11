@@ -1,0 +1,18 @@
+# ComfyUI — metabox only (the machine with the NVIDIA GPU). Gated by machine id
+# in .chezmoiscripts/run_onchange_20-install-comfyui.sh.tmpl and .chezmoiignore.
+#
+# Pinned to an upstream release tag on purpose: bumping `version` here is the
+# upgrade path (re-applying re-syncs the checkout and the venv). Don't update
+# ComfyUI core from inside ComfyUI-Manager; the next apply resets it to this pin.
+# Custom nodes installed through the Manager live in dataDir and are untouched.
+comfyui:
+  version: "v0.45.2"
+  repo: "https://github.com/Comfy-Org/ComfyUI.git"
+  # README: 3.13 is "very well supported"; 3.14 (Fedora's system python) still
+  # trips some custom nodes. uv fetches a managed 3.13, so no dnf package is needed.
+  python: "3.13"
+  # README: cu130+ required for NVIDIA 20-series and newer (RTX 4070 here).
+  torchIndex: "https://download.pytorch.org/whl/cu130"
+  # Code and venv are disposable (rebuilt from the pin); user data is not.
+  appDir: ".local/share/comfyui"
+  dataDir: "ComfyUI" # models/, custom_nodes/, input/, output/, user/

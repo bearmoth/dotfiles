@@ -1,0 +1,41 @@
+{{ if and (eq .osid "linux-fedora") (eq .machine.id "metabox") -}}
+#!/bin/bash
+# Install/sync ComfyUI to the pin in .chezmoidata/comfyui.yaml. Re-runs when
+# this rendered script changes, i.e. when any value below is bumped.
+# pin: {{ .comfyui.version }} python={{ .comfyui.python }} torch={{ .comfyui.torchIndex }}
+set -euo pipefail
+
+APP="$HOME/{{ .comfyui.appDir }}"
+DATA="$HOME/{{ .comfyui.dataDir }}"
+VERSION={{ .comfyui.version | quote }}
+
+UV="$(command -v uv || echo "$HOME/.local/bin/uv")"
+[ -x "$UV" ] || { echo "comfyui: uv not found (installed by run_once_20-install-posting)" >&2; exit 1; }
+
+echo "ComfyUI: syncing $APP to $VERSION..."
+if [ ! -d "$APP/.git" ]; then
+  git clone --filter=blob:none {{ .comfyui.repo | quote }} "$APP"
+fi
+git -C "$APP" fetch --quiet --tags --force origin
+git -C "$APP" -c advice.detachedHead=false checkout --quiet --force "$VERSION"
+
+"$UV" venv --quiet --allow-existing --managed-python --python {{ .comfyui.python | quote }} "$APP/.venv"
+PY="$APP/.venv/bin/python"
+
+# torch's CUDA wheels are multi-GB; uv's 30s default read timeout trips on
+# pypi.nvidia.com (seen: nvidia-cusparselt-cu13 timing out mid-install).
+export UV_HTTP_TIMEOUT="${UV_HTTP_TIMEOUT:-300}"
+
+# torch first from the CUDA index; requirements.txt then sees it as satisfied
+# and resolves everything else from PyPI.
+"$UV" pip install --python "$PY" --upgrade torch torchvision torchaudio \
+  --index-url {{ .comfyui.torchIndex | quote }}
+"$UV" pip install --python "$PY" -r "$APP/requirements.txt" -r "$APP/manager_requirements.txt"
+
+mkdir -p "$DATA"/{models,custom_nodes,input,output,user}
+
+if ! "$PY" -c 'import torch, sys; sys.exit(0 if torch.cuda.is_available() else 1)'; then
+  echo "WARNING: comfyui: torch cannot see CUDA (check the nvidia driver); ComfyUI will fall back to CPU" >&2
+fi
+echo "ComfyUI $VERSION ready: run 'comfyui' or 'systemctl --user start comfyui' -> http://127.0.0.1:8188"
+{{ end -}}

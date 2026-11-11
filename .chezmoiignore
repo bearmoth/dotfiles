@@ -70,3 +70,9 @@ tests/
 
 # Fish universal variables — managed by run_onchange_after_tide_config.sh, not synced directly
 .config/fish/fish_variables
+
+# ComfyUI: metabox only (NVIDIA GPU). Install script gates on the same id.
+{{ if ne .machine.id "metabox" -}}
+.local/bin/comfyui
+.config/systemd/user/comfyui.service
+{{ end -}}
