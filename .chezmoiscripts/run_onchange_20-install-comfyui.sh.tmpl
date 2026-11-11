@@ -22,6 +22,10 @@ git -C "$APP" -c advice.detachedHead=false checkout --quiet --force "$VERSION"
 "$UV" venv --quiet --allow-existing --managed-python --python {{ .comfyui.python | quote }} "$APP/.venv"
 PY="$APP/.venv/bin/python"
 
+# torch's CUDA wheels are multi-GB; uv's 30s default read timeout trips on
+# pypi.nvidia.com (seen: nvidia-cusparselt-cu13 timing out mid-install).
+export UV_HTTP_TIMEOUT="${UV_HTTP_TIMEOUT:-300}"
+
 # torch first from the CUDA index; requirements.txt then sees it as satisfied
 # and resolves everything else from PyPI.
 "$UV" pip install --python "$PY" --upgrade torch torchvision torchaudio \
