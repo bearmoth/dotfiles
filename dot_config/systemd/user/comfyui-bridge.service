@@ -1,0 +1,12 @@
+# Authenticated allowlist proxy that lets the Paperclip VM reach ComfyUI
+# (managed by chezmoi; metabox only). Started and stopped with comfyui.service.
+# It never starts on its own: there is no [Install] section.
+[Unit]
+Description=ComfyUI bridge for the Paperclip VM (Incus bridge, token-authenticated)
+PartOf=comfyui.service
+After=comfyui.service
+
+[Service]
+ExecStart=%h/.local/bin/comfyui-bridge
+Restart=on-failure
+RestartSec=10
