@@ -16,3 +16,13 @@ comfyui:
   # Code and venv are disposable (rebuilt from the pin); user data is not.
   appDir: ".local/share/comfyui"
   dataDir: "ComfyUI" # models/, custom_nodes/, input/, output/, user/
+  # Bridge for the Paperclip VM. ComfyUI itself stays on 127.0.0.1: it has no
+  # authentication, and ComfyUI-Manager's endpoints can install nodes, which is
+  # code execution on this host. Only `comfyui-bridge` faces the Incus bridge. It
+  # requires a bearer token and forwards an allowlist of the API endpoints the
+  # pipeline runner needs (see dot_local/bin/executable_comfyui-bridge.tmpl).
+  # Never bind anything to 0.0.0.0, :: or the LAN/Wi-Fi address.
+  bridge:
+    address: "10.136.233.1" # incusbr0 (firewalld trusted zone)
+    port: 8189
+    tokenFile: ".config/comfyui/bridge-token" # created 0600 on first start

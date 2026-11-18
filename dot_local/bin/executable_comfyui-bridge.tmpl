@@ -1,0 +1,102 @@
+#!/usr/bin/env python3
+"""ComfyUI bridge for the Paperclip VM (managed by chezmoi; metabox only).
+
+ComfyUI listens on loopback only. This proxy listens on the Incus bridge and is
+the only thing the VM can reach. It:
+  - requires `Authorization: Bearer <token>` (the token file is created 0600 on
+    first start; give it to Paperclip as a secret);
+  - forwards only an allowlist of API endpoints. Everything else, including
+    ComfyUI-Manager, /userdata, /internal and settings, gets a 403;
+  - answers 503 with a hint when ComfyUI is stopped. Agents must then ask the
+    human to run `comfyui start`, never try to start it themselves.
+
+Residual risk: a submitted workflow can use any installed node, so keep custom
+nodes to the pinned, reviewed set.
+"""
+import hmac
+import json
+import os
+import re
+import secrets
+import sys
+import urllib.error
+import urllib.request
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
+
+LISTEN = ("{{ .comfyui.bridge.address }}", {{ .comfyui.bridge.port }})
+UPSTREAM = "http://127.0.0.1:8188"
+TOKEN_FILE = Path.home() / "{{ .comfyui.bridge.tokenFile }}"
+MAX_BODY = 64 * 1024 * 1024
+ALLOW = {
+    "GET": re.compile(r"^/(system_stats|queue|object_info(/[A-Za-z0-9_.+-]+)?|history/[0-9a-f-]{8,64}|view)$"),
+    "POST": re.compile(r"^/(prompt|upload/image|free|interrupt)$"),
+}
+
+
+def load_token() -> str:
+    if not TOKEN_FILE.exists():
+        TOKEN_FILE.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        fd = os.open(TOKEN_FILE, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(fd, "w") as f:
+            f.write(secrets.token_urlsafe(32) + "\n")
+        print(f"comfyui-bridge: created token at {TOKEN_FILE}", file=sys.stderr)
+    return TOKEN_FILE.read_text().strip()
+
+
+TOKEN = load_token()
+
+
+class Handler(BaseHTTPRequestHandler):
+    server_version = "comfyui-bridge"
+
+    def _reply(self, code, obj):
+        body = json.dumps(obj).encode()
+        self.send_response(code)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _handle(self, method):
+        auth = self.headers.get("Authorization", "")
+        if not hmac.compare_digest(auth.encode(), f"Bearer {TOKEN}".encode()):
+            return self._reply(401, {"error": "missing or wrong bearer token"})
+        path, _, query = self.path.partition("?")
+        if not ALLOW[method].match(path):
+            return self._reply(403, {"error": f"{method} {path} is not on the bridge allowlist"})
+        body = None
+        if method == "POST":
+            length = int(self.headers.get("Content-Length") or 0)
+            if length > MAX_BODY:
+                return self._reply(413, {"error": "body too large"})
+            body = self.rfile.read(length)
+        req = urllib.request.Request(UPSTREAM + self.path, data=body, method=method)
+        if self.headers.get("Content-Type"):
+            req.add_header("Content-Type", self.headers["Content-Type"])
+        try:
+            with urllib.request.urlopen(req, timeout=120) as r:
+                code, ctype, data = r.status, r.headers.get("Content-Type"), r.read()
+        except urllib.error.HTTPError as e:
+            code, ctype, data = e.code, e.headers.get("Content-Type"), e.read()
+        except (urllib.error.URLError, ConnectionError, TimeoutError):
+            return self._reply(503, {"error": "ComfyUI is not running. Ask the human to run `comfyui start`; do not start it yourself."})
+        self.send_response(code)
+        if ctype:
+            self.send_header("Content-Type", ctype)
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
+    def do_GET(self):
+        self._handle("GET")
+
+    def do_POST(self):
+        self._handle("POST")
+
+    def log_message(self, fmt, *args):
+        sys.stderr.write("comfyui-bridge: %s %s\n" % (self.address_string(), fmt % args))
+
+
+if __name__ == "__main__":
+    ThreadingHTTPServer(LISTEN, Handler).serve_forever()

@@ -5,6 +5,8 @@
 [Unit]
 Description=ComfyUI (http://127.0.0.1:8188)
 After=network.target
+# The VM-facing bridge (token + endpoint allowlist) comes and goes with ComfyUI.
+Wants=comfyui-bridge.service
 
 [Service]
 ExecStart=%h/.local/bin/comfyui run
