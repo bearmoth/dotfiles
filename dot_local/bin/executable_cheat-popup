@@ -38,13 +38,20 @@ list_sheets() {
 
 [ -n "$(list_sheets)" ] || die "cheat-popup: no sheets found in any cheatpath:" "" "$cheatpaths"
 
+# Render through glow so the popup matches `cheat <name>` in a shell. cheat only
+# runs its configured pager (glow) when writing to a TTY, and both uses below
+# are piped, so call glow directly. `-c` is avoided on purpose: it colours the
+# sheet as shell, turning every `# description` into dim-grey comment text that
+# vanishes on a translucent background. glow's `auto` style emits no colour when
+# piped, hence the explicit `-s dark`.
+#
 # Re-enumerated each pass so sheets added while the popup is open show up.
 while true; do
   sheet="$(list_sheets | fzf \
     --prompt='cheat > ' \
-    --preview='cheat -c {}' \
+    --preview='cheat {} | glow -s dark -w "$FZF_PREVIEW_COLUMNS" -' \
     --preview-window='right:65%:wrap' \
     --height='100%' --border --ansi)" || break
   [ -n "$sheet" ] || break
-  cheat -c "$sheet" | less -R
+  cheat "$sheet" | glow -s dark -p -
 done
