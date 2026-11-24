@@ -34,6 +34,14 @@ tests/
 .config/aerospace
 {{ end -}}
 
+# herdr-app keys.json: macOS-only for now. It binds Cmd chords; the Linux
+# equivalent (modifier choice, Linux default keys) is not decided yet, and an
+# edited keys.json replaces the app's defaults wholesale, so a wrong Linux file
+# would silently drop shortcuts.
+{{ if ne .chezmoi.os "darwin" -}}
+.config/herdr-app/keys.json
+{{ end -}}
+
 # Obsidian CLI wrapper: only useful where Obsidian is a Flatpak, since it exists
 # solely to bridge the app's private XDG_RUNTIME_DIR. Self-detecting rather than
 # toggle-gated — a machine without a Flatpak Obsidian never wants this file.
