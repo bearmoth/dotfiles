@@ -1,0 +1,80 @@
+{{- /*
+  herdr-app keys, one source for both OSes. Key positions are shared:
+    mac Cmd    -> linux Alt     ($cmd)
+    mac Option -> linux Super   ($opt)
+    Ctrl stays Ctrl.
+  An edited keys.json replaces the app's defaults wholesale, so everything
+  the app ships that we still want is listed here. JSON has no comments, hence
+  this header. Linux half is untested.
+*/ -}}
+{{- $mac := eq .chezmoi.os "darwin" -}}
+{{- $cmd := ternary "cmd" "alt" $mac -}}
+{{- $opt := ternary "alt" "super" $mac -}}
+{
+  "global": {
+{{- if $mac }}
+    "cmd-q": "app.quit",
+{{- else }}
+    "alt-q": "app.quit",
+{{- end }}
+{{- if $mac }}
+    "cmd-alt-h": "app.hide_others",
+{{- end }}
+    "{{ $cmd }}-t": "tab.new",
+    "{{ $cmd }}-w": "pane.close",
+    "ctrl-tab": "tab.next",
+    "ctrl-shift-tab": "tab.prev",
+    "{{ $cmd }}-shift-]": "tab.next",
+    "{{ $cmd }}-shift-[": "tab.prev",
+    "{{ $cmd }}-{{ $opt }}-]": "space.next",
+    "{{ $cmd }}-{{ $opt }}-[": "space.prev",
+    "{{ $cmd }}-]": "agent.next",
+    "{{ $cmd }}-[": "agent.prev",
+    "{{ $cmd }}-{{ $opt }}-l": "layout.switch",
+    "{{ $cmd }}-n": "space.new",
+    "{{ $cmd }}-p": "mod.open:picker",
+    "{{ $cmd }}-shift-p": "app.palette",
+    "{{ $cmd }}-,": "app.settings",
+    "{{ $cmd }}-shift-w": "tab.close",
+    "{{ $cmd }}-shift-enter": "pane.zoom",
+    "f2": "tab.rename",
+    "shift-f2": "space.rename",
+    "{{ $cmd }}-/": "app.help",
+    "{{ $cmd }}-shift-/": "app.help",
+    "{{ $cmd }}-b": "layout.toggle:sidebar",
+    "{{ $cmd }}-=": "app.zoom_in",
+    "{{ $cmd }}-+": "app.zoom_in",
+    "{{ $cmd }}--": "pane.split:down",
+    "{{ $cmd }}-0": "app.zoom_reset",
+{{- range $i := untilStep 1 10 1 }}
+    "{{ $cmd }}-{{ $i }}": "tab.select:{{ $i }}",
+{{- end }}
+{{- range $i := untilStep 1 10 1 }}
+    "ctrl-{{ $i }}": "space.select:{{ $i }}",
+{{- end }}
+{{- /* focus (hjkl) and swap (shift-hjkl): left, down, up, right */}}
+{{- range $k, $d := dict "h" "left" "j" "down" "k" "up" "l" "right" }}
+    "{{ $cmd }}-{{ $k }}": "pane.go:{{ $d }}",
+    "{{ $cmd }}-shift-{{ $k }}": "pane.swap:{{ $d }}",
+{{- end }}
+    "{{ $cmd }}-\\": "pane.split:right"
+  },
+  "terminal": {
+{{- if $mac }}
+    "cmd-f": "terminal.search",
+    "cmd-c": "terminal.copy",
+    "cmd-v": "terminal.paste",
+    "ctrl-v": "terminal.paste_image",
+    "alt-left": "send:\u001bb",
+    "alt-right": "send:\u001bf",
+    "alt-backspace": "send:\u0017",
+    "cmd-left": "send:\u0001",
+    "cmd-right": "send:\u0005",
+    "cmd-backspace": "send:\u0015"
+{{- else }}
+    "ctrl-shift-f": "terminal.search",
+    "ctrl-shift-c": "terminal.copy",
+    "ctrl-shift-v": "terminal.paste"
+{{- end }}
+  }
+}
