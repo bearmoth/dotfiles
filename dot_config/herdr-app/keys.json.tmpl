@@ -57,7 +57,9 @@
     "{{ $cmd }}-{{ $k }}": "pane.go:{{ $d }}",
     "{{ $cmd }}-shift-{{ $k }}": "pane.swap:{{ $d }}",
 {{- end }}
-    "{{ $cmd }}-\\": "pane.split:right"
+    "{{ $cmd }}-\\": "pane.split:right",
+    "{{ $cmd }}-e": "tabbar.toggle-files",
+    "{{ $cmd }}-g": "tabbar.toggle-changes"
   },
   "terminal": {
 {{- if $mac }}
@@ -77,4 +79,24 @@
     "ctrl-shift-v": "terminal.paste"
 {{- end }}
   }
+{{- /*
+  Sidebar trees (Files, Changes) hold the keyboard while herdr still counts the
+  terminal as focused. Pane focus moves go through the mod (it knows its place in
+  the layout); pane-level actions (close, split, zoom, swap) are swallowed by an
+  unhandled command so they can't hit the hidden pane.
+*/}}
+{{- range $m := list "explorer-view" "changes-view" }},
+  "mod:{{ $m }}": {
+{{- range $k, $d := dict "h" "left" "j" "down" "k" "up" "l" "right" }}
+    "{{ $cmd }}-{{ $k }}": "{{ $m }}.go-{{ $d }}",
+{{- end }}
+    "{{ $cmd }}-w": "{{ $m }}.none",
+    "{{ $cmd }}-\\": "{{ $m }}.none",
+    "{{ $cmd }}--": "{{ $m }}.none",
+    "{{ $cmd }}-shift-enter": "{{ $m }}.none",
+{{- range $i, $k := list "h" "j" "k" "l" }}
+    "{{ $cmd }}-shift-{{ $k }}": "{{ $m }}.none"{{ if lt $i 3 }},{{ end }}
+{{- end }}
+  }
+{{- end }}
 }
