@@ -75,6 +75,8 @@ export default class Changes extends View {
       for (;;) {
         const c = await nextCommand();
         if (c === "focus") this.take();
+        // Tab / shift-tab (keys.json mod:changes-view): between the tree and the commit message.
+        else if (c === "cycle-focus") this.typing ? this.take() : this.input.focus();
         else if (c === "go-left") { const pane = focused()?.pane; pane ? run("pane.focus", { pane }) : run("pane.go", { direction: "left" }); }
         else if (c.startsWith("go-")) run("pane.go", { direction: c.slice(3) });
         cx.notify();
@@ -160,7 +162,7 @@ export default class Changes extends View {
         this.watch(root, cx);
         if (this.open && !files.some((f) => f.path === this.open)) this.open = null;
       } catch (e) { if (this.current(context)) this.error = String(e); }
-      finally { if (this.context === context) this.loading = false; if (this.again) { this.again = false; this.refresh(cx); } cx.notify(); }
+      finally { if (this.context === context) { this.loading = false; if (this.again) { this.again = false; this.refresh(cx); } } cx.notify(); }
     });
   }
 
@@ -197,8 +199,6 @@ export default class Changes extends View {
       else if (r.parent) { this.cursor = r.parent; this.reveal(); }
     } else if (k === "space") {
       if (r) this.toggleRow(r, cx);
-    } else if (k === "tab" || k === "shift-tab") {
-      this.input.focus();
     } else if (k === "enter") {
       if (!r) return;
       r.dir ? this.toggle(r.path) : this.pick(r.path, cx);
@@ -254,16 +254,19 @@ export default class Changes extends View {
   }
 
   // One stage or unstage write, then a refresh (the folder watch would bring one too).
+  // Writes run one at a time (git holds .git/index.lock while writing); a commit waits for them.
   stage(paths, stage, cx) {
-    if (!this.root || !paths.length) return;
+    if (!this.root || !paths.length || this.busy) return;
     const root = this.root, on = this.on, context = this.context, args = stageArgs(paths, stage, this.hasHead);
+    const before = this.writes; let done; this.writes = new Promise((r) => (done = r));
     this.note = null;
     cx.spawn(async (cx) => {
       try {
+        await before;
         const r = await exec("git", args, { cwd: root, on });
         if (r.code !== 0) throw new Error((r.stderr || r.stdout).trim());
       } catch (e) { if (this.current(context)) this.note = `${stage ? "Stage" : "Unstage"} failed: ${String(e).replace(/^Error: /, "")}`; }
-      finally { if (this.loading) this.again = true; else this.refresh(cx); cx.notify(); }
+      finally { done(); if (this.loading) this.again = true; else this.refresh(cx); cx.notify(); }
     });
   }
 
@@ -283,6 +286,7 @@ export default class Changes extends View {
     cx.spawn(async (cx) => {
       try {
         // Only what's staged: nothing is added here, so a part-staged file commits only its staged part.
+        await this.writes;
         const r = await exec("git", ["commit", "-m", message], { cwd: root, on });
         if (r.code !== 0) throw new Error((r.stderr || r.stdout).trim());
         if (this.current(context)) { this.message = ""; this.input.set_value(""); }
@@ -325,7 +329,6 @@ export default class Changes extends View {
     if (focusedNow && !this.order.some(r => r.path === this.cursor)) this.cursor = this.order[0]?.path ?? null;
     return v_flex().id("changes").size_full().min_h(0).rounded(10).overflow_hidden().bg(t.background).border_1().border_color(t.border).text_color(t.foreground).text_size(13).track_focus(this.handle)
       .on_key_down((e, cx) => {
-        if ((e.keystroke === "tab" || e.keystroke === "shift-tab") && this.typing) { this.handle.focus(); cx.stop_propagation(); cx.notify(); return; }
         if (e.key === "escape" && this.typing) { this.typing = false; this.handle.focus(); cx.stop_propagation(); cx.notify(); return; }
         this.key(e, cx);
       })

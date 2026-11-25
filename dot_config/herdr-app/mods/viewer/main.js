@@ -55,9 +55,15 @@ export default class Viewer extends View {
     const step = { j: 1, down: 1, k: -1, up: -1, pagedown: page, pageup: -page, home: -Infinity, end: Infinity }[k];
     if (step === undefined) return;
     this.dline = Math.max(0, Math.min(this.rows.length - 1, this.dline + step));
-    this.dscroll.scroll_to_item(this.dline);
+    // Moving up brings the row to the top edge: keep one row clear for the pinned section header.
+    this.dscroll.scroll_to_item(step < 0 && sectionAt(this.rows, this.dline) ? Math.max(0, this.dline - 1) : this.dline);
+    this.repaintAfterScroll(cx);
     cx.stop_propagation(); cx.notify();
   }
+
+  // offset() holds the last layout's value: repaint once more after the scroll lands so the
+  // pinned header matches what's on screen (one deferred frame, not polling).
+  repaintAfterScroll(cx) { cx.timer.after(0, cx => cx.notify()); }
 
   item() { return (shared("viewer.items") ?? {})[this.vid] ?? null; }
 
@@ -65,7 +71,7 @@ export default class Viewer extends View {
   sync(cx) {
     const it = this.item(), id = it ? `${it.kind}|${it.on ?? ""}|${it.abs}|${it.n ?? 0}` : null;
     if (id === this.id) return;
-    this.id = id; this.code?.release(); this.code = null; this.text = null; this.lines = null; this.setLines([]); this.msg = null; this.dline = 0; this.stage = null;
+    this.id = id; this.code?.release(); this.code = null; this.text = null; this.lines = null; this.setLines([]); this.msg = null; this.dline = 0; this.stage = null; this.stageError = null;
     if (!it) return;
     // Only a fresh open: the item is saved, and a restart must not take the keyboard.
     if (it.focus && Date.now() - (it.n ?? 0) < 3000) this.wantFocus = true;
@@ -140,11 +146,14 @@ export default class Viewer extends View {
   // The repo watch (here and in Changes) reloads both once git has written the index.
   toggleStage(it, cx) {
     if (!this.stage || this.staging) return;
-    const args = stageArgs([it.rel], wantStage(this.stage), this.hasHead);
-    this.staging = true;
+    const id = this.id, stage = wantStage(this.stage), args = stageArgs([it.rel], stage, this.hasHead);
+    this.staging = true; this.stageError = null;
     cx.spawn(async cx => {
-      try { await exec("git", args, { cwd: it.root, on: it.on }); }
-      finally { this.staging = false; if (it.on) this.load(it, this.id, cx); cx.notify(); }
+      try {
+        const r = await exec("git", args, { cwd: it.root, on: it.on });
+        if (r.code !== 0) throw new Error((r.stderr || r.stdout).trim());
+      } catch (e) { if (this.id === id) this.stageError = `${stage ? "Stage" : "Unstage"} failed: ${String(e).replace(/^Error: /, "")}`; }
+      finally { this.staging = false; if (it.on && this.id === id) this.load(it, id, cx); cx.notify(); }
     });
   }
 
@@ -175,6 +184,7 @@ export default class Viewer extends View {
     const t = theme(), it = this.item(), font = settings(), size = font.font_size, focused = this.handle.is_focused();
     const header = h_flex().h(30).flex_none().px(12).gap(6).items_center().border_b(1).border_color(t.border).text_size(12)
       .child(div().flex_1().min_w(0).truncate().text_color(t.muted).child(it ? it.rel : ""))
+      .when(Boolean(this.stageError), el => el.child(div().max_w(260).truncate().text_color(t.ansi1).child(this.stageError)))
       .when(it?.kind === "diff", el => el.child(div().text_color(t.dim).child("changes")))
       .when(it?.kind === "diff" && Boolean(this.stage), el => el.child(div().id("viewer-stage").flex_none().cursor_pointer().on_click((_e, cx) => this.toggleStage(it, cx))
         .child(svg(`mods/viewer/check-${this.stage === "staged" ? "on" : this.stage === "partial" ? "part" : "off"}.svg`).size(14).text_color(this.stage === "unstaged" ? t.dim : t.accent))));
@@ -190,7 +200,7 @@ export default class Viewer extends View {
       .when(this.stickyHeader(size), el => el.child(div().absolute().top_0().left_0().right_0().child(this.diffRow(this.stickyHeader(size), t, size, false))))
       .child(Scrollbar.vertical("viewer-diff").viewport_from_layout().absolute().inset_0())
       // Repaint the pinned header as the list moves: wheel/trackpad, or dragging the scrollbar.
-      .on_scroll_wheel((_e, cx) => cx.notify())
+      .on_scroll_wheel((_e, cx) => { cx.notify(); this.repaintAfterScroll(cx); })
       .on_mouse_move((e, cx) => { if (e.pressed_button === "left") cx.notify(); });
     return v_flex().id("viewer").track_focus(this.handle).on_key_down((e, cx) => this.key(e, cx)).size_full().min_h(0).overflow_hidden().bg(t.background).text_color(t.foreground).text_size(13).child(header).child(body);
   }

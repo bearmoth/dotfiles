@@ -20,10 +20,12 @@ export function combine(states) {
 // The checkbox rule: ticked unstages; empty or part-staged stages everything under it.
 export const wantStage = (state) => state !== "staged";
 
-// git arguments for one stage or unstage write. A repo with no commits has no HEAD to restore from.
+// git arguments for one stage or unstage write. Paths are literal (a "[1]" in a name is not a
+// glob). A repo with no commits has no HEAD to restore from; there, rm --cached needs -f to drop
+// an index copy that differs from the working file (it never touches the working file).
 export function stageArgs(paths, stage, hasHead) {
-  if (stage) return ["add", "-A", "--", ...paths];
-  return hasHead ? ["restore", "--staged", "--", ...paths] : ["rm", "--cached", "-r", "-q", "--", ...paths];
+  const write = stage ? ["add", "-A"] : hasHead ? ["restore", "--staged"] : ["rm", "--cached", "-r", "-f", "-q"];
+  return ["--literal-pathspecs", ...write, "--", ...paths];
 }
 
 // Files a commit would take something from.

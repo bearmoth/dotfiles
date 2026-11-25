@@ -94,6 +94,10 @@
     "{{ $cmd }}-\\": "{{ $m }}.none",
     "{{ $cmd }}--": "{{ $m }}.none",
     "{{ $cmd }}-shift-enter": "{{ $m }}.none",
+{{- if eq $m "changes-view" }}
+    "tab": "{{ $m }}.cycle-focus",
+    "shift-tab": "{{ $m }}.cycle-focus",
+{{- end }}
 {{- range $i, $k := list "h" "j" "k" "l" }}
     "{{ $cmd }}-shift-{{ $k }}": "{{ $m }}.none"{{ if lt $i 3 }},{{ end }}
 {{- end }}

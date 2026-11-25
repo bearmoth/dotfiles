@@ -24,10 +24,11 @@ test("wantStage: anything not fully staged gets staged", () => {
   assert.equal(wantStage("unstaged"), true);
 });
 
-test("stageArgs always separates paths with --", () => {
-  assert.deepEqual(stageArgs(["a b", "-x"], true, true), ["add", "-A", "--", "a b", "-x"]);
-  assert.deepEqual(stageArgs(["d"], false, true), ["restore", "--staged", "--", "d"]);
-  assert.deepEqual(stageArgs(["d"], false, false), ["rm", "--cached", "-r", "-q", "--", "d"]);
+test("stageArgs: literal paths, always after --", () => {
+  assert.deepEqual(stageArgs(["a b", "-x"], true, true), ["--literal-pathspecs", "add", "-A", "--", "a b", "-x"]);
+  assert.deepEqual(stageArgs(["d"], false, true), ["--literal-pathspecs", "restore", "--staged", "--", "d"]);
+  // -f: with --cached it only drops the index copy, even one that differs from the working file.
+  assert.deepEqual(stageArgs(["d"], false, false), ["--literal-pathspecs", "rm", "--cached", "-r", "-f", "-q", "--", "d"]);
 });
 
 test("stagedCount counts files with anything staged", () => {
