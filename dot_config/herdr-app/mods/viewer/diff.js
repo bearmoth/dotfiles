@@ -19,6 +19,8 @@ export function diffRows(lines) {
     if (kind === "-") return { kind, staged, number: old++, text: untab(line.slice(1)) || " " };
     if (kind === "+") return { kind, staged, number: next++, text: untab(line.slice(1)) || " " };
     if (kind === " ") { old++; return { kind, staged, number: next++, text: untab(line.slice(1)) || " " }; }
+    // Conflict view (conflictLines): ours, theirs, base, marker; numbered by working-file line.
+    if (kind === "<" || kind === ">" || kind === "|" || kind === "!") return { kind, staged, number: next++, text: untab(line.slice(1)) || " " };
     return { kind: "", staged, text: line };
   });
 }
@@ -28,3 +30,34 @@ export function sectionAt(rows, index) {
   for (let i = Math.min(index, rows.length - 1); i >= 0; i--) if (rows[i].kind === "#") return rows[i];
   return null;
 }
+
+const MARKER = /^(?:<{7}|\|{7}|={7}|>{7})(?: |$)/;
+
+// A conflicted working file as one "Conflicted" section: each conflict block with 3 lines of
+// context, "@@ -N +N @@" between blocks. Prefixes: "<" ours, "|" base, ">" theirs, "!" marker.
+export function conflictLines(text, context = 3) {
+  const file = text.replace(/\n$/, "").split("\n"), marks = [];
+  let side = " ";
+  for (const line of file) {
+    if (MARKER.test(line)) { marks.push("!"); side = { "<": "<", "|": "|", "=": ">", ">": " " }[line[0]]; }
+    else marks.push(side);
+  }
+  const head = [SECTION + "Conflicted"];
+  if (!marks.includes("!")) return [...head, "No conflict markers left · tick the box to mark resolved"];
+  // Ranges [from, to] around each conflicted line, merged where they touch.
+  const ranges = [];
+  marks.forEach((m, i) => {
+    if (m === " ") return;
+    const from = Math.max(0, i - context), to = Math.min(file.length - 1, i + context), last = ranges[ranges.length - 1];
+    if (last && from <= last[1] + 1) last[1] = Math.max(last[1], to); else ranges.push([from, to]);
+  });
+  const out = [...head];
+  for (const [from, to] of ranges) {
+    out.push(`@@ -${from + 1} +${from + 1} @@`);
+    for (let i = from; i <= to; i++) out.push(marks[i] + file[i]);
+  }
+  return out;
+}
+
+// At most `max` lines, then one row saying how many more there were.
+export const capLines = (lines, max) => lines.length > max ? [...lines.slice(0, max), `… ${lines.length - max} more lines`] : lines;

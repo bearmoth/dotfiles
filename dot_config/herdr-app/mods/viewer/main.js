@@ -4,8 +4,11 @@
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex, Editor, EditorState, Scrollbar, v_virtual_list, VirtualListScrollHandle } from "gpui-base";
 import { props, shared, exec, readTextFile, watchFolder, theme, settings, nextCommand, checking } from "herdr";
-import { SECTION, countLines, diffRows, sectionAt } from "./diff.js";
-import { stageState, wantStage, stageArgs } from "./staging.js";
+import { SECTION, countLines, diffRows, sectionAt, conflictLines, capLines } from "./diff.js";
+import { stageState, wantStage, stageArgs, isConflict, hasMarkers } from "./staging.js";
+
+// Lines per diff section; a cut section ends with "… N more lines".
+const SECTION_LINES = 20000;
 
 const LANG = { ts: "js", tsx: "js", mts: "js", cts: "js", jsx: "js", mjs: "js", toml: "yaml", jsonc: "json", svelte: "html", vue: "html" };
 
@@ -107,7 +110,7 @@ export default class Viewer extends View {
           if (this.id !== id) return;
           this.stage = stage; this.hasHead = hasHead;
           if (this.lines && lines.join("\n") === this.lines.join("\n")) return;
-          this.lines = lines; this.setLines(lines.slice(0, 1500).map(l => l.length > 4000 ? l.slice(0, 4000) + "… (line truncated)" : l));
+          this.lines = lines; this.setLines(lines.map(l => l.length > 4000 ? l.slice(0, 4000) + "… (line truncated)" : l));
         }
       } catch (e) { if (this.id === id) this.msg = `Cannot show this ${it.kind === "diff" ? "diff" : "file"} (binary, too large, or unreadable)`; }
       finally { if (this.id === id) { if (this.wantFocus) this.takeKeys(); cx.notify(); } }
@@ -124,17 +127,22 @@ export default class Viewer extends View {
     const done = (lines, xy) => ({ lines, stage: xy ? stageState(xy) : null, hasHead });
     if (!st.stdout) return done(["No changes"]);
     const xy = st.stdout.slice(0, 2), x = xy[0], y = xy[1];
+    if (isConflict(xy)) {
+      const text = await readTextFile(it.abs, { on: it.on }).catch(() => null);
+      if (text === null) return done(["Conflicted · the working file is gone or unreadable (deleted on one side?)"], xy);
+      return done(capLines(conflictLines(text.slice(0, 400000)), SECTION_LINES + 1), xy);
+    }
     if (x === "?") {
       const text = await readTextFile(it.abs, { on: it.on }).catch(() => null);
       if (text === null) return done(["Cannot preview this file (binary, too large, or unreadable)"], xy);
       if (text.includes("\0")) return done(["Binary file · no text diff"], xy);
-      return done([SECTION + "Not staged · new file", `@@ -0,0 +1,${countLines(text)} @@`, ...text.slice(0, 400000).replace(/\n$/, "").split("\n").slice(0, 1500).map(l => `+${l}`)], xy);
+      return done([SECTION + "Not staged · new file", `@@ -0,0 +1,${countLines(text)} @@`, ...capLines(text.slice(0, 400000).replace(/\n$/, "").split("\n").map(l => `+${l}`), SECTION_LINES)], xy);
     }
     const part = async (args) => {
       const r = await git(["diff", ...args, "--no-ext-diff", "--no-textconv", "--no-color", "--", it.rel]);
       if (r.code !== 0) throw new Error(r.stderr);
       const all = r.stdout.replace(/\n$/, "").split("\n"), first = all.findIndex(l => l.startsWith("@@"));
-      return first < 0 ? (r.stdout ? ["No text diff available"] : ["(no text changes)"]) : all.slice(first);
+      return first < 0 ? (r.stdout ? ["No text diff available"] : ["(no text changes)"]) : capLines(all.slice(first), SECTION_LINES);
     };
     const out = [];
     if (x !== " ") out.push(SECTION + "Staged", ...await part(["--cached"]));
@@ -144,12 +152,14 @@ export default class Viewer extends View {
 
   // The header checkbox: ticked unstages the file, empty or part-staged stages all of it.
   // The repo watch (here and in Changes) reloads both once git has written the index.
+  // A conflicted file's box marks it resolved (stages it), once it has no conflict markers.
   toggleStage(it, cx) {
     if (!this.stage || this.staging) return;
-    const id = this.id, stage = wantStage(this.stage), args = stageArgs([it.rel], stage, this.hasHead);
+    const id = this.id, stage = wantStage(this.stage), args = stageArgs([it.rel], stage, this.hasHead), resolving = this.stage === "conflict";
     this.staging = true; this.stageError = null;
     cx.spawn(async cx => {
       try {
+        if (resolving && hasMarkers(await readTextFile(it.abs, { on: it.on }).catch(() => "") ?? "")) throw new Error("still has conflict markers");
         const r = await exec("git", args, { cwd: it.root, on: it.on });
         if (r.code !== 0) throw new Error((r.stderr || r.stdout).trim());
       } catch (e) { if (this.id === id) this.stageError = `${stage ? "Stage" : "Unstage"} failed: ${String(e).replace(/^Error: /, "")}`; }
@@ -169,9 +179,11 @@ export default class Viewer extends View {
     const height = rowHeight(size);
     // A section header (Staged / Not staged); also drawn pinned at the top while its section scrolls.
     if (kind === "#") return div().w_full().px(12).h(height).flex_none().flex().items_center().bg(cur ? t.selected : t.raised).border_b(1).border_color(t.border)
-      .text_color(staged ? t.ansi2 : t.ansi3).child(text);
+      .text_color(text.startsWith("Conflicted") ? t.ansi1 : staged ? t.ansi2 : t.ansi3).child(text);
     if (kind === "@") return div().w_full().px(12).h(height).flex_none().truncate().bg(cur ? t.selected : t.raised).text_color(t.dim).child(text);
-    return h_flex().w_full().h(height).flex_none().gap(10).when(kind === "+", (e) => e.bg(t.ansi2 + "18")).when(kind === "-", (e) => e.bg(t.ansi1 + "18")).when(cur, (e) => e.bg(t.selected))
+    // Conflict view: ours blue, theirs magenta, base dimmed, markers plain and muted.
+    const tint = { "+": t.ansi2, "-": t.ansi1, "<": t.ansi4, ">": t.ansi5 }[kind];
+    return h_flex().w_full().h(height).flex_none().gap(10).when(Boolean(tint), (e) => e.bg(tint + "18")).when(kind === "!", (e) => e.bg(t.raised).text_color(t.muted)).when(kind === "|", (e) => e.text_color(t.dim)).when(cur, (e) => e.bg(t.selected))
       .child(div().w(this.gutter(size)).flex_none().text_right().text_color(t.dim).child(number === undefined ? "" : String(number)))
       .child(div().flex_1().min_w(0).truncate().child(text));
   }
@@ -187,7 +199,7 @@ export default class Viewer extends View {
       .when(Boolean(this.stageError), el => el.child(div().max_w(260).truncate().text_color(t.ansi1).child(this.stageError)))
       .when(it?.kind === "diff", el => el.child(div().text_color(t.dim).child("changes")))
       .when(it?.kind === "diff" && Boolean(this.stage), el => el.child(div().id("viewer-stage").flex_none().cursor_pointer().on_click((_e, cx) => this.toggleStage(it, cx))
-        .child(svg(`mods/viewer/check-${this.stage === "staged" ? "on" : this.stage === "partial" ? "part" : "off"}.svg`).size(14).text_color(this.stage === "unstaged" ? t.dim : t.accent))));
+        .child(svg(`mods/viewer/check-${{ staged: "on", partial: "part", conflict: "conflict" }[this.stage] ?? "off"}.svg`).size(14).text_color(this.stage === "conflict" ? t.ansi1 : this.stage === "unstaged" ? t.dim : t.accent))));
     const message = (m) => div().p(12).text_color(t.dim).child(m);
     let body;
     if (!it) body = message("Nothing to show · open a file from Files or Changes");

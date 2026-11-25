@@ -1,11 +1,11 @@
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input, Scrollbar, ScrollHandle } from "gpui-base";
 import { openInViewer } from "./open.js";
-import { stageState, combine, wantStage, stageArgs, stagedCount } from "./staging.js";
+import { stageState, combine, wantStage, stageArgs, stagedCount, hasMarkers } from "./staging.js";
 // Stock Changes, but picking a file opens its diff in the tab's viewer pane (mods/viewer)
 // instead of inside this panel. Nothing opens until you pick a file. The files show as a tree
 // (folders expanded by default; a folder holding only one folder shares its row: "a/b").
-import { spaces, panes, focused, exec, watchFolder, theme, run, shared, nextCommand, checking } from "herdr";
+import { spaces, panes, focused, exec, readTextFile, watchFolder, theme, run, shared, nextCommand, checking } from "herdr";
 
 // While a mod pane (the viewer) is focused, keep showing the repo we were in.
 let last = null;
@@ -207,10 +207,10 @@ export default class Changes extends View {
   }
 
   checkbox(id, state, t, onToggle) {
-    const icon = state === "staged" ? "on" : state === "partial" ? "part" : "off";
+    const icon = { staged: "on", partial: "part", conflict: "conflict" }[state] ?? "off";
     return div().id(id).flex_none().cursor_pointer().on_mouse_down("left", (_e, cx) => cx.stop_propagation())
       .on_click((_e, cx) => { cx.stop_propagation(); onToggle(cx); })
-      .child(svg(`mods/changes-view/check-${icon}.svg`).size(14).text_color(state === "unstaged" ? t.dim : t.accent));
+      .child(svg(`mods/changes-view/check-${icon}.svg`).size(14).text_color(state === "conflict" ? t.ansi1 : state === "unstaged" ? t.dim : t.accent));
   }
 
   // Rows for one folder's contents: folders first, then files, each by name. A folder holding
@@ -255,9 +255,10 @@ export default class Changes extends View {
 
   // One stage or unstage write, then a refresh (the folder watch would bring one too).
   // Writes run one at a time (git holds .git/index.lock while writing); a commit waits for them.
-  stage(paths, stage, cx) {
+  // `exclude`: conflicted files, which bulk writes never touch (staging one marks it resolved).
+  stage(paths, stage, cx, exclude = []) {
     if (!this.root || !paths.length || this.busy) return;
-    const root = this.root, on = this.on, context = this.context, args = stageArgs(paths, stage, this.hasHead);
+    const root = this.root, on = this.on, context = this.context, args = stageArgs(paths, stage, this.hasHead, exclude);
     const before = this.writes; let done; this.writes = new Promise((r) => (done = r));
     this.note = null;
     cx.spawn(async (cx) => {
@@ -270,14 +271,35 @@ export default class Changes extends View {
     });
   }
 
-  // A row's checkbox (click or space): ticked unstages, empty or part-staged stages everything under it.
+  // Conflicted files under a folder ("" = the whole repo).
+  conflictsUnder(dir) { return this.files.filter(f => f.stage === "conflict" && (!dir || f.path.startsWith(dir + "/"))).map(f => f.path); }
+
+  // A row's checkbox (click or space): ticked unstages, empty or part-staged stages everything
+  // under it, conflicts left out. A conflicted file's box marks it resolved, once it has no markers.
   toggleRow(r, cx) {
     const state = r.dir ? this.dirStates.get(r.path) : this.files.find(f => f.path === r.path)?.stage;
-    if (state) this.stage([r.path], wantStage(state), cx);
+    if (!state) return;
+    if (state === "conflict") {
+      if (r.dir) { this.note = "Only conflicted files here: resolve each one on its own"; cx.notify(); return; }
+      return this.resolve(r.path, cx);
+    }
+    this.stage([r.path], wantStage(state), cx, r.dir ? this.conflictsUnder(r.path) : []);
+  }
+
+  // Mark a conflicted file resolved (stage it), unless it still has conflict markers.
+  resolve(path, cx) {
+    const root = this.root, on = this.on, context = this.context;
+    cx.spawn(async (cx) => {
+      const text = await readTextFile(`${root}/${path}`, { on }).catch(() => null);
+      if (!this.current(context)) return;
+      if (text !== null && hasMarkers(text)) { this.note = `${path}: still has conflict markers`; cx.notify(); return; }
+      this.stage([path], true, cx);
+    });
   }
 
   // Header button: stage every change, or unstage all when everything is already staged.
-  stageAll(cx) { if (this.files.length) this.stage(["."], this.tree.stage !== "staged", cx); }
+  // Conflicted files are always left out.
+  stageAll(cx) { if (this.files.length && this.tree.stage !== "conflict") this.stage(["."], this.tree.stage !== "staged", cx, this.conflictsUnder("")); }
 
   commit(cx) {
     if (!this.message.trim() || !this.root || this.busy || this.loading || !stagedCount(this.files) || this.context?.key !== (key() ?? this.context?.key)) return;
@@ -307,15 +329,15 @@ export default class Changes extends View {
     if (focusedNow && !this.wasFocused) resolveRoot(location(), cx, true); // just gained the keyboard
     this.wasFocused = focusedNow; this.order = []; this.dirStates = new Map();
     const t = theme(), add = this.files.reduce((n, f) => n + f.add, 0), del = this.files.reduce((n, f) => n + f.del, 0);
-    const staged = stagedCount(this.files), enabled = Boolean(this.message.trim() && staged && this.root && !this.busy && !this.loading);
+    const conflicts = this.conflictsUnder("").length, staged = stagedCount(this.files), enabled = Boolean(this.message.trim() && staged && this.root && !this.busy && !this.loading);
     const header = () => h_flex().h(42).flex_none().px(14).gap(8).items_center().border_b(1).border_color(t.border);
     const list = v_flex().id("changes-list-col").size_full().min_h(0)
       .child(header()
         .child(div().font_semibold().child("Changes"))
         .child(div().px(5).py(1).rounded(4).border_1().border_color(t.border).text_size(10).text_color(t.muted).child(`${this.files.length} files`))
         .child(div().flex_1()).child(div().text_size(11).text_color(t.ansi2).child(`+${add}`)).child(div().text_size(11).text_color(t.ansi1).child(`−${del}`))
-        .when(this.files.length > 0, el => el.child(div().id("stage-all").px(8).py(2).rounded(6).border_1().border_color(t.border).text_size(11).text_color(t.muted).cursor_pointer().hover(s => s.bg(t.hover))
-          .on_click((_e, cx) => this.stageAll(cx)).child(this.tree.stage === "staged" ? "Unstage all" : "Stage all"))))
+        .when(this.files.length > 0 && this.tree.stage !== "conflict", el => el.child(div().id("stage-all").px(8).py(2).rounded(6).border_1().border_color(t.border).text_size(11).text_color(t.muted).cursor_pointer().hover(s => s.bg(t.hover))
+          .on_click((_e, cx) => this.stageAll(cx)).child((this.tree.stage === "staged" ? "Unstage all" : "Stage all") + (conflicts ? ` (${conflicts} conflict${conflicts === 1 ? "" : "s"} skipped)` : "")))))
       // overflow_y_scrollbar() wraps the list, so its flex sizing never reached the panel's layout.
       .child(div().flex_1().min_h(44).relative()
         .child(v_flex().id("changes-list").absolute().inset_0().overflow_y_scroll().track_scroll(this.scroll).p(6).children(this.rows(this.tree, "", 0, null, [], t, focusedNow)).when(!this.files.length, (e) => e.child(div().p(8).text_color(t.dim).child(this.error || (this.loading ? "Loading changes…" : this.root ? "No uncommitted changes" : "No folder")))))
