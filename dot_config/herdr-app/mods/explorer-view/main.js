@@ -129,7 +129,7 @@ export default class Files extends View {
     } else if (k === "enter") {
       const r = this.order[i];
       if (!r) return;
-      r.dir ? this.toggle(r.path, cx) : this.open(r.path, cx, true);
+      r.dir ? this.toggle(r.path, cx) : this.open(r.path, cx);
     } else return;
     cx.stop_propagation(); cx.notify();
   }
@@ -217,12 +217,10 @@ export default class Files extends View {
     cx.notify();
   }
 
-  // Show a file in the viewer pane. If the tree had the keyboard, it keeps it.
-  // Enter (focus) hands the keyboard to the viewer; a click keeps it where it was.
-  open(path, cx, focus = false) {
+  // Show a file in the viewer pane and hand it the keyboard (click or Enter).
+  open(path, cx) {
     this.file = path; this.cursor = path;
-    const kept = !focus && this.handle.is_focused();
-    openInViewer({ kind: "file", abs: `${this.root}/${path}`, rel: path, root: this.root, on: this.on }, cx, cx => { if (kept) this.later(cx); cx.timer.after(200, cx => cx.notify()); cx.notify(); }, focus);
+    openInViewer({ kind: "file", abs: `${this.root}/${path}`, rel: path, root: this.root, on: this.on }, cx, cx => { cx.timer.after(200, cx => cx.notify()); cx.notify(); }, true);
     cx.notify();
   }
 

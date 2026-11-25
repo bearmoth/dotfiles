@@ -193,7 +193,7 @@ export default class Changes extends View {
       else if (r.parent) { this.cursor = r.parent; this.reveal(); }
     } else if (k === "enter") {
       if (!r) return;
-      r.dir ? this.toggle(r.path) : this.pick(r.path, cx, true);
+      r.dir ? this.toggle(r.path) : this.pick(r.path, cx);
     } else return;
     cx.stop_propagation(); cx.notify();
   }
@@ -229,11 +229,10 @@ export default class Changes extends View {
     return out;
   }
 
-  // Show a file's diff in the viewer pane (the row stays highlighted).
-  // Enter (focus) hands the keyboard to the viewer; a click keeps it where it was.
-  pick(path, cx, focus = false) {
+  // Show a file's diff in the viewer pane (the row stays highlighted) and hand it the keyboard.
+  pick(path, cx) {
     this.open = path; this.cursor = path; this.note = null;
-    openInViewer({ kind: "diff", abs: `${this.root}/${path}`, rel: path, root: this.root, on: this.on }, cx, cx => cx.timer.after(200, cx => cx.notify()), focus);
+    openInViewer({ kind: "diff", abs: `${this.root}/${path}`, rel: path, root: this.root, on: this.on }, cx, cx => cx.timer.after(200, cx => cx.notify()), true);
     cx.notify();
   }
 
