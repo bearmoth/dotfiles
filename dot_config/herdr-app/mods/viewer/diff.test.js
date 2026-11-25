@@ -92,3 +92,31 @@ test("conflict marker rows show no line number, content keeps the file's numberi
   const nums = rows.filter(r => "<>|!".includes(r.kind) && r.kind).map(r => [r.kind, r.number]);
   assert.deepEqual(nums, [["!", undefined], ["<", 3], ["!", undefined], [">", 5], ["!", undefined]]);
 });
+
+import { splitPatch, hunkPatch } from "./diff.js";
+
+const RAW = [
+  "diff --git a/R.md b/R.md", "index 1..2 100644", "--- a/R.md", "+++ b/R.md",
+  "@@ -3,1 +3,2 @@ intro", " intro 3", "+Install\r",
+  "@@ -20,1 +21,2 @@", " usage 20", "+TODO", "\\ No newline at end of file", "",
+].join("\n");
+
+test("splitPatch keeps the file header and each hunk, line endings untouched", () => {
+  const p = splitPatch(RAW);
+  assert.equal(p.header.length, 4);
+  assert.equal(p.hunks.length, 2);
+  assert.deepEqual(p.hunks[0], ["@@ -3,1 +3,2 @@ intro", " intro 3", "+Install\r"]);
+  assert.deepEqual(p.hunks[1], ["@@ -20,1 +21,2 @@", " usage 20", "+TODO", "\\ No newline at end of file"]);
+});
+
+test("hunkPatch is the header plus one hunk, newline-terminated; null when out of range", () => {
+  const p = splitPatch(RAW);
+  assert.equal(hunkPatch(p, 1), "diff --git a/R.md b/R.md\nindex 1..2 100644\n--- a/R.md\n+++ b/R.md\n@@ -20,1 +21,2 @@\n usage 20\n+TODO\n\\ No newline at end of file\n");
+  assert.equal(hunkPatch(p, 2), null);
+  assert.equal(hunkPatch(splitPatch(""), 0), null);
+});
+
+test("@@ rows carry their hunk index, restarting per section", () => {
+  const rows = diffRows([SECTION + "Staged", "@@ -1 +1 @@", "+a", SECTION + "Not staged", "@@ -1 +1 @@", "+b", "@@ -5 +5 @@", "+c"]);
+  assert.deepEqual(rows.filter(r => r.kind === "@").map(r => [r.staged, r.hunk]), [[true, 0], [false, 0], [false, 1]]);
+});

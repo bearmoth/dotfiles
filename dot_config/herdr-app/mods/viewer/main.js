@@ -4,7 +4,7 @@
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex, Editor, EditorState, Scrollbar, v_virtual_list, VirtualListScrollHandle } from "gpui-base";
 import { props, shared, exec, readTextFile, writeTextFile, watchFolder, theme, settings, nextCommand, checking } from "herdr";
-import { SECTION, countLines, diffRows, sectionAt, conflictLines, capLines, resolveBlock } from "./diff.js";
+import { SECTION, countLines, diffRows, sectionAt, conflictLines, capLines, resolveBlock, splitPatch, hunkPatch } from "./diff.js";
 import { stageState, wantStage, stageArgs, isConflict, hasMarkers } from "./staging.js";
 
 // A theme colour at a given alpha ("30" hex): works for #rrggbb and #rrggbbaa alike.
@@ -109,9 +109,9 @@ export default class Viewer extends View {
             value: text.length > 400000 ? text.slice(0, 400000) + "\n… (file truncated)" : text,
             syntax: { keyword: t.ansi5, string: t.ansi2, comment: t.dim, function: t.ansi4, type: t.ansi3, number: t.ansi1, constant: t.ansi6 } });
         } else {
-          const { lines, stage, hasHead, raw } = await this.diffLines(it);
+          const { lines, stage, hasHead, raw, patches } = await this.diffLines(it);
           if (this.id !== id) return;
-          this.stage = stage; this.hasHead = hasHead; this.raw = raw ?? null; this.ready = this.raw !== null && !hasMarkers(this.raw);
+          this.patches = patches ?? {}; this.stage = stage; this.hasHead = hasHead; this.raw = raw ?? null; this.ready = this.raw !== null && !hasMarkers(this.raw);
           if (this.lines && lines.join("\n") === this.lines.join("\n")) return;
           this.lines = lines; this.setLines(lines.map(l => l.length > 4000 ? l.slice(0, 4000) + "… (line truncated)" : l));
         }
@@ -127,10 +127,12 @@ export default class Viewer extends View {
     const git = (args) => exec("git", [...READ, ...args], { cwd: it.root, on: it.on });
     const hasHead = (await git(["rev-parse", "--verify", "HEAD"])).code === 0;
     const st = await git(["status", "--porcelain=v1", "-z", "--no-renames", "--untracked-files=all", "--", it.rel]);
-    const done = (lines, xy, raw) => ({ lines, stage: xy ? stageState(xy) : null, hasHead, raw });
-    const part = async (args) => {
+    const patches = {};
+    const done = (lines, xy, raw) => ({ lines, stage: xy ? stageState(xy) : null, hasHead, raw, patches });
+    const part = async (args, name) => {
       const r = await git(["diff", ...args, "--no-ext-diff", "--no-textconv", "--no-color", "--", it.rel]);
       if (r.code !== 0) throw new Error(r.stderr);
+      if (name) patches[name] = splitPatch(r.stdout);
       const all = r.stdout.replace(/\n$/, "").split("\n"), first = all.findIndex(l => l.startsWith("@@"));
       return first < 0 ? (r.stdout ? ["No text diff available"] : ["(no text changes)"]) : capLines(all.slice(first), SECTION_LINES);
     };
@@ -149,8 +151,8 @@ export default class Viewer extends View {
       return done([SECTION + "Not staged · new file", `@@ -0,0 +1,${countLines(text)} @@`, ...capLines(text.slice(0, 400000).replace(/\n$/, "").split("\n").map(l => `+${l}`), SECTION_LINES)], xy);
     }
     const out = [];
-    if (x !== " ") out.push(SECTION + "Staged", ...await part(["--cached"]));
-    if (y !== " ") out.push(SECTION + "Not staged", ...await part([]));
+    if (x !== " ") out.push(SECTION + "Staged", ...await part(["--cached"], "staged"));
+    if (y !== " ") out.push(SECTION + "Not staged", ...await part([], "unstaged"));
     return done(out.length ? out : ["No changes"], xy);
   }
 
@@ -182,6 +184,29 @@ export default class Viewer extends View {
       try { await writeTextFile(it.abs, next, this.raw); }
       catch { if (this.id === id) { this.stageError = "File changed since it was shown · reloaded"; this.load(it, id, cx); } }
       cx.notify();
+    });
+  }
+
+  // One hunk: stage it (Not staged), unstage it (Staged), or discard it from the working file
+  // (Not staged, after a second click). git apply refuses if the file moved on since it was shown.
+  applyHunk(it, row, action, cx) {
+    const patch = hunkPatch(this.patches?.[row.staged ? "staged" : "unstaged"] ?? { header: [], hunks: [] }, row.hunk);
+    if (!patch || this.staging) return;
+    const key = `${row.staged}-${row.hunk}`;
+    if (action === "discard" && this.confirm !== key) {
+      this.confirm = key;
+      cx.timer.after(4000, cx => { if (this.confirm === key) { this.confirm = null; cx.notify(); } });
+      return cx.notify();
+    }
+    this.confirm = null;
+    const flags = { stage: ["--cached"], unstage: ["--cached", "-R"], discard: ["-R"] }[action], id = this.id;
+    this.staging = true; this.stageError = null;
+    cx.spawn(async cx => {
+      try {
+        const r = await exec("sh", ["-c", `printf %s "$1" | git apply ${flags.join(" ")} -`, "sh", patch], { cwd: it.root, on: it.on });
+        if (r.code !== 0) throw new Error((r.stderr || r.stdout).trim().split("\n").pop());
+      } catch (e) { if (this.id === id) { this.stageError = `${action[0].toUpperCase() + action.slice(1)} failed: ${String(e).replace(/^Error: /, "")} · reloaded`; this.load(it, id, cx); } }
+      finally { this.staging = false; if (it.on && this.id === id) this.load(it, id, cx); cx.notify(); }
     });
   }
 
@@ -261,6 +286,24 @@ export default class Viewer extends View {
     return out;
   }
 
+  hunkButtons(it, t, size) {
+    if (!this.rows || this.stage === "conflict" || !this.patches) return [];
+    const h = rowHeight(size), top = this.dscroll.offset().y, view = this.dscroll.viewport_size().height || 4000, out = [];
+    for (let i = Math.max(0, Math.floor(top / h)); i < this.rows.length && i * h - top < view; i++) {
+      const row = this.rows[i];
+      if (row.kind !== "@" || row.hunk === undefined || !this.patches[row.staged ? "staged" : "unstaged"]?.hunks[row.hunk]) continue;
+      const y = i * h - top;
+      if (y < h) continue; // under the pinned header
+      const button = (action, text, color) => div().id(`hunk-${action}-${row.staged}-${row.hunk}`).px(6).rounded(4).border_1().border_color(color ?? t.border).bg(t.background).text_size(11).text_color(color ?? t.foreground).cursor_pointer().hover(s => s.bg(t.hover))
+        .on_click((_e, cx) => this.applyHunk(it, row, action, cx)).child(text);
+      const confirming = this.confirm === `${row.staged}-${row.hunk}`;
+      out.push(h_flex().absolute().top(y).right(14).h(h).gap(6).items_center()
+        .when(row.staged, e => e.child(button("unstage", "Unstage")))
+        .when(!row.staged, e => e.child(button("stage", "Stage")).child(button("discard", confirming ? "Really discard?" : "Discard", confirming ? t.ansi1 : undefined))));
+    }
+    return out;
+  }
+
   // The header of the section the top visible row is in.
   stickyHeader(size) { return sectionAt(this.rows, Math.floor(this.dscroll.offset().y / rowHeight(size))); }
 
@@ -290,6 +333,7 @@ export default class Viewer extends View {
         .child(div().w_full().min_w(Math.max(300, this.longest * charWidth(size) + this.gutter(size) + 20)).h_full().child(v_virtual_list("viewer-diff", this.rows.length, rowHeight(size), (i) => String(i),
           (range) => this.rows.slice(range.start, range.end).map((row, j) => this.safeRow(row, t, size, focused && range.start + j === this.dline))).track_scroll(this.dscroll).size_full())))
       .children(this.blockButtons(it, t, size))
+      .children(this.hunkButtons(it, t, size))
       .when(this.stickyHeader(size), el => el.child(div().absolute().top_0().left_0().right_0().child(this.diffRow(this.stickyHeader(size), t, size, false))))
       .child(Scrollbar.vertical("viewer-diff").viewport_from_layout().absolute().inset_0())
       // Repaint the pinned header as the list moves: wheel/trackpad, or dragging the scrollbar.

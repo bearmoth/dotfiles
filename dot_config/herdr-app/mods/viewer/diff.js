@@ -10,11 +10,11 @@ export const untab = (text) => text.replace(/[^\t]*\t/g, (s) => s.slice(0, -1).p
 // Numbers each diff line once, so a frame only draws the rows on screen. Each section's
 // header is a "#" row; rows below it carry staged: true/false and restart the numbering.
 export function diffRows(lines) {
-  let old = 0, next = 0, staged = false, conflict = false;
+  let old = 0, next = 0, staged = false, conflict = false, hunk = -1;
   const rows = lines.map((line) => {
-    if (line.startsWith(SECTION)) { old = 0; next = 0; const text = line.slice(SECTION.length); staged = text.startsWith("Staged"); conflict = text.startsWith("Conflicted"); return { kind: "#", staged, text }; }
+    if (line.startsWith(SECTION)) { old = 0; next = 0; hunk = -1; const text = line.slice(SECTION.length); staged = text.startsWith("Staged"); conflict = text.startsWith("Conflicted"); return { kind: "#", staged, text }; }
     const match = /^@@ -(\d+)(?:,\d+)? \+(\d+)/.exec(line);
-    if (match) { old = +match[1]; next = +match[2]; return { kind: "@", staged, conflict, text: line }; }
+    if (match) { old = +match[1]; next = +match[2]; return { kind: "@", staged, conflict, hunk: ++hunk, text: line }; }
     const kind = line[0];
     if (kind === "-") return { kind, staged, number: old++, text: untab(line.slice(1)) || " " };
     if (kind === "+") return { kind, staged, number: next++, text: untab(line.slice(1)) || " " };
@@ -98,4 +98,20 @@ export function resolveBlock(text, n, choice) {
     if (part === "ours") ours.push(line); else if (part === "theirs") theirs.push(line);
   }
   return found && part === null ? out.join("\n") : null;
+}
+
+// One section's raw `git diff` output: the file header (diff --git … +++) and each hunk's lines
+// (from its @@ line to the next), exactly as git wrote them, \r included.
+export function splitPatch(text) {
+  const lines = text.replace(/\n$/, "").split("\n"), first = lines.findIndex(l => l.startsWith("@@"));
+  if (first < 0) return { header: [], hunks: [] };
+  const hunks = [];
+  for (const line of lines.slice(first)) line.startsWith("@@") ? hunks.push([line]) : hunks[hunks.length - 1].push(line);
+  return { header: lines.slice(0, first), hunks };
+}
+
+// A patch holding just hunk n, for git apply. null if there is no such hunk.
+export function hunkPatch(patch, n) {
+  const hunk = patch.hunks[n];
+  return hunk && patch.header.length ? [...patch.header, ...hunk].join("\n") + "\n" : null;
 }
