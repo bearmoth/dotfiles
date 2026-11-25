@@ -55,10 +55,13 @@ is too easy to trigger by mistake.
 - **Toggle rule:** ✓ unstages. ☐ or – stages *everything* under the row (whole file or
   whole folder). The same rule applies on click and on **space**, which acts on the cursor
   row.
-- **Two status letters**, in the lazygit style. The first is the index side, in green, and
-  the second the working-tree side, in red. Each comes straight from git's `XY` status, so
-  `M ` is staged, ` M` unstaged and `MM` part staged.
-  *(My call: untracked shows a red `?`, and a conflict shows a red `U` on both sides.)*
+- **Status letters: OPEN, decided after a visual spike.** Option A is two letters, in the
+  lazygit style: the index side in green, then the working-tree side in red, from git's
+  `XY` (so `MM` is part staged). Option B is one letter for the change type (as today),
+  leaving staged-ness to the checkbox. Either way, untracked shows `?`, and a conflict shows
+  a red `U`.
+- **Stage all** button in the sidebar header. It stages every change. It reads "Unstage
+  all" when everything is already staged.
 - **Commit** runs `git commit -m` only, with no `add`. The button reads "Commit N files",
   N being the files with anything staged. It's disabled when N is 0.
 - **Tab / shift-tab** move the keyboard between the tree and the commit message box, both
