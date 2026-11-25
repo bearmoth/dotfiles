@@ -130,7 +130,7 @@ export default class Changes extends View {
     const { root: cwd, on } = JSON.parse(next); // "cwd" below is the panel's root
     if (next !== this.context?.key) {
       this.context = { key: next }; this.root = null; this.files = []; this.tree = tree([]); this.collapsed = new Set(); this.open = null;
-      this.message = ""; this.input.set_value(""); this.error = null; this.note = null; this.watched = null; this.limited = false;
+      this.message = ""; this.input.set_value(""); this.merging = false; this.error = null; this.note = null; this.info = null; this.watched = null; this.limited = false;
       this.loading = false;
     }
     // A load left behind in another folder (a slow git, a read that never ends) must not hold this one.
@@ -166,8 +166,17 @@ export default class Changes extends View {
           const stat = stats[path] ?? { add: 0, del: 0 };
           files.push({ path, status: s, fresh, xy, stage: stageState(xy), ...stat });
         }
+        // Conflicted files leave the tree for the Conflicts group; "ready" once no markers are left.
+        for (const f of files) if (f.stage === "conflict") {
+          const text = await readTextFile(`${root}/${f.path}`, { on }).catch(() => null);
+          f.ready = text !== null && !hasMarkers(text);
+        }
+        const merging = (await git(["rev-parse", "-q", "--verify", "MERGE_HEAD"])).code === 0;
         if (!this.current(context)) return;
-        this.root = root; this.on = on; this.hasHead = head.code === 0; this.files = files; this.tree = tree(files); this.limited = entries.length > 1000; this.error = null;
+        // A file just marked resolved that no longer shows: it ended up the same as the last commit.
+        if (this.resolving && !files.some(f => f.path === this.resolving)) this.info = `${this.resolving}: resolved · same as the last commit, so nothing to stage`;
+        this.resolving = null;
+        this.root = root; this.on = on; this.hasHead = head.code === 0; this.merging = merging; this.files = files; this.tree = tree(files.filter(f => f.stage !== "conflict")); this.limited = entries.length > 1000; this.error = null;
         this.watch(root, cx);
         if (this.open && !files.some((f) => f.path === this.open)) this.open = null;
       } catch (e) { if (this.current(context)) this.error = String(e); }
@@ -216,10 +225,10 @@ export default class Changes extends View {
   }
 
   checkbox(id, state, t, onToggle) {
-    const icon = { staged: "on", partial: "part", conflict: "conflict" }[state] ?? "off";
+    const icon = { staged: "on", partial: "part", conflict: "conflict", ready: "ready" }[state] ?? "off";
     return div().id(id).flex_none().cursor_pointer().on_mouse_down("left", (_e, cx) => cx.stop_propagation())
       .on_click((_e, cx) => { cx.stop_propagation(); onToggle(cx); })
-      .child(svg(`mods/changes-view/check-${icon}.svg`).size(14).text_color(state === "conflict" ? t.ansi1 : state === "unstaged" ? t.dim : t.accent));
+      .child(svg(`mods/changes-view/check-${icon}.svg`).size(14).text_color(state === "conflict" ? t.ansi1 : state === "ready" ? t.ansi2 : state === "unstaged" ? t.dim : t.accent));
   }
 
   // Rows for one folder's contents: folders first, then files, each by name. A folder holding
@@ -239,20 +248,34 @@ export default class Changes extends View {
         .child(div().flex_1().min_w(0).truncate().child(label)));
       if (open) this.rows(n, path, depth + 1, path, out, t, focusedNow);
     }
-    for (const { name, file: f } of [...node.files].sort((a, b) => a.name.localeCompare(b.name))) {
-      const shown = this.open === f.path, cur = focusedNow && this.cursor === f.path;
+    for (const { name, file: f } of [...node.files].sort((a, b) => a.name.localeCompare(b.name))) out.push(this.fileRow(f, name, depth, parent, t, focusedNow));
+    return out;
+  }
+
+  // The Conflicts group above the tree: every conflicted file by its full path, so none hide in
+  // a collapsed folder. They join the tree once marked resolved.
+  conflictRows(t, focusedNow) {
+    const list = this.files.filter(f => f.stage === "conflict").sort((a, b) => a.path.localeCompare(b.path));
+    if (!list.length) return [];
+    return [
+      div().px(8).pt(4).pb(2).text_size(10).font_semibold().text_color(t.ansi1).child(`CONFLICTS · ${list.length}`),
+      ...list.map(f => this.fileRow(f, f.path, 0, null, t, focusedNow)),
+      div().mx(8).my(6).h(1).bg(t.border),
+    ];
+  }
+
+  fileRow(f, name, depth, parent, t, focusedNow) {
+      const shown = this.open === f.path, cur = focusedNow && this.cursor === f.path, box = f.stage === "conflict" && f.ready ? "ready" : f.stage;
       this.order.push({ path: f.path, dir: false, parent });
-      out.push(h_flex().id(`change-${f.path}`).h(28).flex_none().pl(8 + depth * 18).pr(8).gap(7).items_center().rounded(7).cursor_pointer()
+      return h_flex().id(`change-${f.path}`).h(28).flex_none().pl(8 + depth * 18).pr(8).gap(7).items_center().rounded(7).cursor_pointer()
         .border_1().border_color(cur ? t.accent : "#00000000").when(shown, (e) => e.bg(t.selected)).hover((s) => s.bg(shown ? t.selected : t.hover))
         .on_click((_e, cx) => this.pick(f.path, cx))
-        .child(this.checkbox(`check-${f.path}`, f.stage, t, cx => this.toggleRow({ path: f.path, dir: false }, cx)))
+        .child(this.checkbox(`check-${f.path}`, box, t, cx => this.toggleRow({ path: f.path, dir: false }, cx)))
         .child(div().w(12).flex_none())
         .child(div().flex_1().min_w(0).truncate().child(name))
         .when(f.add > 0, (e) => e.child(div().text_size(11).text_color(t.ansi2).child(`+${f.add}`)))
         .when(f.del > 0, (e) => e.child(div().text_size(11).text_color(t.ansi1).child(`−${f.del}`)))
-        .child(div().w(12).flex_none().text_right().text_size(11).text_color(f.status === "A" || f.status === "?" ? t.ansi2 : f.status === "D" || f.status === "U" ? t.ansi1 : t.blocked).child(f.status)));
-    }
-    return out;
+        .child(div().w(12).flex_none().text_right().text_size(11).text_color(f.status === "A" || f.status === "?" ? t.ansi2 : f.status === "D" || f.status === "U" ? t.ansi1 : t.blocked).child(f.status));
   }
 
   // Show a file's diff in the viewer pane (the row stays highlighted) and hand it the keyboard.
@@ -288,8 +311,7 @@ export default class Changes extends View {
     const state = r.dir ? this.dirStates.get(r.path) : this.files.find(f => f.path === r.path)?.stage;
     if (!state) return;
     if (state === "conflict") {
-      if (r.dir) { this.note = "Only conflicted files here: resolve each one on its own"; cx.notify(); return; }
-      return this.resolve(r.path, cx);
+      if (!r.dir) return this.resolve(r.path, cx);
     }
     this.stage(r.dir ? writePaths(this.files, r.path) : [r.path], wantStage(state), cx);
   }
@@ -301,16 +323,17 @@ export default class Changes extends View {
       const text = await readTextFile(`${root}/${path}`, { on }).catch(() => null);
       if (!this.current(context)) return;
       if (text !== null && hasMarkers(text)) { this.note = `${path}: still has conflict markers`; cx.notify(); return; }
+      this.resolving = path; this.info = null;
       this.stage([path], true, cx);
     });
   }
 
   // Header button: stage every change, or unstage all when everything is already staged.
   // Conflicted files are always left out.
-  stageAll(cx) { if (this.files.length && this.tree.stage !== "conflict") this.stage(writePaths(this.files, ""), this.tree.stage !== "staged", cx); }
+  stageAll(cx) { if (this.files.some(f => f.stage !== "conflict")) this.stage(writePaths(this.files, ""), this.tree.stage !== "staged", cx); }
 
   commit(cx) {
-    if (!this.message.trim() || !this.root || this.busy || this.loading || !stagedCount(this.files) || this.conflictsUnder("").length || this.context?.key !== (key() ?? this.context?.key)) return;
+    if (!this.message.trim() || !this.root || this.busy || this.loading || !(stagedCount(this.files) || this.merging) || this.conflictsUnder("").length || this.context?.key !== (key() ?? this.context?.key)) return;
     const root = this.root, on = this.on, context = this.context, message = this.message.trim();
     this.busy = true; this.note = null;
     cx.spawn(async (cx) => {
@@ -337,24 +360,25 @@ export default class Changes extends View {
     if (focusedNow && !this.wasFocused) resolveRoot(location(), cx, true); // just gained the keyboard
     this.wasFocused = focusedNow; this.order = []; this.dirStates = new Map();
     const t = theme(), add = this.files.reduce((n, f) => n + f.add, 0), del = this.files.reduce((n, f) => n + f.del, 0);
-    const conflicts = this.conflictsUnder("").length, staged = stagedCount(this.files), enabled = Boolean(this.message.trim() && staged && !conflicts && this.root && !this.busy && !this.loading);
+    const conflicts = this.conflictsUnder("").length, staged = stagedCount(this.files), enabled = Boolean(this.message.trim() && (staged || this.merging) && !conflicts && this.root && !this.busy && !this.loading);
     const header = () => h_flex().h(42).flex_none().px(14).gap(8).items_center().border_b(1).border_color(t.border);
     const list = v_flex().id("changes-list-col").size_full().min_h(0)
       .child(header()
         .child(div().font_semibold().child("Changes"))
         .child(div().px(5).py(1).rounded(4).border_1().border_color(t.border).text_size(10).text_color(t.muted).child(`${this.files.length} files`))
         .child(div().flex_1()).child(div().text_size(11).text_color(t.ansi2).child(`+${add}`)).child(div().text_size(11).text_color(t.ansi1).child(`−${del}`))
-        .when(this.files.length > 0 && this.tree.stage !== "conflict", el => el.child(div().id("stage-all").px(8).py(2).rounded(6).border_1().border_color(t.border).text_size(11).text_color(t.muted).cursor_pointer().hover(s => s.bg(t.hover))
+        .when(this.files.some(f => f.stage !== "conflict"), el => el.child(div().id("stage-all").px(8).py(2).rounded(6).border_1().border_color(t.border).text_size(11).text_color(t.muted).cursor_pointer().hover(s => s.bg(t.hover))
           .on_click((_e, cx) => this.stageAll(cx)).child((this.tree.stage === "staged" ? "Unstage all" : "Stage all") + (conflicts ? ` (${conflicts} conflict${conflicts === 1 ? "" : "s"} skipped)` : "")))))
       // overflow_y_scrollbar() wraps the list, so its flex sizing never reached the panel's layout.
       .child(div().flex_1().min_h(44).relative()
-        .child(v_flex().id("changes-list").absolute().inset_0().overflow_y_scroll().track_scroll(this.scroll).p(6).children(this.rows(this.tree, "", 0, null, [], t, focusedNow)).when(!this.files.length, (e) => e.child(div().p(8).text_color(t.dim).child(this.error || (this.loading ? "Loading changes…" : this.root ? "No uncommitted changes" : "No folder")))))
+        .child(v_flex().id("changes-list").absolute().inset_0().overflow_y_scroll().track_scroll(this.scroll).p(6).children(this.conflictRows(t, focusedNow)).children(this.rows(this.tree, "", 0, null, [], t, focusedNow)).when(!this.files.length, (e) => e.child(div().p(8).text_color(t.dim).child(this.error || (this.loading ? "Loading changes…" : this.root ? "No uncommitted changes" : "No folder")))))
         .child(Scrollbar.vertical("changes-list").absolute().inset_0()))
       .when(this.limited, el => el.child(div().px(12).py(4).text_size(11).text_color(t.dim).child("Showing the first 1,000 changed files")))
       .when(Boolean(this.note), (e) => e.child(div().px(10).py(6).text_size(11).text_color(t.ansi1).child(this.note)))
+      .when(Boolean(this.info) && !this.note, (e) => e.child(div().px(10).py(6).text_size(11).text_color(t.muted).child(this.info)))
       .child(h_flex().flex_none().p(10).gap(8).border_t(1).border_color(t.border)
         .child(div().id("commit-message").flex_1().min_w(0).h(32).px(10).flex().items_center().rounded(8).border_1().border_color(this.typing ? t.accent : t.border).cursor_text().on_mouse_down("left", (_e, cx) => cx.stop_propagation()).child(Input.new(this.input).h_full().text_size(12).text_color(t.foreground)))
-        .child(div().id("commit").h(32).px(14).flex().items_center().rounded(8).bg(enabled ? t.solid : t.raised).text_color(enabled ? t.solid_foreground : t.dim).text_size(12).when(enabled, (e) => e.cursor_pointer()).on_click((_e, cx) => this.commit(cx)).child(this.busy ? "Committing…" : conflicts ? `Resolve ${conflicts} conflict${conflicts === 1 ? "" : "s"} first` : staged ? `Commit ${staged} file${staged === 1 ? "" : "s"}` : "Commit")));
+        .child(div().id("commit").h(32).px(14).flex().items_center().rounded(8).bg(enabled ? t.solid : t.raised).text_color(enabled ? t.solid_foreground : t.dim).text_size(12).when(enabled, (e) => e.cursor_pointer()).on_click((_e, cx) => this.commit(cx)).child(this.busy ? "Committing…" : conflicts ? `Resolve ${conflicts} conflict${conflicts === 1 ? "" : "s"} first` : this.merging ? "Commit merge" : staged ? `Commit ${staged} file${staged === 1 ? "" : "s"}` : "Commit")));
     // Arrived before the tree had rows (e.g. the panel was just shown): place the cursor now.
     if (focusedNow && !this.order.some(r => r.path === this.cursor)) this.cursor = this.order[0]?.path ?? null;
     return v_flex().id("changes").size_full().min_h(0).rounded(10).overflow_hidden().bg(t.background).border_1().border_color(t.border).text_color(t.foreground).text_size(13).track_focus(this.handle)

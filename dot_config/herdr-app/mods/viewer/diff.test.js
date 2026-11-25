@@ -45,7 +45,7 @@ test("conflictLines shows each block with context, numbered by file line", () =>
 test("conflictLines with no markers left says so", () => {
   const lines = conflictLines("all fixed\n");
   assert.equal(lines[0], SECTION + "Conflicted");
-  assert.match(lines[1], /No conflict markers left/);
+  assert.match(lines[1], /No conflicts left/);
 });
 
 test("capLines keeps max lines and says how many were cut", () => {

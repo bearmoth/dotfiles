@@ -183,3 +183,30 @@ Changes mod could silently hide the whole Not staged section.
   rewritten.
 - **Open:** whether to add a "Compared with HEAD" section, so a conflicted file's other
   changes (clean merges, your own edits away from the blocks) are visible too.
+
+## Addendum (2026-11-25): finishing conflicts, then hunks
+
+### Decided
+- **Conflicts group.** Conflicted files leave the tree and are listed by full path in a
+  **Conflicts · N** group pinned above it, with a divider. Folder boxes and Stage all only
+  cover the tree, so they never touch a conflict. A file joins the tree once marked resolved.
+  This is the only time a file moves between lists. We chose it over VS Code's three lists
+  (Merge Changes / Staged / Changes) because those list a part-staged file twice and move
+  files on every stage.
+- **No automatic resolve.** "Resolved" means staged, and staging takes the whole file, so it
+  always takes a click. When a file has no markers left its red `!` box becomes a green dashed
+  "ready" box, and the viewer header shows a **Mark resolved** button in place of Keep all
+  current / Take all incoming.
+- **Nothing staged is hidden.** Below the conflict blocks, a conflicted file shows a
+  **Compared with last commit** section (`git diff HEAD -- <path>`): exactly what Mark resolved
+  stages, including the merge's clean changes outside the blocks.
+- **Resolved to the same as the last commit.** Such a file drops out of `git status` (VS Code
+  does the same). The sidebar shows a muted note: "<path>: resolved · same as the last commit,
+  so nothing to stage".
+- **Merge commits.** While merging (`MERGE_HEAD` exists) Commit is allowed with nothing staged,
+  since a merge commit is valid even when the result matches HEAD. The button reads "Commit
+  merge".
+- **Hunk buttons (next).** On each `@@` row: Staged hunks get **Unstage**; Not staged hunks get
+  **Stage** and **Discard**. Discard is two clicks: it turns into **Really discard?** for a few
+  seconds (option A, over one-click-with-Undo and no Discard). Untracked files stage whole only.
+  No splitting hunks or picking lines yet. Conflicted files keep their conflict buttons only.

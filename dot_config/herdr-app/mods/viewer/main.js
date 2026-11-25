@@ -111,7 +111,7 @@ export default class Viewer extends View {
         } else {
           const { lines, stage, hasHead, raw } = await this.diffLines(it);
           if (this.id !== id) return;
-          this.stage = stage; this.hasHead = hasHead; this.raw = raw ?? null;
+          this.stage = stage; this.hasHead = hasHead; this.raw = raw ?? null; this.ready = this.raw !== null && !hasMarkers(this.raw);
           if (this.lines && lines.join("\n") === this.lines.join("\n")) return;
           this.lines = lines; this.setLines(lines.map(l => l.length > 4000 ? l.slice(0, 4000) + "… (line truncated)" : l));
         }
@@ -128,12 +128,19 @@ export default class Viewer extends View {
     const hasHead = (await git(["rev-parse", "--verify", "HEAD"])).code === 0;
     const st = await git(["status", "--porcelain=v1", "-z", "--no-renames", "--untracked-files=all", "--", it.rel]);
     const done = (lines, xy, raw) => ({ lines, stage: xy ? stageState(xy) : null, hasHead, raw });
+    const part = async (args) => {
+      const r = await git(["diff", ...args, "--no-ext-diff", "--no-textconv", "--no-color", "--", it.rel]);
+      if (r.code !== 0) throw new Error(r.stderr);
+      const all = r.stdout.replace(/\n$/, "").split("\n"), first = all.findIndex(l => l.startsWith("@@"));
+      return first < 0 ? (r.stdout ? ["No text diff available"] : ["(no text changes)"]) : capLines(all.slice(first), SECTION_LINES);
+    };
     if (!st.stdout) return done(["No changes"]);
     const xy = st.stdout.slice(0, 2), x = xy[0], y = xy[1];
     if (isConflict(xy)) {
       const text = await readTextFile(it.abs, { on: it.on }).catch(() => null);
       if (text === null) return done(["Conflicted · the working file is gone or unreadable (deleted on one side?)"], xy);
-      return done(capLines(conflictLines(text.slice(0, 400000)), SECTION_LINES + 1), xy, text);
+      const whole = hasHead ? [SECTION + "Compared with last commit", ...await part(["HEAD"])] : [];
+      return done([...capLines(conflictLines(text.slice(0, 400000)), SECTION_LINES + 1), ...whole], xy, text);
     }
     if (x === "?") {
       const text = await readTextFile(it.abs, { on: it.on }).catch(() => null);
@@ -141,12 +148,6 @@ export default class Viewer extends View {
       if (text.includes("\0")) return done(["Binary file · no text diff"], xy);
       return done([SECTION + "Not staged · new file", `@@ -0,0 +1,${countLines(text)} @@`, ...capLines(text.slice(0, 400000).replace(/\n$/, "").split("\n").map(l => `+${l}`), SECTION_LINES)], xy);
     }
-    const part = async (args) => {
-      const r = await git(["diff", ...args, "--no-ext-diff", "--no-textconv", "--no-color", "--", it.rel]);
-      if (r.code !== 0) throw new Error(r.stderr);
-      const all = r.stdout.replace(/\n$/, "").split("\n"), first = all.findIndex(l => l.startsWith("@@"));
-      return first < 0 ? (r.stdout ? ["No text diff available"] : ["(no text changes)"]) : capLines(all.slice(first), SECTION_LINES);
-    };
     const out = [];
     if (x !== " ") out.push(SECTION + "Staged", ...await part(["--cached"]));
     if (y !== " ") out.push(SECTION + "Not staged", ...await part([]));
@@ -216,7 +217,7 @@ export default class Viewer extends View {
     const height = rowHeight(size);
     // A section header (Staged / Not staged / Conflicted); also drawn pinned at the top while its section scrolls.
     if (kind === "#") return div().w_full().px(12).h(height).flex_none().flex().items_center().bg(cur ? t.selected : t.raised).border_b(1).border_color(t.border)
-      .text_color(text.startsWith("Conflicted") ? t.ansi1 : staged ? t.ansi2 : t.ansi3).child(text);
+      .text_color(text.startsWith("Conflicted") ? t.ansi1 : text.startsWith("Compared") ? t.muted : staged ? t.ansi2 : t.ansi3).child(text);
     if (kind === "@") return div().w_full().px(12).h(height).flex_none().truncate().bg(cur ? t.selected : t.raised).text_color(t.dim)
       .child(conflict ? `line ${/\+(\d+)/.exec(text)?.[1] ?? ""}` : text);
     // Conflict view: each side has a coloured bar down its left edge; marker lines become labels.
@@ -268,7 +269,9 @@ export default class Viewer extends View {
     const t = theme(), it = this.item(), font = settings(), size = font.font_size, focused = this.handle.is_focused();
     const header = h_flex().h(30).flex_none().px(12).gap(6).items_center().border_b(1).border_color(t.border).text_size(12)
       .child(div().flex_1().min_w(0).truncate().text_color(t.muted).child(it ? it.rel : ""))
-      .when(it?.kind === "diff" && this.stage === "conflict", el => {
+      .when(it?.kind === "diff" && this.stage === "conflict" && this.ready, el => el.child(div().id("mark-resolved").px(8).py(1).rounded(4).bg(t.solid).text_size(11).text_color(t.solid_foreground).cursor_pointer()
+        .on_click((_e, cx) => this.toggleStage(it, cx)).child("Mark resolved")))
+      .when(it?.kind === "diff" && this.stage === "conflict" && !this.ready, el => {
         const button = (id, text, side) => div().id(id).px(6).rounded(4).border_1().border_color(t.border).text_size(11).text_color(t.muted).cursor_pointer().hover(s => s.bg(t.hover))
           .on_click((_e, cx) => this.takeSide(it, side, cx)).child(text);
         return el.child(button("take-ours", "Keep all current", "ours")).child(button("take-theirs", "Take all incoming", "theirs"));
@@ -276,7 +279,7 @@ export default class Viewer extends View {
       .when(Boolean(this.stageError), el => el.child(div().max_w(260).truncate().text_color(t.ansi1).child(this.stageError)))
       .when(it?.kind === "diff", el => el.child(div().text_color(t.dim).child("changes")))
       .when(it?.kind === "diff" && Boolean(this.stage), el => el.child(div().id("viewer-stage").flex_none().cursor_pointer().on_click((_e, cx) => this.toggleStage(it, cx))
-        .child(svg(`mods/viewer/check-${{ staged: "on", partial: "part", conflict: "conflict" }[this.stage] ?? "off"}.svg`).size(14).text_color(this.stage === "conflict" ? t.ansi1 : this.stage === "unstaged" ? t.dim : t.accent))));
+        .child(svg(`mods/viewer/check-${this.stage === "conflict" && this.ready ? "ready" : { staged: "on", partial: "part", conflict: "conflict" }[this.stage] ?? "off"}.svg`).size(14).text_color(this.stage === "conflict" ? (this.ready ? t.ansi2 : t.ansi1) : this.stage === "unstaged" ? t.dim : t.accent))));
     const message = (m) => div().p(12).text_color(t.dim).child(m);
     let body;
     if (!it) body = message("Nothing to show · open a file from Files or Changes");

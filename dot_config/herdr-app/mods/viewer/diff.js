@@ -61,7 +61,7 @@ export function conflictLines(text, context = 3) {
     else marks.push(side);
   }
   const head = [SECTION + "Conflicted"];
-  if (!marks.includes("!")) return [...head, "No conflict markers left · tick the box to mark resolved"];
+  if (!marks.includes("!")) return [...head, "No conflicts left · Mark resolved stages the file as shown below"];
   // Ranges [from, to] around each conflicted line, merged where they touch.
   const ranges = [];
   marks.forEach((m, i) => {
