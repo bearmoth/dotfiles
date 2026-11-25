@@ -75,7 +75,7 @@ function tree(files) {
 const byName = (a, b) => a[0].localeCompare(b[0]);
 export default class Changes extends View {
   init(_props, cx) {
-    this.files = []; this.tree = tree([]); this.collapsed = new Set(); this.order = []; this.message = ""; this.handle = cx.focus_handle(); this.scroll = ScrollHandle.new(); this.cursor = null;
+    this.files = []; this.tree = tree([]); this.collapsed = new Set(); this.order = []; this.message = ""; this.drafts = new Map(); this.handle = cx.focus_handle(); this.scroll = ScrollHandle.new(); this.cursor = null;
     // Keyboard: pane.go (cmd-h/j/k/l) or cmd-g (via tabbar, a shared timestamp) gives this view
     // the keyboard. keys.json "mod:changes-view" routes cmd-h/j/k/l here so leaving repaints at once.
     this.asked = shared("changes-view.focus") ?? 0;
@@ -129,8 +129,10 @@ export default class Changes extends View {
     if (next === null) return; // root still being looked up
     const { root: cwd, on } = JSON.parse(next); // "cwd" below is the panel's root
     if (next !== this.context?.key) {
+      // Each folder keeps its own unsent commit message, so switching tabs doesn't lose it.
+      if (this.context) this.drafts.set(this.context.key, this.message);
       this.context = { key: next }; this.root = null; this.files = []; this.tree = tree([]); this.collapsed = new Set(); this.open = null;
-      this.message = ""; this.input.set_value(""); this.merging = false; this.error = null; this.note = null; this.info = null; this.watched = null; this.limited = false;
+      this.message = this.drafts.get(next) ?? ""; this.input.set_value(this.message); this.merging = false; this.error = null; this.note = null; this.info = null; this.watched = null; this.limited = false;
       this.loading = false;
     }
     // A load left behind in another folder (a slow git, a read that never ends) must not hold this one.
@@ -345,6 +347,7 @@ export default class Changes extends View {
         const r = await exec("git", ["commit", "-m", message], { cwd: root, on });
         if (r.code !== 0) throw new Error((r.stderr || r.stdout).trim());
         if (this.current(context)) { this.message = ""; this.input.set_value(""); }
+        this.drafts.delete(context.key);
       } catch (e) { if (this.current(context)) this.note = `Commit failed: ${e}`; }
       finally { this.busy = false; this.refresh(cx); cx.notify(); }
     });
