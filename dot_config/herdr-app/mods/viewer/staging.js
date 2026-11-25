@@ -22,8 +22,8 @@ export function combine(states) {
   return rest.every((s) => s === rest[0]) ? rest[0] : "partial";
 }
 
-// A line that is a git conflict marker: 7 of < | = > then a space or the end of the line.
-export const hasMarkers = (text) => /^(?:<{7}|\|{7}|={7}|>{7})(?: |$)/m.test(text);
+// A line that is a git conflict marker: 7 of < | = > then a space or the end of the line (CRLF too).
+export const hasMarkers = (text) => /^(?:<{7}|\|{7}|={7}|>{7})(?: |\r?$)/m.test(text);
 
 // The checkbox rule: ticked unstages; empty or part-staged stages everything under it.
 export const wantStage = (state) => state !== "staged";

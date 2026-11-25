@@ -52,7 +52,7 @@ test("combine ignores conflicts; only conflicts gives conflict", () => {
 
 test("isConflict and hasMarkers", () => {
   assert.equal(isConflict("UU"), true); assert.equal(isConflict("MM"), false);
-  for (const t of ["x\n<<<<<<< HEAD\ny", "=======", "a\n>>>>>>> feature", "|||||||  base"]) assert.equal(hasMarkers(t), true, t);
+  for (const t of ["x\n<<<<<<< HEAD\ny", "=======", "x\r\n=======\r\ny", "a\n>>>>>>> feature", "|||||||  base"]) assert.equal(hasMarkers(t), true, t);
   for (const t of ["a <<<<<<< b", "========", "<<<<<<<<", "plain"]) assert.equal(hasMarkers(t), false, t);
 });
 

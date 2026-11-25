@@ -3,8 +3,8 @@
 // it shows lives in shared "viewer.items"[vid], so the same pane can be pointed at a new file.
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex, Editor, EditorState, Scrollbar, v_virtual_list, VirtualListScrollHandle } from "gpui-base";
-import { props, shared, exec, readTextFile, watchFolder, theme, settings, nextCommand, checking } from "herdr";
-import { SECTION, countLines, diffRows, sectionAt, conflictLines, capLines } from "./diff.js";
+import { props, shared, exec, readTextFile, writeTextFile, watchFolder, theme, settings, nextCommand, checking } from "herdr";
+import { SECTION, countLines, diffRows, sectionAt, conflictLines, capLines, resolveBlock } from "./diff.js";
 import { stageState, wantStage, stageArgs, isConflict, hasMarkers } from "./staging.js";
 
 // Lines per diff section; a cut section ends with "… N more lines".
@@ -74,7 +74,7 @@ export default class Viewer extends View {
   sync(cx) {
     const it = this.item(), id = it ? `${it.kind}|${it.on ?? ""}|${it.abs}|${it.n ?? 0}` : null;
     if (id === this.id) return;
-    this.id = id; this.code?.release(); this.code = null; this.text = null; this.lines = null; this.setLines([]); this.msg = null; this.dline = 0; this.stage = null; this.stageError = null;
+    this.id = id; this.code?.release(); this.code = null; this.text = null; this.lines = null; this.setLines([]); this.msg = null; this.dline = 0; this.stage = null; this.stageError = null; this.raw = null;
     if (!it) return;
     // Only a fresh open: the item is saved, and a restart must not take the keyboard.
     if (it.focus && Date.now() - (it.n ?? 0) < 3000) this.wantFocus = true;
@@ -106,9 +106,9 @@ export default class Viewer extends View {
             value: text.length > 400000 ? text.slice(0, 400000) + "\n… (file truncated)" : text,
             syntax: { keyword: t.ansi5, string: t.ansi2, comment: t.dim, function: t.ansi4, type: t.ansi3, number: t.ansi1, constant: t.ansi6 } });
         } else {
-          const { lines, stage, hasHead } = await this.diffLines(it);
+          const { lines, stage, hasHead, raw } = await this.diffLines(it);
           if (this.id !== id) return;
-          this.stage = stage; this.hasHead = hasHead;
+          this.stage = stage; this.hasHead = hasHead; this.raw = raw ?? null;
           if (this.lines && lines.join("\n") === this.lines.join("\n")) return;
           this.lines = lines; this.setLines(lines.map(l => l.length > 4000 ? l.slice(0, 4000) + "… (line truncated)" : l));
         }
@@ -124,13 +124,13 @@ export default class Viewer extends View {
     const git = (args) => exec("git", [...READ, ...args], { cwd: it.root, on: it.on });
     const hasHead = (await git(["rev-parse", "--verify", "HEAD"])).code === 0;
     const st = await git(["status", "--porcelain=v1", "-z", "--no-renames", "--untracked-files=all", "--", it.rel]);
-    const done = (lines, xy) => ({ lines, stage: xy ? stageState(xy) : null, hasHead });
+    const done = (lines, xy, raw) => ({ lines, stage: xy ? stageState(xy) : null, hasHead, raw });
     if (!st.stdout) return done(["No changes"]);
     const xy = st.stdout.slice(0, 2), x = xy[0], y = xy[1];
     if (isConflict(xy)) {
       const text = await readTextFile(it.abs, { on: it.on }).catch(() => null);
       if (text === null) return done(["Conflicted · the working file is gone or unreadable (deleted on one side?)"], xy);
-      return done(capLines(conflictLines(text.slice(0, 400000)), SECTION_LINES + 1), xy);
+      return done(capLines(conflictLines(text.slice(0, 400000)), SECTION_LINES + 1), xy, text);
     }
     if (x === "?") {
       const text = await readTextFile(it.abs, { on: it.on }).catch(() => null);
@@ -167,6 +167,40 @@ export default class Viewer extends View {
     });
   }
 
+  // Resolve one conflict block with one side (or both). Writes only if the file still holds what
+  // is shown (writeTextFile's expected text), so an edit made elsewhere is never overwritten.
+  useBlock(it, block, choice, cx) {
+    const next = this.raw === null ? null : resolveBlock(this.raw, block, choice);
+    if (next === null || it.on) return;
+    const id = this.id;
+    this.stageError = null;
+    cx.spawn(async cx => {
+      try { await writeTextFile(it.abs, next, this.raw); }
+      catch { if (this.id === id) { this.stageError = "File changed since it was shown · reloaded"; this.load(it, id, cx); } }
+      cx.notify();
+    });
+  }
+
+  // Replace the whole working file with one side (git checkout --ours / --theirs). It stays
+  // conflicted until its box is ticked.
+  takeSide(it, side, cx) {
+    const id = this.id;
+    this.stageError = null;
+    cx.spawn(async cx => {
+      try {
+        const r = await exec("git", ["checkout", `--${side}`, "--", `:(literal)${it.rel}`], { cwd: it.root, on: it.on });
+        if (r.code !== 0) throw new Error((r.stderr || r.stdout).trim());
+      } catch (e) { if (this.id === id) this.stageError = `Take ${side} failed: ${String(e).replace(/^Error: /, "")}`; }
+      finally { if (it.on && this.id === id) this.load(it, id, cx); cx.notify(); }
+    });
+  }
+
+  // The names git wrote on the first conflict block's markers (HEAD, a branch, …).
+  sideNames() {
+    const ours = this.rows.find(r => r.label?.side === "ours")?.label.name, theirs = this.rows.find(r => r.label?.side === "theirs")?.label.name;
+    return { ours: ours || "ours", theirs: theirs || "theirs" };
+  }
+
   setLines(lines) {
     this.rows = diffRows(lines);
     this.longest = Math.max(0, ...this.rows.map(row => displayColumns(row.text)));
@@ -185,13 +219,21 @@ export default class Viewer extends View {
     // Conflict view: each side has a coloured bar down its left edge; marker lines become labels.
     const side = { "<": t.ansi4, ">": t.ansi5, "|": t.dim }[kind];
     if (kind === "!") {
-      const c = { ours: t.ansi4, base: t.dim, theirs: t.ansi5 }[label?.side];
-      if (!c) return div().w_full().h(height).flex_none().bg(cur ? t.selected : "#00000000").border_t(1).border_color(t.border); // end of block
-      const title = { ours: "Yours", base: "Base", theirs: "Theirs" }[label.side] + (label.name ? ` · ${label.name}` : "");
-      return h_flex().w_full().h(height).flex_none().gap(10).bg(cur ? t.selected : c + "30")
-        .child(div().w(3).h_full().flex_none().bg(c))
-        .child(div().w(this.gutter(size) - 13).flex_none())
-        .child(div().flex_1().min_w(0).truncate().font_semibold().text_color(c).child(title));
+      // The marker line itself, in its side's colour: <<<<<<< ours (blue), ||||||| base (dim),
+      // ======= the split (both colours), >>>>>>> theirs (magenta).
+      const c = { ours: t.ansi4, base: t.dim, theirs: t.ansi5, end: t.ansi5 }[label?.side] ?? t.muted;
+      const row = h_flex().w_full().h(height).flex_none().gap(10).items_center().bg(cur ? t.selected : c + "30")
+        .child(div().w(3).h_full().flex_none().bg(label?.side === "theirs" ? t.ansi4 : c))
+        .child(div().w(this.gutter(size) - 13).flex_none().text_right().text_color(t.dim).child(number === undefined ? "" : String(number)))
+        .child(div().flex_1().min_w(0).truncate().font_semibold().text_color(c).child(text));
+      if (label?.side !== "ours" || this.item()?.on || this.raw === null) return row;
+      const it = this.item(), names = this.sideNames(), theirsName = this.rows.slice(this.rows.findIndex(r => r.label === label)).find(r => r.label?.side === "theirs")?.label.name || names.theirs;
+      const button = (id, text, choice) => div().id(`${id}-${label.block}`).px(6).rounded(4).border_1().border_color(t.border).bg(t.background).text_size(11).text_color(t.foreground).cursor_pointer().hover(s => s.bg(t.hover))
+        .on_click((_e, cx) => this.useBlock(it, label.block, choice, cx)).child(text);
+      return row.child(h_flex().gap(6).pr(8).flex_none()
+        .child(button("use-ours", `Use ${label.name || "ours"}`, "ours"))
+        .child(button("use-theirs", `Use ${theirsName}`, "theirs"))
+        .child(button("use-both", "Use both", "both")));
     }
     const tint = { "+": t.ansi2, "-": t.ansi1 }[kind] ?? (kind === "<" || kind === ">" ? side : null);
     return h_flex().w_full().h(height).flex_none().gap(10).when(Boolean(tint), (e) => e.bg(tint + (side ? "1c" : "18"))).when(kind === "|", (e) => e.text_color(t.muted)).when(cur, (e) => e.bg(t.selected))
@@ -208,6 +250,11 @@ export default class Viewer extends View {
     const t = theme(), it = this.item(), font = settings(), size = font.font_size, focused = this.handle.is_focused();
     const header = h_flex().h(30).flex_none().px(12).gap(6).items_center().border_b(1).border_color(t.border).text_size(12)
       .child(div().flex_1().min_w(0).truncate().text_color(t.muted).child(it ? it.rel : ""))
+      .when(it?.kind === "diff" && this.stage === "conflict", el => {
+        const names = this.sideNames(), button = (id, text, side) => div().id(id).px(6).rounded(4).border_1().border_color(t.border).text_size(11).text_color(t.muted).cursor_pointer().hover(s => s.bg(t.hover))
+          .on_click((_e, cx) => this.takeSide(it, side, cx)).child(text);
+        return el.child(button("take-ours", `Take ${names.ours}`, "ours")).child(button("take-theirs", `Take ${names.theirs}`, "theirs"));
+      })
       .when(Boolean(this.stageError), el => el.child(div().max_w(260).truncate().text_color(t.ansi1).child(this.stageError)))
       .when(it?.kind === "diff", el => el.child(div().text_color(t.dim).child("changes")))
       .when(it?.kind === "diff" && Boolean(this.stage), el => el.child(div().id("viewer-stage").flex_none().cursor_pointer().on_click((_e, cx) => this.toggleStage(it, cx))

@@ -153,3 +153,26 @@ Changes mod could silently hide the whole Not staged section.
 - **Long diffs.** Each section is capped separately at 20,000 lines and ends with a visible
   "… N more lines" row. The per-line cap (4,000 characters) stays. The overall 1,500-line cap
   is removed.
+
+### Resolving conflicts (decided 2026-11-25: option C)
+- **The conflict view shows the real marker lines**, coloured by side, not made-up labels:
+  `<<<<<<< HEAD` blue, `|||||||` dim, `=======` the split, `>>>>>>> feature` magenta. Each
+  side's lines have a matching bar down the left. The marker names already say which side is
+  which. Our own "Yours" and "Theirs" labels doubled them up, and say the wrong thing in a
+  rebase, where the two sides swap.
+- **Per-block buttons** on each `<<<<<<<` row: *Use <ours name> · Use <theirs name> · Use
+  both*. "Both" is ours then theirs, with the base dropped. They rewrite that block through
+  `writeTextFile(path, next, shownText)`, which refuses if the file changed since it was
+  shown. Then the pane says "File changed since it was shown · reloaded" and reloads. Local
+  folders only, since `writeTextFile` can't reach other machines.
+- **Whole-file buttons** in the header: *Take <ours name>* and *Take <theirs name>*, which run
+  `git checkout --ours/--theirs -- <path>`. These also work on remote machines.
+- **No button marks the file resolved** by itself. Ticking the box does that, once the
+  markers are gone. No keyboard shortcuts in the viewer.
+- **Edits from elsewhere** (vim, say): the repo watch reloads the view on save. Resolved
+  blocks disappear, and with none left the view reads "No conflict markers left · tick the
+  box to mark resolved".
+- **CRLF files:** markers are still recognised, and line endings are kept when a block is
+  rewritten.
+- **Open:** whether to add a "Compared with HEAD" section, so a conflicted file's other
+  changes (clean merges, your own edits away from the blocks) are visible too.

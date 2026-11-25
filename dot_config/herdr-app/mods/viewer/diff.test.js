@@ -56,8 +56,33 @@ test("capLines keeps max lines and says how many were cut", () => {
 test("conflict rows get labels from their markers", () => {
   const rows = diffRows(conflictLines(conflicted));
   const marks = rows.filter(r => r.kind === "!").map(r => r.label);
-  assert.deepEqual(marks.slice(0, 3), [{ side: "ours", name: "HEAD" }, { side: "theirs", name: "feature" }, { side: "end", name: "" }]);
-  assert.deepEqual(marks.slice(3), [{ side: "ours", name: "HEAD" }, { side: "base", name: "base" }, { side: "theirs", name: "feature" }, { side: "end", name: "" }]);
+  assert.deepEqual(marks.slice(0, 3), [{ side: "ours", name: "HEAD", block: 0 }, { side: "theirs", name: "feature" }, { side: "end", name: "" }]);
+  assert.deepEqual(marks.slice(3), [{ side: "ours", name: "HEAD", block: 1 }, { side: "base", name: "base" }, { side: "theirs", name: "feature" }, { side: "end", name: "" }]);
   assert.ok(rows.filter(r => r.kind === "@").every(r => r.conflict === true));
   assert.equal(diffRows(["@@ -1,2 +1,2 @@"])[0].conflict, false);
+});
+
+import { resolveBlock } from "./diff.js";
+
+test("resolveBlock rewrites one conflict block and leaves the rest", () => {
+  const ours = resolveBlock(conflicted, 0, "ours");
+  assert.ok(ours.includes("d\nmine\ne\n")); assert.ok(!ours.includes("theirs\n>>>")); assert.ok(ours.includes("<<<<<<< HEAD\nm2")); // block 2 untouched
+  const theirs = resolveBlock(conflicted, 1, "theirs");
+  assert.ok(theirs.includes("l\nt2\nz\n")); assert.ok(theirs.includes("<<<<<<< HEAD\nmine"));
+  const both = resolveBlock(conflicted, 1, "both");
+  assert.ok(both.includes("l\nm2\nt2\nz\n")); // base dropped
+  assert.equal(resolveBlock(resolveBlock(conflicted, 0, "ours"), 0, "ours").includes("<<<<<<<"), false);
+  assert.equal(resolveBlock(conflicted, 5, "ours"), null);
+});
+
+test("CRLF files: markers still found, line endings kept", () => {
+  const crlf = conflicted.replace(/\n/g, "\r\n");
+  const rows = diffRows(conflictLines(crlf));
+  assert.ok(rows.some(r => r.kind === "!"));
+  assert.ok(resolveBlock(crlf, 0, "ours").includes("d\r\nmine\r\ne\r\n"));
+});
+
+test("opening marker rows carry their block number", () => {
+  const rows = diffRows(conflictLines(conflicted));
+  assert.deepEqual(rows.filter(r => r.label?.side === "ours").map(r => r.label.block), [0, 1]);
 });

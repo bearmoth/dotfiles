@@ -31,12 +31,13 @@ export function diffRows(lines) {
 // ======= theirs (named after the >>>>>>> that closes it), and >>>>>>> ends the block.
 function labelMarkers(rows) {
   const side = { "<": "ours", "|": "base", "=": "theirs", ">": "end" };
+  let block = -1;
   rows.forEach((r, i) => {
     if (r.kind !== "!") return;
     const s = side[r.text[0]];
     let name = s === "end" ? "" : r.text.slice(7).trim();
     if (s === "theirs") { const close = rows.slice(i + 1).find(x => x.kind === "!" && x.text[0] === ">"); name = close ? close.text.slice(7).trim() : ""; }
-    r.label = { side: s, name };
+    r.label = s === "ours" ? { side: s, name, block: ++block } : { side: s, name };
   });
 }
 
@@ -46,7 +47,7 @@ export function sectionAt(rows, index) {
   return null;
 }
 
-const MARKER = /^(?:<{7}|\|{7}|={7}|>{7})(?: |$)/;
+const MARKER = /^(?:<{7}|\|{7}|={7}|>{7})(?: |\r?$)/;
 
 // A conflicted working file as one "Conflicted" section: each conflict block with 3 lines of
 // context, "@@ -N +N @@" between blocks. Prefixes: "<" ours, "|" base, ">" theirs, "!" marker.
@@ -69,10 +70,30 @@ export function conflictLines(text, context = 3) {
   const out = [...head];
   for (const [from, to] of ranges) {
     out.push(`@@ -${from + 1} +${from + 1} @@`);
-    for (let i = from; i <= to; i++) out.push(marks[i] + file[i]);
+    for (let i = from; i <= to; i++) out.push(marks[i] + file[i].replace(/\r$/, ""));
   }
   return out;
 }
 
 // At most `max` lines, then one row saying how many more there were.
 export const capLines = (lines, max) => lines.length > max ? [...lines.slice(0, max), `… ${lines.length - max} more lines`] : lines;
+
+// The file with conflict block `n` (0-based, in file order) replaced by one side: "ours",
+// "theirs", or "both" (ours then theirs; the base is dropped). null if there is no block n.
+// Line endings are kept as they are.
+export function resolveBlock(text, n, choice) {
+  const lines = text.split("\n"), out = [];
+  let block = -1, part = null, found = false, ours = [], theirs = [];
+  for (const line of lines) {
+    const m = MARKER.test(line) ? line[0] : null;
+    if (part === null) {
+      if (m === "<") { block++; if (block === n) { part = "ours"; ours = []; theirs = []; found = true; continue; } }
+      out.push(line); continue;
+    }
+    if (m === "|") { part = "base"; continue; }
+    if (m === "=") { part = "theirs"; continue; }
+    if (m === ">") { out.push(...(choice === "ours" ? ours : choice === "theirs" ? theirs : [...ours, ...theirs])); part = null; continue; }
+    if (part === "ours") ours.push(line); else if (part === "theirs") theirs.push(line);
+  }
+  return found && part === null ? out.join("\n") : null;
+}
