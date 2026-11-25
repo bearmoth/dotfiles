@@ -86,3 +86,9 @@ test("opening marker rows carry their block number", () => {
   const rows = diffRows(conflictLines(conflicted));
   assert.deepEqual(rows.filter(r => r.label?.side === "ours").map(r => r.label.block), [0, 1]);
 });
+
+test("conflict marker rows show no line number, content keeps the file's numbering", () => {
+  const rows = diffRows(conflictLines("a\n<<<<<<< HEAD\nb\n=======\nc\n>>>>>>> f\nd\n"));
+  const nums = rows.filter(r => "<>|!".includes(r.kind) && r.kind).map(r => [r.kind, r.number]);
+  assert.deepEqual(nums, [["!", undefined], ["<", 3], ["!", undefined], [">", 5], ["!", undefined]]);
+});

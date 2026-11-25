@@ -20,7 +20,9 @@ export function diffRows(lines) {
     if (kind === "+") return { kind, staged, number: next++, text: untab(line.slice(1)) || " " };
     if (kind === " ") { old++; return { kind, staged, number: next++, text: untab(line.slice(1)) || " " }; }
     // Conflict view (conflictLines): ours, theirs, base, marker; numbered by working-file line.
-    if (kind === "<" || kind === ">" || kind === "|" || kind === "!") return { kind, staged, number: next++, text: untab(line.slice(1)) || " " };
+    // Marker lines take up a file line but show no number: they aren't content.
+    if (kind === "!") { next++; return { kind, staged, text: untab(line.slice(1)) || " " }; }
+    if (kind === "<" || kind === ">" || kind === "|") return { kind, staged, number: next++, text: untab(line.slice(1)) || " " };
     return { kind: "", staged, text: line };
   });
   labelMarkers(rows);
