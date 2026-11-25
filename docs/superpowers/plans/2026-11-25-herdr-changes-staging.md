@@ -165,3 +165,41 @@ New methods:
 - [ ] Run `chezmoi --source=<worktree> diff ~/.config/herdr-app`, and check it's empty.
 - [ ] Dispatch one fresh reviewer over the branch diff from `5b7ff03..HEAD`, then fix
   anything that must be fixed before telling the user it's done.
+
+### Task 5: Conflicts and long diffs (addendum to the spec)
+
+**Interfaces — Produces, in `staging.js` (both copies):**
+- `stageState(xy)` can also return `"conflict"`.
+- `isConflict(xy): boolean`.
+- `combine(states)` ignores `"conflict"`, and returns `"conflict"` when every entry is one.
+- `hasMarkers(text): boolean`.
+- `stageArgs(paths, stage, hasHead, exclude = [])` uses `:(literal)` per path and
+  `:(exclude,literal)` per exclusion, with no `--literal-pathspecs`.
+
+**Interfaces — Produces, in `diff.js`:**
+- `conflictLines(text): string[]` gives a `SECTION + "Conflicted"` line, then `@@ -N +N @@`
+  separators and lines prefixed `<` (ours), `>` (theirs), `|` (base), `!` (marker) or ` `
+  (context).
+- `capLines(lines, max): string[]` appends `"… N more lines"` past `max`.
+- `diffRows` numbers `<`, `>`, `|`, `!` and ` ` rows by file line.
+
+- [ ] **Step 1: Write the failing tests.**
+  - `stageState("UU")` and `stageState("AA")` return `"conflict"`.
+  - `combine(["conflict","staged"])` returns `"staged"`, and `combine(["conflict"])` returns
+    `"conflict"`.
+  - `hasMarkers` is true for `"<<<<<<< HEAD"`, `"======="` and `">>>>>>> b"` (each at a line
+    start), and false for `"a <<<<<<< b"` and `"========"`.
+  - `stageArgs(["src"], true, true, ["src/c"])` deep-equals
+    `["add","-A","--",":(literal)src",":(exclude,literal)src/c"]`.
+  - `conflictLines` on a two-block file gives kinds `#`, `@`, `!`, `<`, `!`, `>`, `!`, and so
+    on, with line numbers matching the file.
+  - `capLines` on 5 lines with max 3 gives 3 lines plus `"… 2 more lines"`.
+- [ ] **Step 2:** Implement the pure functions until `node --test` passes.
+- [ ] **Step 3: Sidebar.** Draw the conflict box. A conflict toggle re-reads the file and
+  checks `hasMarkers`. Folder and Stage all writes pass the conflicted paths as `exclude`, and
+  the label counts them.
+- [ ] **Step 4: Viewer.** For a conflicted file, show the conflict branch and a header box
+  with the same rule. Apply `capLines` per section and drop the 1,500-line slice.
+- [ ] **Step 5:** Check by hand with a real merge conflict. The user runs
+  `/tmp/make-conflict-demo.sh`, because the guardrail blocks commits in an unregistered
+  `/tmp` repo. Then sync and commit.

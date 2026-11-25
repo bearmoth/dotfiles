@@ -115,3 +115,39 @@ is too easy to trigger by mistake.
   `mod:changes-view`.
 - **Pinned header while dragging the scrollbar:** repainted from `on_mouse_move` while the
   left button is held, which is an event, not polling. Not yet confirmed by hand.
+
+## Addendum (2026-11-25): conflicts and long diffs
+
+### Why
+A conflicted file (`UU`, `AA`, `DD` and the other unmerged states) used to draw git's combined
+diff wrongly. Worse, Stage all, or ticking its folder, staged it, which marks it resolved in
+git even with conflict markers still in it. Separately, a 1,500-line cap copied from the stock
+Changes mod could silently hide the whole Not staged section.
+
+### Design
+- **A fourth state, `conflict`.** A conflicted file shows a red `!` box instead of a checkbox,
+  and keeps the red `U`.
+- **Marking a file resolved.** Clicking the `!` box or pressing space on the file (or using
+  the viewer header's box) re-reads the file. If it still has conflict markers (a line
+  starting with `<<<<<<<`, `|||||||`, `=======` or `>>>>>>>` followed by a space or the line
+  end), nothing is staged and a note says "Still has conflict markers". Otherwise the file is
+  staged, which marks it resolved.
+- **Folders and Stage all never stage a conflicted file.** Conflicted files are excluded from
+  the write. A folder's state comes from its non-conflicted files, and a folder holding only
+  conflicts shows `!` and does nothing. With conflicts present, the button reads
+  "Stage all (N conflicts skipped)". Unstage writes exclude conflicted files too, so they stay
+  unmerged.
+- **Conflict view in the diff pane.** A single **Conflicted** section shows the working file's
+  conflict blocks, with 3 lines of context and `@@` separators between blocks:
+  - your side (between `<<<<<<<` and `=======`, or `|||||||`) in blue
+  - their side (between `=======` and `>>>>>>>`) in magenta
+  - the base (between `|||||||` and `=======`) dimmed
+  - marker lines in a plain muted style
+  With no markers left, the section reads "No conflict markers left · tick the box to mark
+  resolved".
+- **Paths.** Each path is written as `:(literal)<path>`, and exclusions as
+  `:(exclude,literal)<path>`. This replaces `--literal-pathspecs`, which disables the exclude
+  magic as well.
+- **Long diffs.** Each section is capped separately at 20,000 lines and ends with a visible
+  "… N more lines" row. The per-line cap (4,000 characters) stays. The overall 1,500-line cap
+  is removed.
