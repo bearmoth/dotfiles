@@ -7,14 +7,23 @@ import { stageState, combine, wantStage, stageArgs, stagedCount, hasMarkers, wri
 // (folders expanded by default; a folder holding only one folder shares its row: "a/b").
 import { spaces, panes, focused, exec, readTextFile, watchFolder, theme, run, shared, nextCommand, checking } from "herdr";
 
-// While a mod pane (the viewer) is focused, keep showing the repo we were in.
-let last = null;
+// The folder each tab last showed. While a mod pane (the viewer) is focused, keep showing that
+// tab's folder; a tab not seen yet falls back to one of its terminals. (Keyed by tab, not
+// space: switching tabs while the viewer is focused must not carry another tab's folder over.)
+const lastByTab = new Map();
 function location() {
   const space = spaces().find((s) => s.active), f = focused();
-  const pane = f?.pane ? panes().find(p => p.pane === f.pane) : null;
-  if (pane?.mod && last?.space === space?.id) return last;
+  const all = panes(), pane = f?.pane ? all.find(p => p.pane === f.pane) : null;
   const on = f?.pane === null ? (f.terminal?.includes("/") ? f.terminal.split("/")[0] : null) : space?.machine ?? null;
-  return (last = { cwd: pane?.cwd || f?.cwd || space?.folder, on, space: space?.id });
+  if (pane?.mod) {
+    const seen = lastByTab.get(f.tab);
+    if (seen) return seen;
+    const term = all.find(p => p.tab === f.tab && !p.mod && p.cwd);
+    if (term) return { cwd: term.cwd, on, space: space?.id };
+  }
+  const here = { cwd: pane?.cwd || f?.cwd || space?.folder, on, space: space?.id };
+  if (f?.tab) lastByTab.set(f.tab, here);
+  return here;
 }
 // The panel's root: the git project root when the folder is inside a repo, else the folder
 // itself, so moving around inside a repo doesn't reset the panel. Looked up once per folder;
@@ -301,7 +310,7 @@ export default class Changes extends View {
   stageAll(cx) { if (this.files.length && this.tree.stage !== "conflict") this.stage(writePaths(this.files, ""), this.tree.stage !== "staged", cx); }
 
   commit(cx) {
-    if (!this.message.trim() || !this.root || this.busy || this.loading || !stagedCount(this.files) || this.context?.key !== (key() ?? this.context?.key)) return;
+    if (!this.message.trim() || !this.root || this.busy || this.loading || !stagedCount(this.files) || this.conflictsUnder("").length || this.context?.key !== (key() ?? this.context?.key)) return;
     const root = this.root, on = this.on, context = this.context, message = this.message.trim();
     this.busy = true; this.note = null;
     cx.spawn(async (cx) => {
@@ -328,7 +337,7 @@ export default class Changes extends View {
     if (focusedNow && !this.wasFocused) resolveRoot(location(), cx, true); // just gained the keyboard
     this.wasFocused = focusedNow; this.order = []; this.dirStates = new Map();
     const t = theme(), add = this.files.reduce((n, f) => n + f.add, 0), del = this.files.reduce((n, f) => n + f.del, 0);
-    const conflicts = this.conflictsUnder("").length, staged = stagedCount(this.files), enabled = Boolean(this.message.trim() && staged && this.root && !this.busy && !this.loading);
+    const conflicts = this.conflictsUnder("").length, staged = stagedCount(this.files), enabled = Boolean(this.message.trim() && staged && !conflicts && this.root && !this.busy && !this.loading);
     const header = () => h_flex().h(42).flex_none().px(14).gap(8).items_center().border_b(1).border_color(t.border);
     const list = v_flex().id("changes-list-col").size_full().min_h(0)
       .child(header()
@@ -345,7 +354,7 @@ export default class Changes extends View {
       .when(Boolean(this.note), (e) => e.child(div().px(10).py(6).text_size(11).text_color(t.ansi1).child(this.note)))
       .child(h_flex().flex_none().p(10).gap(8).border_t(1).border_color(t.border)
         .child(div().id("commit-message").flex_1().min_w(0).h(32).px(10).flex().items_center().rounded(8).border_1().border_color(this.typing ? t.accent : t.border).cursor_text().on_mouse_down("left", (_e, cx) => cx.stop_propagation()).child(Input.new(this.input).h_full().text_size(12).text_color(t.foreground)))
-        .child(div().id("commit").h(32).px(14).flex().items_center().rounded(8).bg(enabled ? t.solid : t.raised).text_color(enabled ? t.solid_foreground : t.dim).text_size(12).when(enabled, (e) => e.cursor_pointer()).on_click((_e, cx) => this.commit(cx)).child(this.busy ? "Committing…" : staged ? `Commit ${staged} file${staged === 1 ? "" : "s"}` : "Commit")));
+        .child(div().id("commit").h(32).px(14).flex().items_center().rounded(8).bg(enabled ? t.solid : t.raised).text_color(enabled ? t.solid_foreground : t.dim).text_size(12).when(enabled, (e) => e.cursor_pointer()).on_click((_e, cx) => this.commit(cx)).child(this.busy ? "Committing…" : conflicts ? `Resolve ${conflicts} conflict${conflicts === 1 ? "" : "s"} first` : staged ? `Commit ${staged} file${staged === 1 ? "" : "s"}` : "Commit")));
     // Arrived before the tree had rows (e.g. the panel was just shown): place the cursor now.
     if (focusedNow && !this.order.some(r => r.path === this.cursor)) this.cursor = this.order[0]?.path ?? null;
     return v_flex().id("changes").size_full().min_h(0).rounded(10).overflow_hidden().bg(t.background).border_1().border_color(t.border).text_color(t.foreground).text_size(13).track_focus(this.handle)

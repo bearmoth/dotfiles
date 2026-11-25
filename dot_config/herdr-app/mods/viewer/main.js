@@ -175,16 +175,28 @@ export default class Viewer extends View {
 
   gutter(size) { return Math.ceil(this.gutterChars * charWidth(size)) + 2; }
 
-  diffRow({ kind, number, text, staged }, t, size, cur) {
+  diffRow({ kind, number, text, staged, conflict, label }, t, size, cur) {
     const height = rowHeight(size);
-    // A section header (Staged / Not staged); also drawn pinned at the top while its section scrolls.
+    // A section header (Staged / Not staged / Conflicted); also drawn pinned at the top while its section scrolls.
     if (kind === "#") return div().w_full().px(12).h(height).flex_none().flex().items_center().bg(cur ? t.selected : t.raised).border_b(1).border_color(t.border)
       .text_color(text.startsWith("Conflicted") ? t.ansi1 : staged ? t.ansi2 : t.ansi3).child(text);
-    if (kind === "@") return div().w_full().px(12).h(height).flex_none().truncate().bg(cur ? t.selected : t.raised).text_color(t.dim).child(text);
-    // Conflict view: ours blue, theirs magenta, base dimmed, markers plain and muted.
-    const tint = { "+": t.ansi2, "-": t.ansi1, "<": t.ansi4, ">": t.ansi5 }[kind];
-    return h_flex().w_full().h(height).flex_none().gap(10).when(Boolean(tint), (e) => e.bg(tint + "18")).when(kind === "!", (e) => e.bg(t.raised).text_color(t.muted)).when(kind === "|", (e) => e.text_color(t.dim)).when(cur, (e) => e.bg(t.selected))
-      .child(div().w(this.gutter(size)).flex_none().text_right().text_color(t.dim).child(number === undefined ? "" : String(number)))
+    if (kind === "@") return div().w_full().px(12).h(height).flex_none().truncate().bg(cur ? t.selected : t.raised).text_color(t.dim)
+      .child(conflict ? `line ${/\+(\d+)/.exec(text)?.[1] ?? ""}` : text);
+    // Conflict view: each side has a coloured bar down its left edge; marker lines become labels.
+    const side = { "<": t.ansi4, ">": t.ansi5, "|": t.dim }[kind];
+    if (kind === "!") {
+      const c = { ours: t.ansi4, base: t.dim, theirs: t.ansi5 }[label?.side];
+      if (!c) return div().w_full().h(height).flex_none().bg(cur ? t.selected : "#00000000").border_t(1).border_color(t.border); // end of block
+      const title = { ours: "Yours", base: "Base", theirs: "Theirs" }[label.side] + (label.name ? ` · ${label.name}` : "");
+      return h_flex().w_full().h(height).flex_none().gap(10).bg(cur ? t.selected : c + "30")
+        .child(div().w(3).h_full().flex_none().bg(c))
+        .child(div().w(this.gutter(size) - 13).flex_none())
+        .child(div().flex_1().min_w(0).truncate().font_semibold().text_color(c).child(title));
+    }
+    const tint = { "+": t.ansi2, "-": t.ansi1 }[kind] ?? (kind === "<" || kind === ">" ? side : null);
+    return h_flex().w_full().h(height).flex_none().gap(10).when(Boolean(tint), (e) => e.bg(tint + (side ? "1c" : "18"))).when(kind === "|", (e) => e.text_color(t.muted)).when(cur, (e) => e.bg(t.selected))
+      .when(Boolean(side), (e) => e.child(div().w(3).h_full().flex_none().bg(side)))
+      .child(div().w(this.gutter(size) - (side ? 13 : 0)).flex_none().text_right().text_color(t.dim).child(number === undefined ? "" : String(number)))
       .child(div().flex_1().min_w(0).truncate().child(text));
   }
 

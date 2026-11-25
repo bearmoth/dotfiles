@@ -52,3 +52,12 @@ test("capLines keeps max lines and says how many were cut", () => {
   assert.deepEqual(capLines(["1", "2", "3", "4", "5"], 3), ["1", "2", "3", "… 2 more lines"]);
   assert.deepEqual(capLines(["1"], 3), ["1"]);
 });
+
+test("conflict rows get labels from their markers", () => {
+  const rows = diffRows(conflictLines(conflicted));
+  const marks = rows.filter(r => r.kind === "!").map(r => r.label);
+  assert.deepEqual(marks.slice(0, 3), [{ side: "ours", name: "HEAD" }, { side: "theirs", name: "feature" }, { side: "end", name: "" }]);
+  assert.deepEqual(marks.slice(3), [{ side: "ours", name: "HEAD" }, { side: "base", name: "base" }, { side: "theirs", name: "feature" }, { side: "end", name: "" }]);
+  assert.ok(rows.filter(r => r.kind === "@").every(r => r.conflict === true));
+  assert.equal(diffRows(["@@ -1,2 +1,2 @@"])[0].conflict, false);
+});

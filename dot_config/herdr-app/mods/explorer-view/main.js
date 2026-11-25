@@ -5,14 +5,23 @@ import { v_flex, h_flex, ScrollHandle, Scrollbar } from "gpui-base";
 import { openInViewer } from "./open.js";
 import { spaces, panes, focused, exec, watchFolder, theme, window, run, shared, nextCommand, checking } from "herdr";
 
-// While a mod pane (the viewer) is focused, keep browsing the folder we were in.
-let last = null;
+// The folder each tab last showed. While a mod pane (the viewer) is focused, keep showing that
+// tab's folder; a tab not seen yet falls back to one of its terminals. (Keyed by tab, not
+// space: switching tabs while the viewer is focused must not carry another tab's folder over.)
+const lastByTab = new Map();
 function location() {
-  const space = spaces().find(s => s.active), f = focused();
-  const pane = f?.pane ? panes().find(p => p.pane === f.pane) : null;
-  if (pane?.mod && last?.space === space?.id) return last;
+  const space = spaces().find((s) => s.active), f = focused();
+  const all = panes(), pane = f?.pane ? all.find(p => p.pane === f.pane) : null;
   const on = f?.pane === null ? (f.terminal?.includes("/") ? f.terminal.split("/")[0] : null) : space?.machine ?? null;
-  return (last = { cwd: pane?.cwd || f?.cwd || space?.folder, on, space: space?.id });
+  if (pane?.mod) {
+    const seen = lastByTab.get(f.tab);
+    if (seen) return seen;
+    const term = all.find(p => p.tab === f.tab && !p.mod && p.cwd);
+    if (term) return { cwd: term.cwd, on, space: space?.id };
+  }
+  const here = { cwd: pane?.cwd || f?.cwd || space?.folder, on, space: space?.id };
+  if (f?.tab) lastByTab.set(f.tab, here);
+  return here;
 }
 // The panel's root: the git project root when the folder is inside a repo, else the folder
 // itself, so moving around inside a repo doesn't reset the panel. Looked up once per folder;

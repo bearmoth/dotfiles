@@ -10,11 +10,11 @@ export const untab = (text) => text.replace(/[^\t]*\t/g, (s) => s.slice(0, -1).p
 // Numbers each diff line once, so a frame only draws the rows on screen. Each section's
 // header is a "#" row; rows below it carry staged: true/false and restart the numbering.
 export function diffRows(lines) {
-  let old = 0, next = 0, staged = false;
-  return lines.map((line) => {
-    if (line.startsWith(SECTION)) { old = 0; next = 0; staged = line.slice(SECTION.length).startsWith("Staged"); return { kind: "#", staged, text: line.slice(SECTION.length) }; }
+  let old = 0, next = 0, staged = false, conflict = false;
+  const rows = lines.map((line) => {
+    if (line.startsWith(SECTION)) { old = 0; next = 0; const text = line.slice(SECTION.length); staged = text.startsWith("Staged"); conflict = text.startsWith("Conflicted"); return { kind: "#", staged, text }; }
     const match = /^@@ -(\d+)(?:,\d+)? \+(\d+)/.exec(line);
-    if (match) { old = +match[1]; next = +match[2]; return { kind: "@", staged, text: line }; }
+    if (match) { old = +match[1]; next = +match[2]; return { kind: "@", staged, conflict, text: line }; }
     const kind = line[0];
     if (kind === "-") return { kind, staged, number: old++, text: untab(line.slice(1)) || " " };
     if (kind === "+") return { kind, staged, number: next++, text: untab(line.slice(1)) || " " };
@@ -22,6 +22,21 @@ export function diffRows(lines) {
     // Conflict view (conflictLines): ours, theirs, base, marker; numbered by working-file line.
     if (kind === "<" || kind === ">" || kind === "|" || kind === "!") return { kind, staged, number: next++, text: untab(line.slice(1)) || " " };
     return { kind: "", staged, text: line };
+  });
+  labelMarkers(rows);
+  return rows;
+}
+
+// Conflict marker rows ("!") get { side, name }: <<<<<<< opens ours, ||||||| the base,
+// ======= theirs (named after the >>>>>>> that closes it), and >>>>>>> ends the block.
+function labelMarkers(rows) {
+  const side = { "<": "ours", "|": "base", "=": "theirs", ">": "end" };
+  rows.forEach((r, i) => {
+    if (r.kind !== "!") return;
+    const s = side[r.text[0]];
+    let name = s === "end" ? "" : r.text.slice(7).trim();
+    if (s === "theirs") { const close = rows.slice(i + 1).find(x => x.kind === "!" && x.text[0] === ">"); name = close ? close.text.slice(7).trim() : ""; }
+    r.label = { side: s, name };
   });
 }
 
