@@ -1,6 +1,7 @@
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input, Scrollbar, ScrollHandle } from "gpui-base";
 import { openInViewer } from "./open.js";
+import { stageState, combine, wantStage, stageArgs, stagedCount } from "./staging.js";
 // Stock Changes, but picking a file opens its diff in the tab's viewer pane (mods/viewer)
 // instead of inside this panel. Nothing opens until you pick a file. The files show as a tree
 // (folders expanded by default; a folder holding only one folder shares its row: "a/b").
@@ -57,6 +58,9 @@ function tree(files) {
     }
     n.files.push({ name: parts[parts.length - 1], file: f });
   }
+  // Each folder's checkbox: the combined state of every file under it.
+  const fill = (n) => { const all = [...n.files.map(x => x.file.stage), ...[...n.dirs.values()].map(fill)]; return (n.stage = combine(all)); };
+  fill(top);
   return top;
 }
 const byName = (a, b) => a[0].localeCompare(b[0]);
@@ -147,16 +151,16 @@ export default class Changes extends View {
         for (const entry of entries.slice(0, 1000)) {
           const xy = entry.slice(0, 2), path = entry.slice(3), fresh = xy === "??";
           const conflict = xy.includes("U") || xy === "AA" || xy === "DD";
-          const s = conflict ? "U" : xy.includes("D") ? "D" : fresh || xy.includes("A") ? "A" : "M";
+          const s = conflict ? "U" : fresh ? "?" : xy.includes("D") ? "D" : xy.includes("A") ? "A" : "M";
           const stat = stats[path] ?? { add: 0, del: 0 };
-          files.push({ path, status: s, fresh, ...stat });
+          files.push({ path, status: s, fresh, xy, stage: stageState(xy), ...stat });
         }
         if (!this.current(context)) return;
         this.root = root; this.on = on; this.hasHead = head.code === 0; this.files = files; this.tree = tree(files); this.limited = entries.length > 1000; this.error = null;
         this.watch(root, cx);
         if (this.open && !files.some((f) => f.path === this.open)) this.open = null;
       } catch (e) { if (this.current(context)) this.error = String(e); }
-      finally { if (this.context === context) this.loading = false; cx.notify(); }
+      finally { if (this.context === context) this.loading = false; if (this.again) { this.again = false; this.refresh(cx); } cx.notify(); }
     });
   }
 
@@ -191,11 +195,22 @@ export default class Changes extends View {
       if (!r) return;
       if (r.dir && !this.collapsed.has(r.path)) this.toggle(r.path);
       else if (r.parent) { this.cursor = r.parent; this.reveal(); }
+    } else if (k === "space") {
+      if (r) this.toggleRow(r, cx);
+    } else if (k === "tab" || k === "shift-tab") {
+      this.input.focus();
     } else if (k === "enter") {
       if (!r) return;
       r.dir ? this.toggle(r.path) : this.pick(r.path, cx);
     } else return;
     cx.stop_propagation(); cx.notify();
+  }
+
+  checkbox(id, state, t, onToggle) {
+    const icon = state === "staged" ? "on" : state === "partial" ? "part" : "off";
+    return div().id(id).flex_none().cursor_pointer().on_mouse_down("left", (_e, cx) => cx.stop_propagation())
+      .on_click((_e, cx) => { cx.stop_propagation(); onToggle(cx); })
+      .child(svg(`mods/changes-view/check-${icon}.svg`).size(14).text_color(state === "unstaged" ? t.dim : t.accent));
   }
 
   // Rows for one folder's contents: folders first, then files, each by name. A folder holding
@@ -205,10 +220,11 @@ export default class Changes extends View {
       let label = name, path = prefix ? `${prefix}/${name}` : name, n = d;
       while (!n.files.length && n.dirs.size === 1) { const [[c, cd]] = n.dirs; label += `/${c}`; path += `/${c}`; n = cd; }
       const open = !this.collapsed.has(path), cur = focusedNow && this.cursor === path;
-      this.order.push({ path, dir: true, parent });
+      this.order.push({ path, dir: true, parent }); this.dirStates.set(path, n.stage);
       out.push(h_flex().id(`change-dir-${path}`).h(28).flex_none().pl(8 + depth * 18).pr(8).gap(7).items_center().rounded(7).cursor_pointer()
         .border_1().border_color(cur ? t.accent : "#00000000").hover(s => s.bg(t.hover))
         .on_click((_e, cx) => { this.cursor = path; this.toggle(path); cx.notify(); })
+        .child(this.checkbox(`check-dir-${path}`, n.stage, t, cx => this.toggleRow({ path, dir: true }, cx)))
         .child(svg(`mods/changes-view/chevron-${open ? "down" : "right"}.svg`).size(12).flex_none().text_color(t.dim))
         .child(svg("mods/changes-view/folder.svg").size(14).flex_none().text_color(t.muted))
         .child(div().flex_1().min_w(0).truncate().child(label)));
@@ -220,11 +236,12 @@ export default class Changes extends View {
       out.push(h_flex().id(`change-${f.path}`).h(28).flex_none().pl(8 + depth * 18).pr(8).gap(7).items_center().rounded(7).cursor_pointer()
         .border_1().border_color(cur ? t.accent : "#00000000").when(shown, (e) => e.bg(t.selected)).hover((s) => s.bg(shown ? t.selected : t.hover))
         .on_click((_e, cx) => this.pick(f.path, cx))
+        .child(this.checkbox(`check-${f.path}`, f.stage, t, cx => this.toggleRow({ path: f.path, dir: false }, cx)))
         .child(div().w(12).flex_none())
         .child(div().flex_1().min_w(0).truncate().child(name))
         .when(f.add > 0, (e) => e.child(div().text_size(11).text_color(t.ansi2).child(`+${f.add}`)))
         .when(f.del > 0, (e) => e.child(div().text_size(11).text_color(t.ansi1).child(`−${f.del}`)))
-        .child(div().w(12).flex_none().text_right().text_size(11).text_color(f.status === "A" ? t.ansi2 : f.status === "D" || f.status === "U" ? t.ansi1 : t.blocked).child(f.status)));
+        .child(div().w(12).flex_none().text_right().text_size(11).text_color(f.status === "A" || f.status === "?" ? t.ansi2 : f.status === "D" || f.status === "U" ? t.ansi1 : t.blocked).child(f.status)));
     }
     return out;
   }
@@ -236,16 +253,38 @@ export default class Changes extends View {
     cx.notify();
   }
 
+  // One stage or unstage write, then a refresh (the folder watch would bring one too).
+  stage(paths, stage, cx) {
+    if (!this.root || !paths.length) return;
+    const root = this.root, on = this.on, context = this.context, args = stageArgs(paths, stage, this.hasHead);
+    this.note = null;
+    cx.spawn(async (cx) => {
+      try {
+        const r = await exec("git", args, { cwd: root, on });
+        if (r.code !== 0) throw new Error((r.stderr || r.stdout).trim());
+      } catch (e) { if (this.current(context)) this.note = `${stage ? "Stage" : "Unstage"} failed: ${String(e).replace(/^Error: /, "")}`; }
+      finally { if (this.loading) this.again = true; else this.refresh(cx); cx.notify(); }
+    });
+  }
+
+  // A row's checkbox (click or space): ticked unstages, empty or part-staged stages everything under it.
+  toggleRow(r, cx) {
+    const state = r.dir ? this.dirStates.get(r.path) : this.files.find(f => f.path === r.path)?.stage;
+    if (state) this.stage([r.path], wantStage(state), cx);
+  }
+
+  // Header button: stage every change, or unstage all when everything is already staged.
+  stageAll(cx) { if (this.files.length) this.stage(["."], this.tree.stage !== "staged", cx); }
+
   commit(cx) {
-    if (!this.message.trim() || !this.root || this.busy || this.loading || this.context?.key !== (key() ?? this.context?.key)) return;
+    if (!this.message.trim() || !this.root || this.busy || this.loading || !stagedCount(this.files) || this.context?.key !== (key() ?? this.context?.key)) return;
     const root = this.root, on = this.on, context = this.context, message = this.message.trim();
     this.busy = true; this.note = null;
     cx.spawn(async (cx) => {
       try {
-        for (const args of [["add", "-A"], ["commit", "-m", message]]) {
-          const r = await exec("git", args, { cwd: root, on });
-          if (r.code !== 0) throw new Error((r.stderr || r.stdout).trim());
-        }
+        // Only what's staged: nothing is added here, so a part-staged file commits only its staged part.
+        const r = await exec("git", ["commit", "-m", message], { cwd: root, on });
+        if (r.code !== 0) throw new Error((r.stderr || r.stdout).trim());
         if (this.current(context)) { this.message = ""; this.input.set_value(""); }
       } catch (e) { if (this.current(context)) this.note = `Commit failed: ${e}`; }
       finally { this.busy = false; this.refresh(cx); cx.notify(); }
@@ -262,15 +301,17 @@ export default class Changes extends View {
     if (asked !== this.asked) { this.asked = asked; this.later(cx); }
     const focusedNow = this.handle.is_focused();
     if (focusedNow && !this.wasFocused) resolveRoot(location(), cx, true); // just gained the keyboard
-    this.wasFocused = focusedNow; this.order = [];
+    this.wasFocused = focusedNow; this.order = []; this.dirStates = new Map();
     const t = theme(), add = this.files.reduce((n, f) => n + f.add, 0), del = this.files.reduce((n, f) => n + f.del, 0);
-    const enabled = Boolean(this.message.trim() && this.root && !this.busy && !this.loading);
+    const staged = stagedCount(this.files), enabled = Boolean(this.message.trim() && staged && this.root && !this.busy && !this.loading);
     const header = () => h_flex().h(42).flex_none().px(14).gap(8).items_center().border_b(1).border_color(t.border);
     const list = v_flex().id("changes-list-col").size_full().min_h(0)
       .child(header()
         .child(div().font_semibold().child("Changes"))
         .child(div().px(5).py(1).rounded(4).border_1().border_color(t.border).text_size(10).text_color(t.muted).child(`${this.files.length} files`))
-        .child(div().flex_1()).child(div().text_size(11).text_color(t.ansi2).child(`+${add}`)).child(div().text_size(11).text_color(t.ansi1).child(`−${del}`)))
+        .child(div().flex_1()).child(div().text_size(11).text_color(t.ansi2).child(`+${add}`)).child(div().text_size(11).text_color(t.ansi1).child(`−${del}`))
+        .when(this.files.length > 0, el => el.child(div().id("stage-all").px(8).py(2).rounded(6).border_1().border_color(t.border).text_size(11).text_color(t.muted).cursor_pointer().hover(s => s.bg(t.hover))
+          .on_click((_e, cx) => this.stageAll(cx)).child(this.tree.stage === "staged" ? "Unstage all" : "Stage all"))))
       // overflow_y_scrollbar() wraps the list, so its flex sizing never reached the panel's layout.
       .child(div().flex_1().min_h(44).relative()
         .child(v_flex().id("changes-list").absolute().inset_0().overflow_y_scroll().track_scroll(this.scroll).p(6).children(this.rows(this.tree, "", 0, null, [], t, focusedNow)).when(!this.files.length, (e) => e.child(div().p(8).text_color(t.dim).child(this.error || (this.loading ? "Loading changes…" : this.root ? "No uncommitted changes" : "No folder")))))
@@ -279,11 +320,12 @@ export default class Changes extends View {
       .when(Boolean(this.note), (e) => e.child(div().px(10).py(6).text_size(11).text_color(t.ansi1).child(this.note)))
       .child(h_flex().flex_none().p(10).gap(8).border_t(1).border_color(t.border)
         .child(div().id("commit-message").flex_1().min_w(0).h(32).px(10).flex().items_center().rounded(8).border_1().border_color(this.typing ? t.accent : t.border).cursor_text().on_mouse_down("left", (_e, cx) => cx.stop_propagation()).child(Input.new(this.input).h_full().text_size(12).text_color(t.foreground)))
-        .child(div().id("commit").h(32).px(14).flex().items_center().rounded(8).bg(enabled ? t.solid : t.raised).text_color(enabled ? t.solid_foreground : t.dim).text_size(12).when(enabled, (e) => e.cursor_pointer()).on_click((_e, cx) => this.commit(cx)).child(this.busy ? "Committing…" : "Commit")));
+        .child(div().id("commit").h(32).px(14).flex().items_center().rounded(8).bg(enabled ? t.solid : t.raised).text_color(enabled ? t.solid_foreground : t.dim).text_size(12).when(enabled, (e) => e.cursor_pointer()).on_click((_e, cx) => this.commit(cx)).child(this.busy ? "Committing…" : staged ? `Commit ${staged} file${staged === 1 ? "" : "s"}` : "Commit")));
     // Arrived before the tree had rows (e.g. the panel was just shown): place the cursor now.
     if (focusedNow && !this.order.some(r => r.path === this.cursor)) this.cursor = this.order[0]?.path ?? null;
     return v_flex().id("changes").size_full().min_h(0).rounded(10).overflow_hidden().bg(t.background).border_1().border_color(t.border).text_color(t.foreground).text_size(13).track_focus(this.handle)
       .on_key_down((e, cx) => {
+        if ((e.keystroke === "tab" || e.keystroke === "shift-tab") && this.typing) { this.handle.focus(); cx.stop_propagation(); cx.notify(); return; }
         if (e.key === "escape" && this.typing) { this.typing = false; this.handle.focus(); cx.stop_propagation(); cx.notify(); return; }
         this.key(e, cx);
       })
