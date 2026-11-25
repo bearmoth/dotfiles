@@ -201,12 +201,19 @@ Changes mod could silently hide the whole Not staged section.
   **Compared with last commit** section (`git diff HEAD -- <path>`): exactly what Mark resolved
   stages, including the merge's clean changes outside the blocks.
 - **Resolved to the same as the last commit.** Such a file drops out of `git status` (VS Code
-  does the same). The sidebar shows a muted note: "<path>: resolved · same as the last commit,
+  does the same). Whichever way it was resolved (sidebar, viewer, terminal), the sidebar
+  notices a conflicted file leaving status and shows a muted note: "<path>: resolved · same as the last commit,
   so nothing to stage".
 - **Merge commits.** While merging (`MERGE_HEAD` exists) Commit is allowed with nothing staged,
   since a merge commit is valid even when the result matches HEAD. The button reads "Commit
   merge".
-- **Hunk buttons (next).** On each `@@` row: Staged hunks get **Unstage**; Not staged hunks get
+- **Hunk buttons (built).** On each `@@` row: Staged hunks get **Unstage**; Not staged hunks get
   **Stage** and **Discard**. Discard is two clicks: it turns into **Really discard?** for a few
   seconds (option A, over one-click-with-Undo and no Discard). Untracked files stage whole only.
   No splitting hunks or picking lines yet. Conflicted files keep their conflict buttons only.
+  The hunk's patch (file header plus that one hunk) goes to `git apply [--cached] [-R]`
+  through `sh -c 'printf %s "$1" | git apply …'`, since `exec` has no stdin. git refuses a
+  patch that no longer applies, and the viewer then reloads with the error. Checked against
+  real git with two hunks: each button moves only its own hunk.
+  **Limit:** the patch is one process argument. Linux caps a single argument at about 128 KB,
+  so a huge hunk fails there (shown as an error, nothing lost). macOS allows far more.

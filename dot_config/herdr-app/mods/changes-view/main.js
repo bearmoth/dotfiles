@@ -173,9 +173,10 @@ export default class Changes extends View {
         }
         const merging = (await git(["rev-parse", "-q", "--verify", "MERGE_HEAD"])).code === 0;
         if (!this.current(context)) return;
-        // A file just marked resolved that no longer shows: it ended up the same as the last commit.
-        if (this.resolving && !files.some(f => f.path === this.resolving)) this.info = `${this.resolving}: resolved · same as the last commit, so nothing to stage`;
-        this.resolving = null;
+        // A conflicted file that left git status entirely was resolved (here, in the viewer, or in a
+        // terminal) to exactly the last commit's content: say so rather than let it vanish.
+        const gone = this.files.filter(f => f.stage === "conflict" && !files.some(n => n.path === f.path)).map(f => f.path);
+        if (gone.length) this.info = `${gone.join(", ")}: resolved · same as the last commit, so nothing to stage`;
         this.root = root; this.on = on; this.hasHead = head.code === 0; this.merging = merging; this.files = files; this.tree = tree(files.filter(f => f.stage !== "conflict")); this.limited = entries.length > 1000; this.error = null;
         this.watch(root, cx);
         if (this.open && !files.some((f) => f.path === this.open)) this.open = null;
@@ -280,7 +281,7 @@ export default class Changes extends View {
 
   // Show a file's diff in the viewer pane (the row stays highlighted) and hand it the keyboard.
   pick(path, cx) {
-    this.open = path; this.cursor = path; this.note = null;
+    this.open = path; this.cursor = path; this.note = null; this.info = null;
     openInViewer({ kind: "diff", abs: `${this.root}/${path}`, rel: path, root: this.root, on: this.on }, cx, cx => cx.timer.after(200, cx => cx.notify()), true);
     cx.notify();
   }
@@ -291,7 +292,7 @@ export default class Changes extends View {
     if (!this.root || !paths.length || this.busy) return;
     const root = this.root, on = this.on, context = this.context, args = stageArgs(paths, stage, this.hasHead);
     const before = this.writes; let done; this.writes = new Promise((r) => (done = r));
-    this.note = null;
+    this.note = null; this.info = null;
     cx.spawn(async (cx) => {
       try {
         await before;
@@ -323,7 +324,6 @@ export default class Changes extends View {
       const text = await readTextFile(`${root}/${path}`, { on }).catch(() => null);
       if (!this.current(context)) return;
       if (text !== null && hasMarkers(text)) { this.note = `${path}: still has conflict markers`; cx.notify(); return; }
-      this.resolving = path; this.info = null;
       this.stage([path], true, cx);
     });
   }
