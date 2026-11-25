@@ -7,6 +7,9 @@ import { props, shared, exec, readTextFile, writeTextFile, watchFolder, theme, s
 import { SECTION, countLines, diffRows, sectionAt, conflictLines, capLines, resolveBlock } from "./diff.js";
 import { stageState, wantStage, stageArgs, isConflict, hasMarkers } from "./staging.js";
 
+// A theme colour at a given alpha ("30" hex): works for #rrggbb and #rrggbbaa alike.
+const tint = (color, alpha) => /^#[0-9a-f]{6}$/i.test(color) ? color + alpha : /^#[0-9a-f]{8}$/i.test(color) ? color.slice(0, 7) + alpha : color;
+
 // Lines per diff section; a cut section ends with "… N more lines".
 const SECTION_LINES = 20000;
 
@@ -209,6 +212,12 @@ export default class Viewer extends View {
 
   gutter(size) { return Math.ceil(this.gutterChars * charWidth(size)) + 2; }
 
+  // One row; if building it throws, a red row says why rather than the whole list going blank.
+  safeRow(row, t, size, cur) {
+    try { return this.diffRow(row, t, size, cur); }
+    catch (e) { return div().w_full().px(12).h(rowHeight(size)).flex_none().truncate().text_color(t.ansi1).child(`row error: ${String(e)}`); }
+  }
+
   diffRow({ kind, number, text, staged, conflict, label }, t, size, cur) {
     const height = rowHeight(size);
     // A section header (Staged / Not staged / Conflicted); also drawn pinned at the top while its section scrolls.
@@ -222,24 +231,38 @@ export default class Viewer extends View {
       // The marker line itself, in its side's colour: <<<<<<< ours (blue), ||||||| base (dim),
       // ======= the split (both colours), >>>>>>> theirs (magenta).
       const c = { ours: t.ansi4, base: t.dim, theirs: t.ansi5, end: t.ansi5 }[label?.side] ?? t.muted;
-      const row = h_flex().w_full().h(height).flex_none().gap(10).items_center().bg(cur ? t.selected : c + "30")
+      const row = h_flex().w_full().h(height).flex_none().gap(10).items_center().bg(cur ? t.selected : tint(c, "30"))
         .child(div().w(3).h_full().flex_none().bg(label?.side === "theirs" ? t.ansi4 : c))
         .child(div().w(this.gutter(size) - 13).flex_none().text_right().text_color(t.dim).child(number === undefined ? "" : String(number)))
         .child(div().flex_1().min_w(0).truncate().font_semibold().text_color(c).child(text));
-      if (label?.side !== "ours" || this.item()?.on || this.raw === null) return row;
-      const it = this.item(), names = this.sideNames(), theirsName = this.rows.slice(this.rows.findIndex(r => r.label === label)).find(r => r.label?.side === "theirs")?.label.name || names.theirs;
-      const button = (id, text, choice) => div().id(`${id}-${label.block}`).px(6).rounded(4).border_1().border_color(t.border).bg(t.background).text_size(11).text_color(t.foreground).cursor_pointer().hover(s => s.bg(t.hover))
-        .on_click((_e, cx) => this.useBlock(it, label.block, choice, cx)).child(text);
-      return row.child(h_flex().gap(6).pr(8).flex_none()
-        .child(button("use-ours", `Use ${label.name || "ours"}`, "ours"))
-        .child(button("use-theirs", `Use ${theirsName}`, "theirs"))
-        .child(button("use-both", "Use both", "both")));
+      return row;
     }
-    const tint = { "+": t.ansi2, "-": t.ansi1 }[kind] ?? (kind === "<" || kind === ">" ? side : null);
-    return h_flex().w_full().h(height).flex_none().gap(10).when(Boolean(tint), (e) => e.bg(tint + (side ? "1c" : "18"))).when(kind === "|", (e) => e.text_color(t.muted)).when(cur, (e) => e.bg(t.selected))
+    const shade = { "+": t.ansi2, "-": t.ansi1 }[kind] ?? (kind === "<" || kind === ">" ? side : null);
+    return h_flex().w_full().h(height).flex_none().gap(10).when(Boolean(shade), (e) => e.bg(tint(shade, side ? "1c" : "18"))).when(kind === "|", (e) => e.text_color(t.muted)).when(cur, (e) => e.bg(t.selected))
       .when(Boolean(side), (e) => e.child(div().w(3).h_full().flex_none().bg(side)))
       .child(div().w(this.gutter(size) - (side ? 13 : 0)).flex_none().text_right().text_color(t.dim).child(number === undefined ? "" : String(number)))
       .child(div().flex_1().min_w(0).truncate().child(text));
+  }
+
+  // Use … buttons for each conflict block whose <<<<<<< row is on screen. Drawn over the list
+  // (handlers can't be registered on virtual-list rows), lined up with their row.
+  blockButtons(it, t, size) {
+    if (this.raw === null || it?.on || this.stage !== "conflict") return [];
+    const h = rowHeight(size), top = this.dscroll.offset().y, view = this.dscroll.viewport_size().height || 4000, out = [];
+    for (let i = Math.max(0, Math.floor(top / h)); i < this.rows.length && i * h - top < view; i++) {
+      const label = this.rows[i].label;
+      if (label?.side !== "ours") continue;
+      const y = i * h - top;
+      if (y < h) continue; // under the pinned header
+      const theirs = this.rows.slice(i).find(r => r.label?.side === "theirs")?.label.name || "theirs";
+      const button = (id, text, choice) => div().id(`${id}-${label.block}`).px(6).rounded(4).border_1().border_color(t.border).bg(t.background).text_size(11).text_color(t.foreground).cursor_pointer().hover(s => s.bg(t.hover))
+        .on_click((_e, cx) => this.useBlock(it, label.block, choice, cx)).child(text);
+      out.push(h_flex().absolute().top(y).right(14).h(h).gap(6).items_center()
+        .child(button("use-ours", `Use ${label.name || "ours"}`, "ours"))
+        .child(button("use-theirs", `Use ${theirs}`, "theirs"))
+        .child(button("use-both", "Use both", "both")));
+    }
+    return out;
   }
 
   // The header of the section the top visible row is in.
@@ -267,7 +290,8 @@ export default class Viewer extends View {
     else body = !this.lines ? message("Loading changes…") : div().flex_1().min_h(0).relative().font_family(font.font_family ?? "JetBrains Mono").text_size(size)
       .child(div().id("viewer-diff-x").size_full().overflow_x_scrollbar()
         .child(div().w_full().min_w(Math.max(300, this.longest * charWidth(size) + this.gutter(size) + 20)).h_full().child(v_virtual_list("viewer-diff", this.rows.length, rowHeight(size), (i) => String(i),
-          (range) => this.rows.slice(range.start, range.end).map((row, j) => this.diffRow(row, t, size, focused && range.start + j === this.dline))).track_scroll(this.dscroll).size_full())))
+          (range) => this.rows.slice(range.start, range.end).map((row, j) => this.safeRow(row, t, size, focused && range.start + j === this.dline))).track_scroll(this.dscroll).size_full())))
+      .children(this.blockButtons(it, t, size))
       .when(this.stickyHeader(size), el => el.child(div().absolute().top_0().left_0().right_0().child(this.diffRow(this.stickyHeader(size), t, size, false))))
       .child(Scrollbar.vertical("viewer-diff").viewport_from_layout().absolute().inset_0())
       // Repaint the pinned header as the list moves: wheel/trackpad, or dragging the scrollbar.
