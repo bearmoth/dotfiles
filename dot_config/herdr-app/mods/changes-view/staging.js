@@ -29,12 +29,20 @@ export const hasMarkers = (text) => /^(?:<{7}|\|{7}|={7}|>{7})(?: |$)/m.test(tex
 export const wantStage = (state) => state !== "staged";
 
 // git arguments for one stage or unstage write. Paths are literal (a "[1]" in a name is not a
-// glob); `exclude` paths (conflicted files) are left out. A repo with no commits has no HEAD to
-// restore from; there, rm --cached needs -f to drop an index copy that differs from the working
-// file (it never touches the working file).
-export function stageArgs(paths, stage, hasHead, exclude = []) {
+// glob). A repo with no commits has no HEAD to restore from; there, rm --cached needs -f to drop
+// an index copy that differs from the working file (it never touches the working file).
+export function stageArgs(paths, stage, hasHead) {
   const write = stage ? ["add", "-A"] : hasHead ? ["restore", "--staged"] : ["rm", "--cached", "-r", "-f", "-q"];
-  return [...write, "--", ...paths.map((p) => `:(literal)${p}`), ...exclude.map((p) => `:(exclude,literal)${p}`)];
+  return [...write, "--", ...paths.map((p) => `:(literal)${p}`)];
+}
+
+// What a folder's (or, with dir "", the whole repo's) bulk write should name: the folder itself,
+// or, when a conflicted file is under it, every other listed file under it. git add -A stages
+// unmerged paths even when an :(exclude) pathspec names them, so exclusions can't be used.
+export function writePaths(files, dir) {
+  const under = files.filter((f) => !dir || f.path.startsWith(dir + "/"));
+  if (!under.some((f) => f.stage === "conflict")) return [dir || "."];
+  return under.filter((f) => f.stage !== "conflict").map((f) => f.path);
 }
 
 // Files a commit would take something from.

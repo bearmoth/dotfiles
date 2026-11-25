@@ -2,7 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { stageState, combine, wantStage, stageArgs, stagedCount, isConflict, hasMarkers } from "./staging.js";
+import { stageState, combine, wantStage, stageArgs, stagedCount, isConflict, hasMarkers, writePaths } from "./staging.js";
 
 test("stageState reads git's XY pair", () => {
   const cases = { "M ": "staged", " M": "unstaged", "MM": "partial", "??": "unstaged", "A ": "staged",
@@ -24,12 +24,24 @@ test("wantStage: anything not fully staged gets staged", () => {
   assert.equal(wantStage("unstaged"), true);
 });
 
-test("stageArgs: literal paths after --, conflicts excluded", () => {
+test("stageArgs: literal paths, always after --", () => {
   assert.deepEqual(stageArgs(["a b", "-x"], true, true), ["add", "-A", "--", ":(literal)a b", ":(literal)-x"]);
-  assert.deepEqual(stageArgs(["src"], true, true, ["src/c"]), ["add", "-A", "--", ":(literal)src", ":(exclude,literal)src/c"]);
   assert.deepEqual(stageArgs(["d"], false, true), ["restore", "--staged", "--", ":(literal)d"]);
   // -f: with --cached it only drops the index copy, even one that differs from the working file.
-  assert.deepEqual(stageArgs(["d"], false, false, ["d/u"]), ["rm", "--cached", "-r", "-f", "-q", "--", ":(literal)d", ":(exclude,literal)d/u"]);
+  assert.deepEqual(stageArgs(["d"], false, false), ["rm", "--cached", "-r", "-f", "-q", "--", ":(literal)d"]);
+});
+
+// git add -A stages unmerged paths even when :(exclude) names them (git 2.56), so a bulk
+// write that would reach a conflict lists the other files instead.
+test("writePaths: the folder itself unless a conflict is under it", () => {
+  const files = [{ path: "src/a.js", stage: "unstaged" }, { path: "src/ui/c.js", stage: "conflict" }, { path: "src/ui/d.js", stage: "staged" }, { path: "docs/e.md", stage: "unstaged" }];
+  assert.deepEqual(writePaths(files, "docs"), ["docs"]);
+  assert.deepEqual(writePaths(files, "src"), ["src/a.js", "src/ui/d.js"]);
+  assert.deepEqual(writePaths(files, "src/ui"), ["src/ui/d.js"]);
+  assert.deepEqual(writePaths(files, ""), ["src/a.js", "src/ui/d.js", "docs/e.md"]);
+  assert.deepEqual(writePaths(files.filter(f => f.stage !== "conflict"), ""), ["."]);
+  assert.deepEqual(writePaths([{ path: "x", stage: "conflict" }], ""), []);
+  assert.deepEqual(writePaths(files, "sr"), ["sr"]); // a prefix is not a parent folder
 });
 
 test("combine ignores conflicts; only conflicts gives conflict", () => {

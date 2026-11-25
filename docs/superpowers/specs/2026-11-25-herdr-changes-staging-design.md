@@ -145,9 +145,11 @@ Changes mod could silently hide the whole Not staged section.
   - marker lines in a plain muted style
   With no markers left, the section reads "No conflict markers left · tick the box to mark
   resolved".
-- **Paths.** Each path is written as `:(literal)<path>`, and exclusions as
-  `:(exclude,literal)<path>`. This replaces `--literal-pathspecs`, which disables the exclude
-  magic as well.
+- **Paths.** Each path is written as `:(literal)<path>`. A bulk write (a folder, or Stage
+  all) names the folder itself, or `.` for the whole repo, unless a conflicted file is under
+  it. In that case it names every other listed file under it instead. Exclusions were tried
+  first and don't work: on git 2.56, `git add -A -- . ':(exclude)f'` still stages an unmerged
+  `f`. This was checked against a real merge conflict.
 - **Long diffs.** Each section is capped separately at 20,000 lines and ends with a visible
   "… N more lines" row. The per-line cap (4,000 characters) stays. The overall 1,500-line cap
   is removed.

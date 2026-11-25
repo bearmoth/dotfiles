@@ -1,7 +1,7 @@
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input, Scrollbar, ScrollHandle } from "gpui-base";
 import { openInViewer } from "./open.js";
-import { stageState, combine, wantStage, stageArgs, stagedCount, hasMarkers } from "./staging.js";
+import { stageState, combine, wantStage, stageArgs, stagedCount, hasMarkers, writePaths } from "./staging.js";
 // Stock Changes, but picking a file opens its diff in the tab's viewer pane (mods/viewer)
 // instead of inside this panel. Nothing opens until you pick a file. The files show as a tree
 // (folders expanded by default; a folder holding only one folder shares its row: "a/b").
@@ -255,10 +255,9 @@ export default class Changes extends View {
 
   // One stage or unstage write, then a refresh (the folder watch would bring one too).
   // Writes run one at a time (git holds .git/index.lock while writing); a commit waits for them.
-  // `exclude`: conflicted files, which bulk writes never touch (staging one marks it resolved).
-  stage(paths, stage, cx, exclude = []) {
+  stage(paths, stage, cx) {
     if (!this.root || !paths.length || this.busy) return;
-    const root = this.root, on = this.on, context = this.context, args = stageArgs(paths, stage, this.hasHead, exclude);
+    const root = this.root, on = this.on, context = this.context, args = stageArgs(paths, stage, this.hasHead);
     const before = this.writes; let done; this.writes = new Promise((r) => (done = r));
     this.note = null;
     cx.spawn(async (cx) => {
@@ -283,7 +282,7 @@ export default class Changes extends View {
       if (r.dir) { this.note = "Only conflicted files here: resolve each one on its own"; cx.notify(); return; }
       return this.resolve(r.path, cx);
     }
-    this.stage([r.path], wantStage(state), cx, r.dir ? this.conflictsUnder(r.path) : []);
+    this.stage(r.dir ? writePaths(this.files, r.path) : [r.path], wantStage(state), cx);
   }
 
   // Mark a conflicted file resolved (stage it), unless it still has conflict markers.
@@ -299,7 +298,7 @@ export default class Changes extends View {
 
   // Header button: stage every change, or unstage all when everything is already staged.
   // Conflicted files are always left out.
-  stageAll(cx) { if (this.files.length && this.tree.stage !== "conflict") this.stage(["."], this.tree.stage !== "staged", cx, this.conflictsUnder("")); }
+  stageAll(cx) { if (this.files.length && this.tree.stage !== "conflict") this.stage(writePaths(this.files, ""), this.tree.stage !== "staged", cx); }
 
   commit(cx) {
     if (!this.message.trim() || !this.root || this.busy || this.loading || !stagedCount(this.files) || this.context?.key !== (key() ?? this.context?.key)) return;
