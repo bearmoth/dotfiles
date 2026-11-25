@@ -103,3 +103,15 @@ is too easy to trigger by mistake.
 - **Tab in the message box.** Find out whether the Input consumes Tab. If it does, route
   Tab through a `mod:changes-view` key binding.
 - **Errors.** Show a failed stage or commit as the existing one-line note in the sidebar.
+
+## Found while building (2026-11-25)
+
+- **Refresh after a write:** confirmed. On macOS `watchFolder` is recursive and includes
+  `.git`, so a `git add` from anywhere, the viewer included, refreshes Changes. Checked by
+  staging from the CLI while the panel was showing the demo repo. No shared nudge key needed.
+- **Tab in the message box:** handled in the panel's `on_key_down`. Tab in the tree focuses
+  the input, and Tab in the input focuses the tree. Not yet confirmed by hand that the Input
+  passes Tab up. If it doesn't, add `tab` → `changes-view.cycle-focus` under
+  `mod:changes-view`.
+- **Pinned header while dragging the scrollbar:** repainted from `on_mouse_move` while the
+  left button is held, which is an event, not polling. Not yet confirmed by hand.
