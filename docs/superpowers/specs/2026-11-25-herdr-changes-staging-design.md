@@ -155,17 +155,24 @@ Changes mod could silently hide the whole Not staged section.
   is removed.
 
 ### Resolving conflicts (decided 2026-11-25: option C)
-- **The conflict view shows the real marker lines**, coloured by side, not made-up labels:
-  `<<<<<<< HEAD` blue, `|||||||` dim, `=======` the split, `>>>>>>> feature` magenta. Each
-  side's lines have a matching bar down the left. The marker names already say which side is
-  which. Our own "Yours" and "Theirs" labels doubled them up, and say the wrong thing in a
-  rebase, where the two sides swap.
-- **Per-block buttons** on each `<<<<<<<` row: *Use <ours name> · Use <theirs name> · Use
-  both*. "Both" is ours then theirs, with the base dropped. They rewrite that block through
+- **The conflict view shows the real marker lines**, coloured by side: `<<<<<<< HEAD` blue,
+  `|||||||` grey, `=======` the split, `>>>>>>> feature` magenta. Each side's lines have a
+  matching bar down the left. Marker lines carry no line number, and a small dim tag after
+  the marker says *current*, *original* or *incoming*.
+- **Original lines are shown (diff3).** git is set to `merge.conflictStyle = zdiff3` in the
+  managed git config, so every conflict block includes the lines as they were before either
+  side changed them. They're drawn grey and italic with a faint grey tint, for reference.
+  Files conflicted before the setting can be redrawn with
+  `git checkout --conflict=zdiff3 -- <path>`.
+- **VS Code's wording, the same in every file.** Marker names vary (`HEAD`, a branch,
+  `ours`), so buttons don't use them. "Current" is the branch you're on, "incoming" the one
+  coming in.
+- **Per-block buttons** on each `<<<<<<<` row: *Keep current · Take incoming · Keep both*.
+  "Both" is current then incoming, with the original dropped. They rewrite that block through
   `writeTextFile(path, next, shownText)`, which refuses if the file changed since it was
   shown. Then the pane says "File changed since it was shown · reloaded" and reloads. Local
   folders only, since `writeTextFile` can't reach other machines.
-- **Whole-file buttons** in the header: *Take <ours name>* and *Take <theirs name>*, which run
+- **Whole-file buttons** in the header: *Keep all current* and *Take all incoming*, which run
   `git checkout --ours/--theirs -- <path>`. These also work on remote machines.
 - **No button marks the file resolved** by itself. Ticking the box does that, once the
   markers are gone. No keyboard shortcuts in the viewer.

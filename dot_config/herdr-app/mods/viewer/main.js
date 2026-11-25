@@ -198,12 +198,6 @@ export default class Viewer extends View {
     });
   }
 
-  // The names git wrote on the first conflict block's markers (HEAD, a branch, …).
-  sideNames() {
-    const ours = this.rows.find(r => r.label?.side === "ours")?.label.name, theirs = this.rows.find(r => r.label?.side === "theirs")?.label.name;
-    return { ours: ours || "ours", theirs: theirs || "theirs" };
-  }
-
   setLines(lines) {
     this.rows = diffRows(lines);
     this.longest = Math.max(0, ...this.rows.map(row => displayColumns(row.text)));
@@ -231,14 +225,16 @@ export default class Viewer extends View {
       // The marker line itself, in its side's colour: <<<<<<< ours (blue), ||||||| base (dim),
       // ======= the split (both colours), >>>>>>> theirs (magenta).
       const c = { ours: t.ansi4, base: t.dim, theirs: t.ansi5, end: t.ansi5 }[label?.side] ?? t.muted;
+      const tag = { ours: "current", base: "original", end: "incoming" }[label?.side];
       const row = h_flex().w_full().h(height).flex_none().gap(10).items_center().bg(cur ? t.selected : tint(c, "30"))
         .child(div().w(3).h_full().flex_none().bg(label?.side === "theirs" ? t.ansi4 : c))
         .child(div().w(this.gutter(size) - 13).flex_none().text_right().text_color(t.dim).child(number === undefined ? "" : String(number)))
-        .child(div().flex_1().min_w(0).truncate().font_semibold().text_color(c).child(text));
+        .child(div().flex_none().font_semibold().text_color(c).child(text))
+        .when(Boolean(tag), (e) => e.child(div().flex_1().min_w(0).truncate().text_size(11).text_color(t.dim).child(tag)));
       return row;
     }
-    const shade = { "+": t.ansi2, "-": t.ansi1 }[kind] ?? (kind === "<" || kind === ">" ? side : null);
-    return h_flex().w_full().h(height).flex_none().gap(10).when(Boolean(shade), (e) => e.bg(tint(shade, side ? "1c" : "18"))).when(kind === "|", (e) => e.text_color(t.muted)).when(cur, (e) => e.bg(t.selected))
+    const shade = { "+": t.ansi2, "-": t.ansi1 }[kind] ?? side ?? null;
+    return h_flex().w_full().h(height).flex_none().gap(10).when(Boolean(shade), (e) => e.bg(tint(shade, side ? "1c" : "18"))).when(kind === "|", (e) => e.text_color(t.dim).italic()).when(cur, (e) => e.bg(t.selected))
       .when(Boolean(side), (e) => e.child(div().w(3).h_full().flex_none().bg(side)))
       .child(div().w(this.gutter(size) - (side ? 13 : 0)).flex_none().text_right().text_color(t.dim).child(number === undefined ? "" : String(number)))
       .child(div().flex_1().min_w(0).truncate().child(text));
@@ -254,13 +250,12 @@ export default class Viewer extends View {
       if (label?.side !== "ours") continue;
       const y = i * h - top;
       if (y < h) continue; // under the pinned header
-      const theirs = this.rows.slice(i).find(r => r.label?.side === "theirs")?.label.name || "theirs";
       const button = (id, text, choice) => div().id(`${id}-${label.block}`).px(6).rounded(4).border_1().border_color(t.border).bg(t.background).text_size(11).text_color(t.foreground).cursor_pointer().hover(s => s.bg(t.hover))
         .on_click((_e, cx) => this.useBlock(it, label.block, choice, cx)).child(text);
       out.push(h_flex().absolute().top(y).right(14).h(h).gap(6).items_center()
-        .child(button("use-ours", `Use ${label.name || "ours"}`, "ours"))
-        .child(button("use-theirs", `Use ${theirs}`, "theirs"))
-        .child(button("use-both", "Use both", "both")));
+        .child(button("use-ours", "Keep current", "ours"))
+        .child(button("use-theirs", "Take incoming", "theirs"))
+        .child(button("use-both", "Keep both", "both")));
     }
     return out;
   }
@@ -274,9 +269,9 @@ export default class Viewer extends View {
     const header = h_flex().h(30).flex_none().px(12).gap(6).items_center().border_b(1).border_color(t.border).text_size(12)
       .child(div().flex_1().min_w(0).truncate().text_color(t.muted).child(it ? it.rel : ""))
       .when(it?.kind === "diff" && this.stage === "conflict", el => {
-        const names = this.sideNames(), button = (id, text, side) => div().id(id).px(6).rounded(4).border_1().border_color(t.border).text_size(11).text_color(t.muted).cursor_pointer().hover(s => s.bg(t.hover))
+        const button = (id, text, side) => div().id(id).px(6).rounded(4).border_1().border_color(t.border).text_size(11).text_color(t.muted).cursor_pointer().hover(s => s.bg(t.hover))
           .on_click((_e, cx) => this.takeSide(it, side, cx)).child(text);
-        return el.child(button("take-ours", `Take ${names.ours}`, "ours")).child(button("take-theirs", `Take ${names.theirs}`, "theirs"));
+        return el.child(button("take-ours", "Keep all current", "ours")).child(button("take-theirs", "Take all incoming", "theirs"));
       })
       .when(Boolean(this.stageError), el => el.child(div().max_w(260).truncate().text_color(t.ansi1).child(this.stageError)))
       .when(it?.kind === "diff", el => el.child(div().text_color(t.dim).child("changes")))
