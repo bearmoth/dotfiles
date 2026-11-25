@@ -198,12 +198,13 @@ Changes mod could silently hide the whole Not staged section.
   "ready" box, and the viewer header shows a **Mark resolved** button in place of Keep all
   current / Take all incoming.
 - **Nothing staged is hidden.** Once a conflicted file has no markers left, the viewer shows a
-  **Will be staged · compared with last commit** section below the blocks (`git diff HEAD --
+  single green **Resolved · will be staged (compared with last commit)** section in place of
+  the Conflicted one, hunks labelled "line N" like the conflict view (`git diff HEAD --
   <path>`): exactly what Mark resolved stages, including the merge's clean changes outside the
   blocks. It's hidden while markers remain, when it would only repeat the blocks with the
   markers as numbered added lines.
 - **Line numbers** are the line's position in the version a section ends at: Conflicted and
-  Will be staged both use the working file, so they agree; Staged uses the staged version, so
+  Resolved both use the working file, so they agree; Staged uses the staged version, so
   it can differ from Not staged. Marker lines in the conflict view take a line but show no
   number. Deleted lines show their old-version number (one gutter column, not GitHub's two).
 - **Resolved to the same as the last commit.** Such a file drops out of `git status` (VS Code

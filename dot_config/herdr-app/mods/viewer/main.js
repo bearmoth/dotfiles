@@ -141,9 +141,10 @@ export default class Viewer extends View {
     if (isConflict(xy)) {
       const text = await readTextFile(it.abs, { on: it.on }).catch(() => null);
       if (text === null) return done(["Conflicted · the working file is gone or unreadable (deleted on one side?)"], xy);
-      // Once no markers are left: the merged file against the last commit, i.e. what Mark resolved stages.
-      const whole = hasHead && !hasMarkers(text) ? [SECTION + "Will be staged · compared with last commit", ...await part(["HEAD"])] : [];
-      return done([...capLines(conflictLines(text.slice(0, 400000)), SECTION_LINES + 1), ...whole], xy, text);
+      // Once no markers are left, one section: the merged file against the last commit, i.e.
+      // exactly what Mark resolved stages.
+      if (hasHead && !hasMarkers(text)) return done([SECTION + "Resolved · will be staged (compared with last commit)", ...await part(["HEAD"])], xy, text);
+      return done(capLines(conflictLines(text.slice(0, 400000)), SECTION_LINES + 1), xy, text);
     }
     if (x === "?") {
       const text = await readTextFile(it.abs, { on: it.on }).catch(() => null);
@@ -243,7 +244,7 @@ export default class Viewer extends View {
     const height = rowHeight(size);
     // A section header (Staged / Not staged / Conflicted); also drawn pinned at the top while its section scrolls.
     if (kind === "#") return div().w_full().px(12).h(height).flex_none().flex().items_center().bg(cur ? t.selected : t.raised).border_b(1).border_color(t.border)
-      .text_color(text.startsWith("Conflicted") ? t.ansi1 : text.startsWith("Will be staged") ? t.muted : staged ? t.ansi2 : t.ansi3).child(text);
+      .text_color(text.startsWith("Conflicted") ? t.ansi1 : text.startsWith("Resolved") ? t.ansi2 : staged ? t.ansi2 : t.ansi3).child(text);
     if (kind === "@") return div().w_full().px(12).h(height).flex_none().truncate().bg(cur ? t.selected : t.raised).text_color(t.dim)
       .child(conflict ? `line ${/\+(\d+)/.exec(text)?.[1] ?? ""}` : text);
     // Conflict view: each side has a coloured bar down its left edge; marker lines become labels.

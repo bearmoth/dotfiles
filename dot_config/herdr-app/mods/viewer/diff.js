@@ -12,7 +12,7 @@ export const untab = (text) => text.replace(/[^\t]*\t/g, (s) => s.slice(0, -1).p
 export function diffRows(lines) {
   let old = 0, next = 0, staged = false, conflict = false, hunk = -1;
   const rows = lines.map((line) => {
-    if (line.startsWith(SECTION)) { old = 0; next = 0; hunk = -1; const text = line.slice(SECTION.length); staged = text.startsWith("Staged"); conflict = text.startsWith("Conflicted"); return { kind: "#", staged, text }; }
+    if (line.startsWith(SECTION)) { old = 0; next = 0; hunk = -1; const text = line.slice(SECTION.length); staged = text.startsWith("Staged"); conflict = text.startsWith("Conflicted") || text.startsWith("Resolved"); return { kind: "#", staged, text }; }
     const match = /^@@ -(\d+)(?:,\d+)? \+(\d+)/.exec(line);
     if (match) { old = +match[1]; next = +match[2]; return { kind: "@", staged, conflict, hunk: ++hunk, text: line }; }
     const kind = line[0];
