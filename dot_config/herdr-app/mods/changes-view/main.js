@@ -226,10 +226,10 @@ export default class Changes extends View {
   }
 
   checkbox(id, state, t, onToggle) {
-    const icon = { staged: "on", partial: "part", conflict: "conflict", ready: "ready" }[state] ?? "off";
+    const icon = { staged: "on", partial: "part", conflict: "conflict" }[state] ?? "off";
     return div().id(id).flex_none().cursor_pointer().on_mouse_down("left", (_e, cx) => cx.stop_propagation())
       .on_click((_e, cx) => { cx.stop_propagation(); onToggle(cx); })
-      .child(svg(`mods/changes-view/check-${icon}.svg`).size(14).text_color(state === "conflict" ? t.ansi1 : state === "ready" ? t.ansi2 : state === "unstaged" ? t.dim : t.accent));
+      .child(svg(`mods/changes-view/check-${icon}.svg`).size(14).text_color(state === "conflict" ? t.ansi1 : state === "unstaged" ? t.dim : t.accent));
   }
 
   // Rows for one folder's contents: folders first, then files, each by name. A folder holding
@@ -266,7 +266,7 @@ export default class Changes extends View {
   }
 
   fileRow(f, name, depth, parent, t, focusedNow) {
-      const shown = this.open === f.path, cur = focusedNow && this.cursor === f.path, box = f.stage === "conflict" && f.ready ? "ready" : f.stage;
+      const shown = this.open === f.path, cur = focusedNow && this.cursor === f.path, box = f.stage === "conflict" && f.ready ? "unstaged" : f.stage;
       this.order.push({ path: f.path, dir: false, parent });
       return h_flex().id(`change-${f.path}`).h(28).flex_none().pl(8 + depth * 18).pr(8).gap(7).items_center().rounded(7).cursor_pointer()
         .border_1().border_color(cur ? t.accent : "#00000000").when(shown, (e) => e.bg(t.selected)).hover((s) => s.bg(shown ? t.selected : t.hover))
@@ -274,6 +274,8 @@ export default class Changes extends View {
         .child(this.checkbox(`check-${f.path}`, box, t, cx => this.toggleRow({ path: f.path, dir: false }, cx)))
         .child(div().w(12).flex_none())
         .child(div().flex_1().min_w(0).truncate().child(name))
+        // A conflict with no markers left: its empty box marks it resolved.
+        .when(f.stage === "conflict" && f.ready, (e) => e.child(div().text_size(10).text_color(t.ansi2).child("ready")))
         .when(f.add > 0, (e) => e.child(div().text_size(11).text_color(t.ansi2).child(`+${f.add}`)))
         .when(f.del > 0, (e) => e.child(div().text_size(11).text_color(t.ansi1).child(`−${f.del}`)))
         .child(div().w(12).flex_none().text_right().text_size(11).text_color(f.status === "A" || f.status === "?" ? t.ansi2 : f.status === "D" || f.status === "U" ? t.ansi1 : t.blocked).child(f.status));

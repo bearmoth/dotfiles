@@ -314,17 +314,24 @@ export default class Viewer extends View {
     const t = theme(), it = this.item(), font = settings(), size = font.font_size, focused = this.handle.is_focused();
     const header = h_flex().h(30).flex_none().px(12).gap(6).items_center().border_b(1).border_color(t.border).text_size(12)
       .child(div().flex_1().min_w(0).truncate().text_color(t.muted).child(it ? it.rel : ""))
-      .when(it?.kind === "diff" && this.stage === "conflict" && this.ready, el => el.child(div().id("mark-resolved").px(8).py(1).rounded(4).bg(t.solid).text_size(11).text_color(t.solid_foreground).cursor_pointer()
-        .on_click((_e, cx) => this.toggleStage(it, cx)).child("Mark resolved")))
       .when(it?.kind === "diff" && this.stage === "conflict" && !this.ready, el => {
         const button = (id, text, side) => div().id(id).px(6).rounded(4).border_1().border_color(t.border).text_size(11).text_color(t.muted).cursor_pointer().hover(s => s.bg(t.hover))
           .on_click((_e, cx) => this.takeSide(it, side, cx)).child(text);
         return el.child(button("take-ours", "Keep all current", "ours")).child(button("take-theirs", "Take all incoming", "theirs"));
       })
       .when(Boolean(this.stageError), el => el.child(div().max_w(260).truncate().text_color(t.ansi1).child(this.stageError)))
-      .when(it?.kind === "diff", el => el.child(div().text_color(t.dim).child("changes")))
-      .when(it?.kind === "diff" && Boolean(this.stage), el => el.child(div().id("viewer-stage").flex_none().cursor_pointer().on_click((_e, cx) => this.toggleStage(it, cx))
-        .child(svg(`mods/viewer/check-${this.stage === "conflict" && this.ready ? "ready" : { staged: "on", partial: "part", conflict: "conflict" }[this.stage] ?? "off"}.svg`).size(14).text_color(this.stage === "conflict" ? (this.ready ? t.ansi2 : t.ansi1) : this.stage === "unstaged" ? t.dim : t.accent))));
+      // One control: the file's box and a word for it, one click target. A ready conflict's box is
+      // empty (nothing is staged yet) and ticking it marks the file resolved.
+      .when(it?.kind === "diff" && Boolean(this.stage), el => {
+        const ready = this.stage === "conflict" && this.ready, state = ready ? "unstaged" : this.stage;
+        const word = ready ? "Mark resolved" : { staged: "Staged", partial: "Part staged", conflict: "Conflicted", unstaged: "Not staged" }[state];
+        const color = state === "conflict" ? t.ansi1 : ready ? t.foreground : state === "unstaged" ? t.dim : t.accent;
+        return el.child(h_flex().id("viewer-stage").flex_none().gap(5).items_center().px(6).py(1).rounded(4).cursor_pointer().hover(s => s.bg(t.hover))
+          .when(ready, e => e.border_1().border_color(t.ansi2))
+          .on_click((_e, cx) => this.toggleStage(it, cx))
+          .child(svg(`mods/viewer/check-${{ staged: "on", partial: "part", conflict: "conflict" }[state] ?? "off"}.svg`).size(14).text_color(color))
+          .child(div().text_size(11).text_color(ready ? t.foreground : t.muted).child(word)));
+      });
     const message = (m) => div().p(12).text_color(t.dim).child(m);
     let body;
     if (!it) body = message("Nothing to show · open a file from Files or Changes");

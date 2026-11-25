@@ -194,9 +194,12 @@ Changes mod could silently hide the whole Not staged section.
   (Merge Changes / Staged / Changes) because those list a part-staged file twice and move
   files on every stage.
 - **No automatic resolve.** "Resolved" means staged, and staging takes the whole file, so it
-  always takes a click. When a file has no markers left its red `!` box becomes a green dashed
-  "ready" box, and the viewer header shows a **Mark resolved** button in place of Keep all
-  current / Take all incoming.
+  always takes a click. When a file has no markers left its red `!` box becomes an empty box
+  (nothing is staged yet, so no tick) with a green **ready** tag after its name; ticking it
+  marks the file resolved.
+- **The viewer header's stage control** is one click target: the box plus a word for it,
+  *Staged*, *Part staged*, *Not staged*, *Conflicted*, or, for a ready conflict, *Mark
+  resolved* with a green outline. The old "changes" label is gone.
 - **Nothing staged is hidden.** Once a conflicted file has no markers left, the viewer shows a
   single green **Resolved · will be staged (compared with last commit)** section in place of
   the Conflicted one, hunks labelled "line N" like the conflict view (`git diff HEAD --
