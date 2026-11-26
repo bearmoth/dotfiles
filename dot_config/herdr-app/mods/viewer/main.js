@@ -233,6 +233,8 @@ export default class Viewer extends View {
   }
 
   gutter(size) { return Math.ceil(this.gutterChars * charWidth(size)) + 2; }
+  // The -/+ column after the line number: a margin decoration, not part of the text.
+  signWidth(size) { return Math.ceil(charWidth(size)); }
 
   // One row; if building it throws, a red row says why rather than the whole list going blank.
   safeRow(row, t, size, cur) {
@@ -254,17 +256,21 @@ export default class Viewer extends View {
       // ======= the split (both colours), >>>>>>> theirs (magenta).
       const c = { ours: t.ansi4, base: t.dim, theirs: t.ansi5, end: t.ansi5 }[label?.side] ?? t.muted;
       const tag = { ours: "current", base: "original", end: "incoming" }[label?.side];
-      const row = h_flex().w_full().h(height).flex_none().gap(10).items_center().bg(cur ? t.selected : tint(c, "30"))
+      // Strong marker rows (like headers around the block) need near-white text; same-hue text vanishes into them.
+      const base = label?.side === "base";
+      const row = h_flex().w_full().h(height).flex_none().gap(10).items_center().bg(cur ? t.selected : tint(c, "b3"))
         .child(div().w(3).h_full().flex_none().bg(label?.side === "theirs" ? t.ansi4 : c))
-        .child(div().w(this.gutter(size) - 13).flex_none().text_right().text_color(t.dim).child(number === undefined ? "" : String(number)))
-        .child(div().flex_none().font_semibold().text_color(c).child(text))
-        .when(Boolean(tag), (e) => e.child(div().flex_1().min_w(0).truncate().text_size(11).text_color(t.dim).child(tag)));
+        .child(div().w(this.gutter(size) - 13).flex_none().text_right().text_color(base ? t.dim : tint(t.foreground, "b3")).child(number === undefined ? "" : String(number)))
+        .child(div().w(this.signWidth(size)).flex_none())
+        .child(div().flex_none().font_semibold().text_color(base ? c : t.foreground).child(text))
+        .when(Boolean(tag), (e) => e.child(div().flex_1().min_w(0).truncate().text_size(11).text_color(base ? t.dim : tint(t.foreground, "cc")).child(tag)));
       return row;
     }
     const shade = { "+": t.ansi2, "-": t.ansi1 }[kind] ?? side ?? null;
-    return h_flex().w_full().h(height).flex_none().gap(10).when(Boolean(shade), (e) => e.bg(tint(shade, side ? "1c" : "18"))).when(kind === "|", (e) => e.text_color(t.dim).italic()).when(cur, (e) => e.bg(t.selected))
+    return h_flex().w_full().h(height).flex_none().gap(10).when(Boolean(shade), (e) => e.bg(tint(shade, side ? "4c" : "48"))).when(kind === "|", (e) => e.text_color(t.dim).italic()).when(cur, (e) => e.bg(t.selected))
       .when(Boolean(side), (e) => e.child(div().w(3).h_full().flex_none().bg(side)))
-      .child(div().w(this.gutter(size) - (side ? 13 : 0)).flex_none().text_right().text_color(t.dim).child(number === undefined ? "" : String(number)))
+      .child(div().w(this.gutter(size) - (side ? 13 : 0)).flex_none().text_right().text_color(side && kind !== "|" ? tint(t.foreground, "b3") : t.dim).child(number === undefined ? "" : String(number)))
+      .child(div().w(this.signWidth(size)).flex_none().text_color(kind === "+" ? t.ansi2 : t.ansi1).child(kind === "+" || kind === "-" ? kind : ""))
       .child(div().flex_1().min_w(0).truncate().child(text));
   }
 
@@ -339,7 +345,7 @@ export default class Viewer extends View {
     else if (it.kind === "file") body = this.code ? Editor.new(this.code).font_family(font.font_family).text_size(size).flex_1().min_h(0) : message("Loading file…");
     else body = !this.lines ? message("Loading changes…") : div().flex_1().min_h(0).relative().font_family(font.font_family ?? "JetBrains Mono").text_size(size)
       .child(div().id("viewer-diff-x").size_full().overflow_x_scrollbar()
-        .child(div().w_full().min_w(Math.max(300, this.longest * charWidth(size) + this.gutter(size) + 20)).h_full().child(v_virtual_list("viewer-diff", this.rows.length, rowHeight(size), (i) => String(i),
+        .child(div().w_full().min_w(Math.max(300, this.longest * charWidth(size) + this.gutter(size) + this.signWidth(size) + 30)).h_full().child(v_virtual_list("viewer-diff", this.rows.length, rowHeight(size), (i) => String(i),
           (range) => this.rows.slice(range.start, range.end).map((row, j) => this.safeRow(row, t, size, focused && range.start + j === this.dline))).track_scroll(this.dscroll).size_full())))
       .children(this.blockButtons(it, t, size))
       .children(this.hunkButtons(it, t, size))

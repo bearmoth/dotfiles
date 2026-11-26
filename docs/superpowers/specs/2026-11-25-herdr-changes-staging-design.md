@@ -227,3 +227,24 @@ Changes mod could silently hide the whole Not staged section.
   real git with two hunks: each button moves only its own hunk.
   **Limit:** the patch is one process argument. Linux caps a single argument at about 128 KB,
   so a huge hunk fails there (shown as an error, nothing lost). macOS allows far more.
+
+## Addendum (2026-11-26): diff signs and colours
+
+### Decided
+- **`-`/`+` signs.** A one-character column between the line number and the code. It's a
+  margin decoration (VS Code style), not part of the text. Red `-` on removed lines, green `+` on added
+  lines (Resolved sections included). It's blank on context lines, `@@` rows, section headers and every
+  conflict row, because a conflict side hasn't been added or removed yet and its side bar
+  already says which side it is. The diff's min width counts the sign column.
+- **Stronger colours.** Phil compared the options side by side, rendered in his theme. A
+  table of alpha values didn't let him judge.
+  - Added and removed rows: `48` (was `18`).
+  - Conflict content rows: `4c` (was `1c`).
+  - Conflict marker rows (`<<<<<<<`, `=======`, `>>>>>>>`): `b3` (was `30`). They act as
+    strong headers around each block.
+- **Contrast rule.** Text on a strongly tinted row must not share the tint's hue. Phil's
+  `ansi4`/`ansi5` are pastel, so blue text on a blue tint, and the dim grey line numbers, both
+  disappeared as the tint grew. On marker rows the text, line numbers and the current/incoming
+  tag are near-white (`t.foreground`, the number at `b3` and the tag at `cc` alpha). Current and
+  incoming content rows get near-white line numbers too. The `|||||||` original marker and its
+  lines stay dim on purpose, so the original recedes.
