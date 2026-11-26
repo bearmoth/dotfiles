@@ -1,11 +1,12 @@
 ---
-description: Draft today's (or a given day's) Journal diary entry from Slack, Jira, GitHub, calendar and agent sessions; write + commit only on "go"
+description: Catch the Journal diary up since the last entry, or draft a given day or range (11-23..26, "since monday"), from Slack, Jira, GitHub, calendar and agent sessions
 ---
 
-Invoke the **diary** skill for the day given below (empty means today, in
-Australia/Melbourne). Gather, verify, draft in Phil's voice, present, and
-wait for his explicit "go" before writing `diary/YYYY-MM-DD.md` or
-committing. Re-running on a day that already has an entry must preserve
-Phil's existing content and present changes as ADD / TICK / CHANGE.
+Invoke the **diary** skill with the argument below and follow it as written.
+Empty means catch up: every day since the newest entry, resolved by its
+script, which is usually just today. A day (`2026-11-20`, `friday`, `today`)
+runs that one day; a range (`11-23..26`, `since monday`) runs each day in it.
+The skill's gate decides what is written and committed directly and what
+waits for "go".
 
 $ARGUMENTS

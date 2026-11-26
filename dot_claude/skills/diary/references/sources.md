@@ -43,7 +43,17 @@ Add to this table when you resolve a new one (`gh api users/<login> --jq .name`)
 ```
 python3 ~/.claude/skills/diary/scripts/session_scan.py --date YYYY-MM-DD
 python3 ~/.claude/skills/diary/scripts/session_scan.py --date YYYY-MM-DD --assistant --max-chars 0 > /tmp/diary-sessions.md
+python3 ~/.claude/skills/diary/scripts/session_scan.py --since-last            # which days a bare /diary covers
+python3 ~/.claude/skills/diary/scripts/session_scan.py --range "11-23..26"     # or "since monday", "last week"
+python3 ~/.claude/skills/diary/scripts/session_scan.py --label 2026-11-23 2026-11-26   # commit-subject label
 ```
+
+- The plans (`--since-last`, `--range`; add `--format json` to parse) give
+  each day's status (new, partial with the time evidence is incorporated
+  up to, complete, re-run), weekend flag, window, and a count of local
+  evidence. `--now` pins the clock; `--journal` points at another vault
+  copy. They also list diary/ and threads/ files with uncommitted changes
+  from outside the run, which is why the commit goes by pathspec.
 
 - Sessions are grouped by working directory, so the repo tells you which
   piece of work it was. Titles are Claude's own summaries, not Phil's words.
@@ -62,7 +72,12 @@ python3 ~/.claude/skills/diary/scripts/session_scan.py --date YYYY-MM-DD --assis
 
 ```
 python3 ~/.claude/skills/diary/scripts/open_tasks.py --date YYYY-MM-DD
+python3 ~/.claude/skills/diary/scripts/open_tasks.py --date YYYY-MM-DD --drafts "$TMPDIR/diary-catchup"
 ```
+
+In a catch-up, `--drafts` lets drafts that aren't in the vault yet (waiting
+for go, or a no-human run) stand in for their entries, so carry-forward
+reads the previous day as drafted.
 
 Buckets: due today/overdue, carry from the previous entry, stale (older,
 needs a decision), future (leave in place), already in this day's entry.
@@ -96,7 +111,10 @@ per DM or group DM, and one per run of top-level posts in a channel.
 
 **Pass 2: read every conversation, both sides.**
 
-- Thread: `slack_read_thread` on channel + `thread_ts`.
+- Thread: `slack_read_thread` on channel + `thread_ts`. For a thread
+  that runs over several days, bound it with `oldest`/`latest` and use
+  `response_format: detailed`: concise output has no timestamps, so it
+  can't be cut at the day boundary.
 - DM, group DM, or top-level channel run: `slack_read_channel` with
   `oldest`/`latest` from his first message minus 30 minutes to his last
   plus 30 minutes, so the question he answered and the reply he got are
@@ -150,7 +168,7 @@ searchJiraIssuesUsingJql
   end-inclusive, so next-day issues come back too; filter the result by
   local day with `jq` before reading it.
 - Keys move when a ticket changes project (EN-5067 became COMP-2210,
-  EN-5033 became PLP-100). Jira resolves the old key; link the current
+  EN-5033 became PLP-52). Jira resolves the old key; link the current
   one and mention the old key only if Phil used it.
 - Comments can't be date-filtered in JQL. For issues where Phil may have
   commented (the ones above plus any a Slack thread or session names),
@@ -173,9 +191,9 @@ days: `primeslice/backend`, `primeslice/nats`, `primeslice/nats-tenants`,
 `primeslice/stake-gitops`.
 
 ```
-gh pr list --repo primeslice/backend --author bearmoth --state all --limit 50 --json number,title,url,state,createdAt,updatedAt,mergedAt,isDraft
-gh pr list --repo primeslice/backend --search "reviewed-by:bearmoth updated:>=D-1" --state all --limit 50 --json number,title,url,state,updatedAt,author
-gh pr list --repo primeslice/backend --search "commenter:bearmoth updated:>=D-1" --state all --limit 50 --json number,title,url,state,updatedAt,author
+gh pr list --repo primeslice/backend --search "author:bearmoth updated:D-1..D+1" --state all --limit 50 --json number,title,url,state,createdAt,updatedAt,mergedAt,isDraft
+gh pr list --repo primeslice/backend --search "reviewed-by:bearmoth updated:D-1..D+1" --state all --limit 50 --json number,title,url,state,updatedAt,author
+gh pr list --repo primeslice/backend --search "commenter:bearmoth updated:D-1..D+1" --state all --limit 50 --json number,title,url,state,updatedAt,author
 gh search commits --owner primeslice --author bearmoth --author-date "D-1..D+1" --json sha,commit,repository,url
 ```
 

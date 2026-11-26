@@ -1,13 +1,15 @@
 ---
 name: diary
-description: Create or update one day's diary entry (diary/YYYY-MM-DD.md) in the Journal vault by gathering evidence from Slack, Jira, GitHub, Google Calendar, Claude Code and pi transcripts, and the Journal's own captures, then drafting a readable, well-linked entry in Phil's voice (summary, tasks, work log, meetings, notes), writing and committing it directly when the file is new or the change only adds to it, and asking first when it would alter his existing lines. Use whenever Phil asks to write, update, catch up, fill in, or finish the diary or daily note for today or any past day (/diary, "diary for Friday", "update today's entry", "what did I do yesterday, put it in the diary"), including re-runs on a day that already has an entry, and when a day's work belongs to an open thread in threads/ (the thread gets its log entry for the day and the diary links it).
+description: Create or update diary entries (diary/YYYY-MM-DD.md, one per day; a bare /diary catches up every day since the last entry) in the Journal vault by gathering evidence from Slack, Jira, GitHub, Google Calendar, Claude Code and pi transcripts, and the Journal's own captures, then drafting a readable, well-linked entry in Phil's voice (summary, tasks, work log, meetings, notes), writing and committing it directly when the file is new or the change only adds to it, and asking first when it would alter his existing lines. Use whenever Phil asks to write, update, catch up, fill in, or finish the diary or daily note for today, any past day or a range of days (/diary, /diary 11-23..26, "diary since monday", "diary for Friday", "update today's entry", "what did I do yesterday, put it in the diary"), including re-runs on a day that already has an entry, and when a day's work belongs to an open thread in threads/ (the thread gets its log entry for the day and the diary links it).
 ---
 
 # Diary
 
-Draft one local calendar day of Phil's diary from evidence, write it when
-the write is safe (a new file, or additions to an existing one), and ask
-first when it isn't. Safe to run many times for the same day.
+Draft Phil's diary from evidence, one local calendar day at a time, write
+it when the write is safe (a new file, or additions to an existing one),
+and ask first when it isn't. A bare `/diary` catches up every day since
+the last entry; a named day or range does just those. Safe to run many
+times for the same day.
 
 ## The gate, and when it opens
 
@@ -49,12 +51,36 @@ stop after presenting the draft. Never write or commit.
 
 ## Workflow
 
-### 1. Resolve the day
+### 1. Resolve the days
 
-- Default is today. An optional argument names another day: an ISO date,
-  or relative words ("yesterday", "last Friday") resolved against today in
-  `Australia/Melbourne`. Say which date you resolved to before gathering.
-- Run `scripts/session_scan.py --window --date YYYY-MM-DD`. It prints the
+Which days a run covers depends on how Phil asked:
+
+- **Bare `/diary`, or "catch up" / "fill in the diary" with no day
+  named:** catch up. Run `scripts/session_scan.py --since-last`. It starts
+  from the newest `diary/YYYY-MM-DD.md` and its last commit and lists
+  every day from there to today that is missing, plus that newest entry
+  itself when its last commit came before its day ended (evidence may
+  carry on after it). Most days this is just today, which is the old
+  behaviour.
+- **A range** (`/diary 11-23..11-26`, `11-23..26`, "since monday", "last
+  week"): run `scripts/session_scan.py --range "<what he said>"`. Every
+  day in it is processed; a day whose entry is already complete is a
+  re-run.
+- **One named day**, including "today" or "today's entry" ("diary for
+  Friday", `/diary 2026-10-02`, "update today's entry"): exactly as
+  before. Resolve it against today in `Australia/Melbourne` and run the
+  one-day workflow below. Naming a day opts out of catch-up.
+
+Never work out dates, weekdays or ranges by hand; the script owns that
+arithmetic (`--now` pins the clock when a prompt says what "today" is).
+Before gathering anything, tell Phil the resolved days in a short list
+(date, weekday, new / partial since HH:MM / re-run, weekend). For two or
+more days, continue with "Catching up several days" below; it runs steps
+2–6 once per day.
+
+- For each day, use its window: the catch-up and range plans already
+  carry one per day, and for a single day run
+  `scripts/session_scan.py --window --date YYYY-MM-DD`. It prints the
   UTC bounds, unix seconds, and ready-made Slack/JQL/GitHub/Calendar
   fragments for that local day. Use these for every source; do not
   hand-derive offsets. Melbourne's local day starts at 13:00Z (AEDT) or
@@ -254,14 +280,88 @@ For a safe write, or after the go:
 1. Write `diary/YYYY-MM-DD.md` with the approved content, plus any
    approved thread files under `threads/` (and, for a promotion, the
    origin entry's heading-to-link change).
-2. Commit only those files:
-   `git -C <journal> add diary/YYYY-MM-DD.md threads/<Thread>.md … && git -C <journal> commit -m "diary: YYYY-MM-DD <few words>"`
+2. Commit only those files, by pathspec so anything already staged by
+   another routine stays out of the commit:
+   `git -C <journal> add -- diary/YYYY-MM-DD.md threads/<Thread>.md … && git -C <journal> commit -m "diary: YYYY-MM-DD (<few words>)" -- diary/YYYY-MM-DD.md threads/<Thread>.md …`
    (name promoted or updated threads in the message). Leave other
    untracked or modified files alone; they belong to other routines. Do
    not push.
 3. Report what was written and committed in one line. When the write
    happened without a go, say so in that line; Phil should never have to
    wonder whether the file changed.
+
+## Catching up several days
+
+A gap is several one-day runs in a row, not one big entry. The per-day
+rules above all still hold; what changes is order, pacing, and how the
+gate's "go" and the commit are batched.
+
+**Oldest first, one day at a time.** `open_tasks.py` carries tasks from
+the previous entry, so day N+1 can only be drafted once day N's entry
+exists. Keep a scratch directory outside the vault (e.g.
+`$TMPDIR/diary-catchup/`), put each finished draft there as
+`YYYY-MM-DD.md`, and run `scripts/open_tasks.py --date … --drafts <dir>`
+so the next day reads the draft whether or not it has been written yet.
+Then, per day:
+
+- **Safe write** (new file, or additions only): write it into the vault
+  now, before starting the next day. Don't commit yet.
+- **Needs "go"** (it would alter Phil's existing lines): leave it in the
+  scratch directory, note what needs his word, and carry on with the next
+  day. Don't stop halfway through the run to ask.
+- **A partial day** (the newest entry, last committed mid-day): it is an
+  update, run as "Updating an existing entry" says. New evidence is most
+  likely after the plan's `evidence_after` time, so start there, but still
+  compare the whole entry with the day's timeline: work that finished
+  just before the commit, or a placeholder or "couldn't read X" caveat the
+  entry left, may now be answerable. Filling one of those changes Phil's
+  line, so it goes on the go list. If nothing turns up, say "nothing new
+  since HH:MM" and leave the file alone.
+- **No evidence at all** (no agent sessions, Slack, Jira, GitHub,
+  meetings or captures in the window): report the day, don't write it.
+  The script's local-evidence counts only cover agent sessions and
+  captures, so a zero there is a reason to look, not proof of an empty
+  day (the 2026-11-15 entry came from GitHub alone).
+
+The existing conventions hold for each day. A weekend day gets an entry
+only when there is evidence, as on 2026-11-14/15. Leave comes from the
+calendar's all-day leave event and follows the leave convention in
+`references/sources.md` ("Google Calendar"). A weekday public holiday
+gets the short entry Phil wrote for Melbourne Cup Day (2026-11-03): the
+Summary says `Public holiday (<name>).`, Meetings says `Public holiday
+(<name>); no meetings.`, and the other sections stay empty unless there
+is evidence. A 15:45 out-of-office block never makes a day short.
+
+**Keep the context small.** One day's gathering already fills a lot of
+context, so for two or more days gather each day in its own subagent. It
+reads `references/sources.md`, runs the step 3 and 4 recipes for that
+day's window, and writes a digest file to the scratch directory: what
+happened, with times, permalinks, and the verified state of every PR and
+ticket. It returns only a few lines. Gatherers may run in parallel; they
+never write the vault. Drafting stays in this context and stays serial,
+oldest first, reading each digest in turn.
+
+**At the end, present once.**
+
+- One line per resolved day: written (new or additions), waiting for go,
+  nothing new, or not written because there was no evidence.
+- Each written or proposed entry in full, as step 6 describes. For one
+  waiting on go, add its diff and the reason for each change.
+- One batched go list, plus the step 6 extras (stale-task decisions,
+  placeholders, verification, thread updates, defects) merged across days
+  instead of repeated for each one.
+
+**One commit per run**, once everything that can be written is written:
+straight away when no go is pending, otherwise after Phil answers (commit
+what he approved; drop or rework what he didn't, then re-check the next
+day's carried tasks). The subject names the range, from
+`scripts/session_scan.py --label <the days written>`:
+`diary: 2026-11-23..26 (<few words per day or theme>)`. Commit by
+pathspec as in step 7, listing every diary and thread file the run
+wrote.
+
+The no-human rule is unchanged: draft every day (in order, through the
+scratch directory), present everything, and never write or commit.
 
 ## Boundaries
 

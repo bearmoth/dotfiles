@@ -4,7 +4,7 @@
     {
       "id": 1,
       "name": "new-entry-today",
-      "prompt": "/diary \u2014 draft today's diary entry. Today is 2026-10-05 (Monday, Melbourne). There is no diary/2026-10-05.md yet. Present the proposed entry and wait for my go; I'm not available to answer, so stop at the draft and save it as draft.md plus a short sources.md listing what you consulted and what you verified.",
+      "prompt": "/diary — draft today's diary entry. Today is 2026-10-05 (Monday, Melbourne). There is no diary/2026-10-05.md yet. Present the proposed entry and wait for my go; I'm not available to answer, so stop at the draft and save it as draft.md plus a short sources.md listing what you consulted and what you verified.",
       "expected_output": "A complete proposed diary/2026-10-05.md in Phil's voice with all four sections, open tasks carried from 2026-10-02, Work Log lines grounded in Slack/Jira/GitHub/session evidence with verified PR and ticket links, placeholders where only Phil can answer, and no write or commit to the vault.",
       "files": [],
       "expectations": [
@@ -28,12 +28,13 @@
         "Any agent run (e.g. the transfer-bonus handoff) is summarised in at most three flat bullets that link the session capture or name the PRs by what they do, not a transcript of the run",
         "No sentiment or judgement words appear in new text unless inside Phil's own quoted words (no 'mess', 'painful', 'finally', 'great' etc. added by the agent)",
         "No colleague is given a gendered pronoun unless the vault or Phil's own words supply it (name or they/them otherwise)"
-      ]
+      ],
+      "setup": "Eval setup: the Journal vault for this run is the pinned copy at ~/.local/share/diary-skill-workspace/iteration-4/fixtures/reg-2026-10-07; use it as the Journal root everywhere (pass --journal to the scripts) and never touch ~/Documents/Journal. "
     },
     {
       "id": 2,
       "name": "update-existing-entry-friday",
-      "prompt": "update my diary for last friday \u2014 the entry exists but I think it stops around 16:40 and the evening's autonomous handoff run isn't in it. Today is 2026-10-05. Present the changes and wait for my go; I'm not available to answer, so stop at the draft and save it as draft.md plus a short sources.md listing what you consulted and what you verified.",
+      "prompt": "update my diary for last friday — the entry exists but I think it stops around 16:40 and the evening's autonomous handoff run isn't in it. Today is 2026-10-05. Present the changes and wait for my go; I'm not available to answer, so stop at the draft and save it as draft.md plus a short sources.md listing what you consulted and what you verified.",
       "expected_output": "Resolves 'last friday' to 2026-10-02, reads the existing entry and its last commit time, finds post-16:40 evidence (PRs, Jira tickets created, design/ADR work by the handoff run), presents an ADD / TICK / CHANGE list that leaves existing lines intact except for stated factual corrections, verifies every PR number and ticket key against gh/Jira, and does not write or commit.",
       "files": [],
       "expectations": [
@@ -57,7 +58,8 @@
         "Any TICK of an existing open task cites the evidence beside it",
         "No sentiment or judgement words appear in new text unless inside Phil's own quoted words (no 'mess', 'painful', 'finally', 'great' etc. added by the agent)",
         "No colleague is given a gendered pronoun unless the vault or Phil's own words supply it (name or they/them otherwise)"
-      ]
+      ],
+      "setup": "Eval setup: the Journal vault for this run is the pinned copy at ~/.local/share/diary-skill-workspace/iteration-4/fixtures/reg-2026-10-07; use it as the Journal root everywhere (pass --journal to the scripts) and never touch ~/Documents/Journal. "
     },
     {
       "id": 3,
@@ -86,7 +88,127 @@
         "No personal-life detail is inferred from colleagues' messages (e.g. a birthday), even as a placeholder",
         "No sentiment or judgement words appear in new text unless inside Phil's own quoted words (no 'mess', 'painful', 'finally', 'great' etc. added by the agent)",
         "No colleague is given a gendered pronoun unless the vault or Phil's own words supply it (name or they/them otherwise)"
-      ]
+      ],
+      "setup": "Eval setup: the Journal vault for this run is the pinned copy at ~/.local/share/diary-skill-workspace/iteration-4/fixtures/reg-2026-10-07; use it as the Journal root everywhere (pass --journal to the scripts) and never touch ~/Documents/Journal. "
+    },
+    {
+      "id": 4,
+      "name": "catch-up-gap-weekend",
+      "fixture": "gap-2026-11-24",
+      "now": "2026-11-24T17:00+11:00",
+      "prompt": "/diary I'm not available to answer, so don't write or commit anything. Save: plan.md (the resolved day list, as you'd show me before gathering), one draft-YYYY-MM-DD.md per day you'd write (the entry as it would read; for an update, the full entry then a diff), summary.md (one line per day: written / waiting for go / nothing new / not written, the batched go list, and the exact commit subject and file list you would commit), and sources.md (what you consulted and verified, per day).",
+      "expected_days": [
+        "2026-11-20",
+        "2026-11-21",
+        "2026-11-22",
+        "2026-11-23",
+        "2026-11-24"
+      ],
+      "weekend_days": [
+        "2026-11-21",
+        "2026-11-22"
+      ],
+      "label": "2026-11-20..24",
+      "expected_output": "Resolves Fri 11-20, Sat 11-21, Sun 11-22, Mon 11-23, Tue 11-24 (anchor 11-19 complete); drafts the working days oldest first with tasks chained through --drafts; weekend days drafted only with evidence, otherwise reported; one commit 'diary: 2026-11-20..24 (...)' (or narrower if an end day has no evidence); writes nothing.",
+      "expectations": [
+        "No file under diary/ or threads/ of the fixture vault or of ~/Documents/Journal was created, modified, or committed (before/after snapshot unchanged)",
+        "plan.md lists exactly the expected days, each with its weekday and status (new / partial since HH:MM / re-run), and was produced by session_scan.py rather than worked out by hand",
+        "Each draft-YYYY-MM-DD.md passes the one-day checks: five sections in order, exact frontmatter, structured Work Log, no session jargon, no added sentiment, PR numbers and Jira keys reported as verified in sources.md, wikilinks resolve",
+        "Days are drafted oldest first and chained: every open task carried in day N's draft appears in day N+1's draft (open, ticked with evidence, or under a reworded parent), and open_tasks.py was run with --drafts",
+        "summary.md has one status line per resolved day and a single batched go list (or says none is needed), rather than asking for go part-way through",
+        "summary.md gives exactly one commit, by pathspec, whose subject starts with the expected label (diary: <label> (...)) and lists every file it would write",
+        "A day with no evidence in any source is reported in summary.md as not written and has no draft; a weekend day is drafted only when sources.md cites evidence for it",
+        "The 3 working days 11-20, 11-23 and 11-24 each have a draft"
+      ],
+      "setup": "Eval setup: the Journal vault for this run is the pinned copy at ~/.local/share/diary-skill-workspace/iteration-4/fixtures/gap-2026-11-24; use it as the Journal root everywhere (pass --journal to the scripts) and never touch ~/Documents/Journal. It is 2026-11-24T17:00+11:00 in Melbourne; pass --now 2026-11-24T17:00+11:00 to session_scan.py. ",
+      "files": []
+    },
+    {
+      "id": 5,
+      "name": "range-argument",
+      "fixture": "gap-2026-11-24",
+      "now": "2026-11-26T12:00+11:00",
+      "prompt": "/diary 11-23..11-24 I'm not available to answer, so don't write or commit anything. Save: plan.md (the resolved day list, as you'd show me before gathering), one draft-YYYY-MM-DD.md per day you'd write (the entry as it would read; for an update, the full entry then a diff), summary.md (one line per day: written / waiting for go / nothing new / not written, the batched go list, and the exact commit subject and file list you would commit), and sources.md (what you consulted and verified, per day).",
+      "expected_days": [
+        "2026-11-23",
+        "2026-11-24"
+      ],
+      "weekend_days": [],
+      "label": "2026-11-23..24",
+      "expected_output": "Resolves exactly 11-23 and 11-24 (the range overrides the wider gap since 11-19), drafts both in order with 11-24 carrying 11-23's tasks, one commit 'diary: 2026-11-23..24 (...)', writes nothing.",
+      "expectations": [
+        "No file under diary/ or threads/ of the fixture vault or of ~/Documents/Journal was created, modified, or committed (before/after snapshot unchanged)",
+        "plan.md lists exactly the expected days, each with its weekday and status (new / partial since HH:MM / re-run), and was produced by session_scan.py rather than worked out by hand",
+        "Each draft-YYYY-MM-DD.md passes the one-day checks: five sections in order, exact frontmatter, structured Work Log, no session jargon, no added sentiment, PR numbers and Jira keys reported as verified in sources.md, wikilinks resolve",
+        "Days are drafted oldest first and chained: every open task carried in day N's draft appears in day N+1's draft (open, ticked with evidence, or under a reworded parent), and open_tasks.py was run with --drafts",
+        "summary.md has one status line per resolved day and a single batched go list (or says none is needed), rather than asking for go part-way through",
+        "summary.md gives exactly one commit, by pathspec, whose subject starts with the expected label (diary: <label> (...)) and lists every file it would write",
+        "A day with no evidence in any source is reported in summary.md as not written and has no draft; a weekend day is drafted only when sources.md cites evidence for it",
+        "No draft exists for 11-20, 11-25 or 11-26 (outside the range)"
+      ],
+      "setup": "Eval setup: the Journal vault for this run is the pinned copy at ~/.local/share/diary-skill-workspace/iteration-4/fixtures/gap-2026-11-24; use it as the Journal root everywhere (pass --journal to the scripts) and never touch ~/Documents/Journal. It is 2026-11-26T12:00+11:00 in Melbourne; pass --now 2026-11-26T12:00+11:00 to session_scan.py. ",
+      "files": []
+    },
+    {
+      "id": 6,
+      "name": "catch-up-partial-anchor",
+      "fixture": "partial-2026-11-16",
+      "now": "2026-11-16T09:05+11:00",
+      "prompt": "/diary I'm not available to answer, so don't write or commit anything. Save: plan.md (the resolved day list, as you'd show me before gathering), one draft-YYYY-MM-DD.md per day you'd write (the entry as it would read; for an update, the full entry then a diff), summary.md (one line per day: written / waiting for go / nothing new / not written, the batched go list, and the exact commit subject and file list you would commit), and sources.md (what you consulted and verified, per day).",
+      "expected_days": [
+        "2026-11-13",
+        "2026-11-14",
+        "2026-11-15",
+        "2026-11-16"
+      ],
+      "weekend_days": [
+        "2026-11-14",
+        "2026-11-15"
+      ],
+      "label": "2026-11-13..16",
+      "partial": {
+        "date": "2026-11-13",
+        "after": "17:41"
+      },
+      "expected_output": "Resolves 11-13 (partial since 17:41), 11-14, 11-15, 11-16 (today, early); the 11-13 draft keeps every existing line and only adds evidence after 17:41 (an additions-only write, no go needed unless it rewords); weekend days drafted where GitHub/agent evidence exists (Foundry PRD review, Tavern Toss factory#20); writes nothing.",
+      "expectations": [
+        "No file under diary/ or threads/ of the fixture vault or of ~/Documents/Journal was created, modified, or committed (before/after snapshot unchanged)",
+        "plan.md lists exactly the expected days, each with its weekday and status (new / partial since HH:MM / re-run), and was produced by session_scan.py rather than worked out by hand",
+        "Each draft-YYYY-MM-DD.md passes the one-day checks: five sections in order, exact frontmatter, structured Work Log, no session jargon, no added sentiment, PR numbers and Jira keys reported as verified in sources.md, wikilinks resolve",
+        "Days are drafted oldest first and chained: every open task carried in day N's draft appears in day N+1's draft (open, ticked with evidence, or under a reworded parent), and open_tasks.py was run with --drafts",
+        "summary.md has one status line per resolved day and a single batched go list (or says none is needed), rather than asking for go part-way through",
+        "summary.md gives exactly one commit, by pathspec, whose subject starts with the expected label (diary: <label> (...)) and lists every file it would write",
+        "A day with no evidence in any source is reported in summary.md as not written and has no draft; a weekend day is drafted only when sources.md cites evidence for it",
+        "The 11-13 draft keeps every existing non-empty line of the fixture's diary/2026-11-13.md verbatim (or lists each change with a factual reason) and its new lines are about evidence after 17:41",
+        "summary.md classifies the 11-13 update as additions-only (safe write) unless it lists a reworded line needing go"
+      ],
+      "setup": "Eval setup: the Journal vault for this run is the pinned copy at ~/.local/share/diary-skill-workspace/iteration-4/fixtures/partial-2026-11-16; use it as the Journal root everywhere (pass --journal to the scripts) and never touch ~/Documents/Journal. It is 2026-11-16T09:05+11:00 in Melbourne; pass --now 2026-11-16T09:05+11:00 to session_scan.py. ",
+      "files": []
+    },
+    {
+      "id": 7,
+      "name": "no-gap-today-only",
+      "fixture": "nogap-2026-10-22",
+      "now": "2026-10-22T15:00+11:00",
+      "prompt": "/diary I'm not available to answer, so don't write or commit anything. Save: plan.md (the resolved day list, as you'd show me before gathering), one draft-YYYY-MM-DD.md per day you'd write (the entry as it would read; for an update, the full entry then a diff), summary.md (one line per day: written / waiting for go / nothing new / not written, the batched go list, and the exact commit subject and file list you would commit), and sources.md (what you consulted and verified, per day).",
+      "expected_days": [
+        "2026-10-22"
+      ],
+      "weekend_days": [],
+      "label": "2026-10-22",
+      "expected_output": "Resolves today only (10-21 was committed after its day ended), drafts 10-22 as a new entry exactly as the one-day workflow would, with tasks carried from 10-21, commit subject 'diary: 2026-10-22 (...)', writes nothing.",
+      "expectations": [
+        "No file under diary/ or threads/ of the fixture vault or of ~/Documents/Journal was created, modified, or committed (before/after snapshot unchanged)",
+        "plan.md lists exactly the expected days, each with its weekday and status (new / partial since HH:MM / re-run), and was produced by session_scan.py rather than worked out by hand",
+        "Each draft-YYYY-MM-DD.md passes the one-day checks: five sections in order, exact frontmatter, structured Work Log, no session jargon, no added sentiment, PR numbers and Jira keys reported as verified in sources.md, wikilinks resolve",
+        "Days are drafted oldest first and chained: every open task carried in day N's draft appears in day N+1's draft (open, ticked with evidence, or under a reworded parent), and open_tasks.py was run with --drafts",
+        "summary.md has one status line per resolved day and a single batched go list (or says none is needed), rather than asking for go part-way through",
+        "summary.md gives exactly one commit, by pathspec, whose subject starts with the expected label (diary: <label> (...)) and lists every file it would write",
+        "A day with no evidence in any source is reported in summary.md as not written and has no draft; a weekend day is drafted only when sources.md cites evidence for it",
+        "plan.md lists only 2026-10-22"
+      ],
+      "setup": "Eval setup: the Journal vault for this run is the pinned copy at ~/.local/share/diary-skill-workspace/iteration-4/fixtures/nogap-2026-10-22; use it as the Journal root everywhere (pass --journal to the scripts) and never touch ~/Documents/Journal. It is 2026-10-22T15:00+11:00 in Melbourne; pass --now 2026-10-22T15:00+11:00 to session_scan.py. ",
+      "files": []
     }
   ]
 }

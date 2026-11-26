@@ -12,6 +12,12 @@ whose parent was reworded (so the child silently falls off).
 
 Usage:
   open_tasks.py [--date YYYY-MM-DD] [--journal ~/Documents/Journal] [--format md|json]
+                [--drafts DIR]
+
+  --drafts DIR  YYYY-MM-DD.md files here shadow diary/ (catch-up runs). When
+                day N's draft is waiting for "go", or a no-human run writes
+                nothing, day N+1 must still carry tasks from day N's draft,
+                not from the stale entry on disk. Keep DIR outside the vault.
 
 Conventions it reads:
   - Tasks are `- [ ]` / `- [x]` lines under `## Tasks` in diary/YYYY-MM-DD.md.
@@ -150,13 +156,18 @@ def main(argv=None) -> int:
     ap.add_argument("--date")
     ap.add_argument("--journal", default="~/Documents/Journal")
     ap.add_argument("--format", choices=["md", "json"], default="md")
+    ap.add_argument("--drafts", help="directory of YYYY-MM-DD.md drafts that shadow diary/")
     ap.add_argument("--stale-days", type=int, default=21,
                     help="only list stale tasks from entries within this many days (older ones are counted); 0 = all")
     args = ap.parse_args(argv)
 
     target = date.fromisoformat(args.date) if args.date else datetime.now(ZoneInfo("Australia/Melbourne")).date()
     diary = Path(args.journal).expanduser() / "diary"
-    entries = sorted(p for p in diary.glob("*.md") if re.fullmatch(r"\d{4}-\d{2}-\d{2}", p.stem))
+    by_day = {p.stem: p for p in diary.glob("*.md") if re.fullmatch(r"\d{4}-\d{2}-\d{2}", p.stem)}
+    if args.drafts:
+        by_day.update({p.stem: p for p in Path(args.drafts).expanduser().glob("*.md")
+                       if re.fullmatch(r"\d{4}-\d{2}-\d{2}", p.stem)})
+    entries = [by_day[k] for k in sorted(by_day)]
 
     # latest state per normalised task, over entries strictly before the target
     latest: dict[str, dict] = {}
@@ -173,7 +184,7 @@ def main(argv=None) -> int:
                            "parent": parent, "first_origin": first}
 
     in_entry = []
-    target_file = diary / f"{target.isoformat()}.md"
+    target_file = by_day.get(target.isoformat(), diary / f"{target.isoformat()}.md")
     if target_file.exists():
         in_entry = [{"text": t, "done": done, "parent": parent} for done, t, parent in tasks_in(target_file)]
     in_entry_keys = {norm(t["text"]) for t in in_entry}
