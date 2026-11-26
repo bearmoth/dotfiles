@@ -248,3 +248,34 @@ Changes mod could silently hide the whole Not staged section.
   tag are near-white (`t.foreground`, the number at `b3` and the tag at `cc` alpha). Current and
   incoming content rows get near-white line numbers too. The `|||||||` original marker and its
   lines stay dim on purpose, so the original recedes.
+
+## Addendum (2026-11-27): side by side when there's room
+
+### Decided
+- **One line-number column, not two.** A build with old and new number columns (GitHub's inline
+  style) was tried and reverted. With the `-`/`+` signs, a second column only adds width and
+  confusion. Inline keeps one column, and deleted rows show their old number.
+- **Side by side (horizontal) when the pane is wide, inline (vertical) when it's narrow.** The
+  switch is automatic, with no toggle, and it happens live as the pane is resized (`on_size_change`
+  on the diff body).
+  - **The threshold** is each half fitting at least 48 columns of code plus its number and sign.
+    That fits the usual ~1000px viewer. Phil compared 48, 64 and 80 rendered at true width. 80 per
+    side needs about 1570px, so it would never have kicked in.
+  - **Above the threshold the halves grow with the pane.** 48 is a minimum, not a fixed width.
+- **Ordinary diffs only.** Staged, Not staged and Resolved sections can split. Conflict files stay
+  inline because their three sides don't map onto two columns (`canSplit`). A file with both a
+  conflict and ordinary changes is a conflict file and stays inline.
+- **Layout** (`splitRows` in `diff.js`, pure and tested):
+  - Old file on the left, new file on the right. Each side has its own line numbers.
+  - Context lines appear on both sides.
+  - A run of removed lines followed by added lines pairs row by row. Extras face a faintly striped
+    empty cell.
+  - Section headers and `@@` rows stay full width and are the same row objects, so `sectionAt`,
+    the sticky header and the hunk overlays still work.
+- **Stage, Unstage and Discard stay at the right end of the full-width `@@` row** in both layouts.
+  They act on the whole hunk, and the button is in the same place whichever layout is showing.
+- **Long lines are truncated with `…`** in side by side. Inline keeps its sideways scroll.
+
+### Later, if needed
+- Synced sideways scrolling of both halves, in place of `…` truncation.
+- The scroll position can shift when the layout flips, because the two views have different row counts.

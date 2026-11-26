@@ -18,7 +18,7 @@ export function diffRows(lines) {
     const kind = line[0];
     if (kind === "-") return { kind, staged, number: old++, text: untab(line.slice(1)) || " " };
     if (kind === "+") return { kind, staged, number: next++, text: untab(line.slice(1)) || " " };
-    if (kind === " ") { old++; return { kind, staged, number: next++, text: untab(line.slice(1)) || " " }; }
+    if (kind === " ") return { kind, staged, oldNumber: old++, number: next++, text: untab(line.slice(1)) || " " };
     // Conflict view (conflictLines): ours, theirs, base, marker; numbered by working-file line.
     // Marker lines take up a file line but show no number: they aren't content.
     if (kind === "!") { next++; return { kind, staged, text: untab(line.slice(1)) || " " }; }
@@ -114,4 +114,32 @@ export function splitPatch(text) {
 export function hunkPatch(patch, n) {
   const hunk = patch.hunks[n];
   return hunk && patch.header.length ? [...patch.header, ...hunk].join("\n") + "\n" : null;
+}
+
+// Side by side: only an ordinary diff splits. The conflict view (current / original / incoming)
+// has three versions, not two, so it stays inline.
+export function canSplit(rows) {
+  return !rows.some(r => r.kind === "<" || r.kind === ">" || r.kind === "|" || r.kind === "!");
+}
+
+// The inline rows as side-by-side rows. Section and hunk rows pass through as the same objects
+// (hunk buttons and the pinned header look for them). Each other row is a pair: left is the old
+// file, right the new. A run of removed lines pairs with the added run after it, row by row; the
+// longer run's extras face null, an empty cell. A context line shows on both sides, each
+// numbered in its own file.
+export function splitRows(rows) {
+  const out = [];
+  for (let i = 0; i < rows.length;) {
+    const row = rows[i];
+    if (row.kind === " ") { out.push({ kind: "pair", staged: row.staged, left: { kind: " ", number: row.oldNumber, text: row.text }, right: { kind: " ", number: row.number, text: row.text } }); i++; continue; }
+    if (row.kind !== "-" && row.kind !== "+") { out.push(row); i++; continue; }
+    const removed = [], added = [];
+    while (rows[i]?.kind === "-") removed.push(rows[i++]);
+    while (rows[i]?.kind === "+") added.push(rows[i++]);
+    for (let j = 0; j < Math.max(removed.length, added.length); j++) {
+      const left = removed[j], right = added[j];
+      out.push({ kind: "pair", staged: (left ?? right).staged, left: left ? { kind: "-", number: left.number, text: left.text } : null, right: right ? { kind: "+", number: right.number, text: right.text } : null });
+    }
+  }
+  return out;
 }
