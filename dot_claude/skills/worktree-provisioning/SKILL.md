@@ -33,9 +33,8 @@ ownership patterns, never from directory names.
        -b <branch> origin/<default-branch>
    ```
 
-   Local main is a **read-only mirror** — its staleness is by design; never
-   `git pull` a checkout to "freshen" it. Basing off a feature branch is an
-   explicit `--base <ref>` override the caller must state, never inferred.
+   Local main is a **read-only mirror** — its staleness is by design; never commit to it or merge local work into it. A fast-forward-only pull (`git pull --ff-only`) is fine, but provisioning never needs it, so don't sync a mirror first.
+   Basing off a feature branch is an explicit `--base <ref>` override the caller must state, never inferred.
 4. **Hand-off (optional).** Work moving to a fresh session may use
    `herdr agent start` / `herdr agent wait` (`--cwd <worktree>`); herdr
    discovers worktrees passively — never drive provisioning through it.
@@ -49,7 +48,10 @@ worktree it was written from.
 ## Guardrail (enforced by hook, ADR-0004)
 
 Mutating git (commit/pull/merge/rebase/branch-create) is blocked on a repo's
-default-branch checkout that isn't the session's own workspace root. Vaults
+default-branch checkout that isn't the session's own workspace root.
+The exception is a fast-forward-only sync from origin: `git pull --ff-only` and `git merge --ff-only origin/<default>` are allowed, a plain `pull` is not.
+The hook parses the command, so only git actually being run is checked, never words inside another program's quoted arguments.
+Vaults
 are exempt (vault ≠ repo — commit-on-main is their designed write path).
 An unresolvable repo is blocked loudly: fix the registry
 (registry-maintenance), don't work around it.

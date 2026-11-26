@@ -20,3 +20,9 @@ Enforcement is one deterministic git-guardrails hook rule: mutating git commands
 - Provisioning is always current and never touches a checkout in use; local main drifting stale is by design, not neglect.
 - The hook denial message points at the `worktree-provisioning` skill — enforcement teaches the correct path at the moment of failure.
 - Stacked-branch workflows remain possible but explicit (`--base <ref>` stated by the caller).
+
+## Amendment (2026-11-26)
+
+The hook gains one carve-out: a **fast-forward-only sync** (`git pull --ff-only`, `git merge --ff-only origin/<default>`) is allowed on a mirror. It can only move the mirror to a commit origin already has, so no local work lands there, and refusing it was over-blocking. A plain `pull` (which can create a merge commit or conflicts), a non-ff merge, `rebase`, `commit` and branch creation stay blocked. "Never `git pull` a checkout to freshen it" is relaxed accordingly: freshening is still unnecessary for provisioning, but no longer forbidden.
+
+The hook now parses the command into simple commands instead of matching text, so words inside another program's quoted arguments, heredocs or `echo` strings no longer trigger it. Targets it cannot resolve statically (`git -C $var`) still fail closed.
