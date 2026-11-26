@@ -120,3 +120,38 @@ test("@@ rows carry their hunk index, restarting per section", () => {
   const rows = diffRows([SECTION + "Staged", "@@ -1 +1 @@", "+a", SECTION + "Not staged", "@@ -1 +1 @@", "+b", "@@ -5 +5 @@", "+c"]);
   assert.deepEqual(rows.filter(r => r.kind === "@").map(r => [r.staged, r.hunk]), [[true, 0], [false, 0], [false, 1]]);
 });
+
+import { splitRows, canSplit } from "./diff.js";
+
+const side = r => r && [r.kind, r.number, r.text];
+const split = lines => splitRows(diffRows(lines)).map(r => r.kind === "pair" ? [side(r.left), side(r.right)] : r.kind);
+
+test("splitRows pairs removed with added lines row by row; extras face an empty cell", () => {
+  assert.deepEqual(split([SECTION + "Not staged", "@@ -10,4 +10,5 @@", " a", "-b", "-c", "+B", "+C", "+D", " e"]), [
+    "#", "@",
+    [[" ", 10, "a"], [" ", 10, "a"]],
+    [["-", 11, "b"], ["+", 11, "B"]],
+    [["-", 12, "c"], ["+", 12, "C"]],
+    [null, ["+", 13, "D"]],
+    [[" ", 13, "e"], [" ", 14, "e"]],
+  ]);
+});
+
+test("a removal with nothing added faces an empty cell on the right", () => {
+  assert.deepEqual(split(["@@ -30,3 +31,2 @@", " x", "-gone", " y"]), [
+    "@", [[" ", 30, "x"], [" ", 31, "x"]], [["-", 31, "gone"], null], [[" ", 32, "y"], [" ", 32, "y"]],
+  ]);
+});
+
+test("section and hunk rows pass through unchanged, so hunk buttons and the pinned header still find them", () => {
+  const rows = diffRows(lines), out = splitRows(rows);
+  assert.equal(out[0], rows[0]); assert.equal(out[1], rows[1]);
+  assert.equal(sectionAt(out, out.length - 1), rows[5]);
+  assert.ok(out.filter(r => r.kind === "pair").every(r => typeof r.staged === "boolean"));
+});
+
+test("only ordinary diffs can split: a conflict view stays inline", () => {
+  assert.equal(canSplit(diffRows(lines)), true);
+  assert.equal(canSplit(diffRows(conflictLines(conflicted))), false);
+  assert.equal(canSplit(diffRows([SECTION + "Resolved · will be staged (compared with last commit)", "@@ -1,1 +1,1 @@", "-a", "+b"])), true);
+});

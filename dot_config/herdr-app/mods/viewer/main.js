@@ -4,7 +4,7 @@
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex, Editor, EditorState, Scrollbar, v_virtual_list, VirtualListScrollHandle } from "gpui-base";
 import { props, shared, exec, readTextFile, writeTextFile, watchFolder, theme, settings, nextCommand, checking } from "herdr";
-import { SECTION, countLines, diffRows, sectionAt, conflictLines, capLines, resolveBlock, splitPatch, hunkPatch } from "./diff.js";
+import { SECTION, countLines, diffRows, sectionAt, conflictLines, capLines, resolveBlock, splitPatch, hunkPatch, splitRows, canSplit } from "./diff.js";
 import { stageState, wantStage, stageArgs, isConflict, hasMarkers } from "./staging.js";
 
 // A theme colour at a given alpha ("30" hex): works for #rrggbb and #rrggbbaa alike.
@@ -37,6 +37,8 @@ export default class Viewer extends View {
   init(_props, cx) {
     this.vid = props()?.vid ?? null; this.id = null; this.code = null; this.text = null;
     this.rows = []; this.lines = null; this.longest = 0; this.gutterChars = 4; this.msg = null;
+    // view: the rows drawn — rows (inline), or split (side by side) when the pane is wide enough.
+    this.split = null; this.view = []; this.paneWidth = 0;
     // Keyboard: focusable (mod.json), so cmd-h/l (pane.go) sends "focus". A file hands it to the
     // editor (a text cursor, arrow keys); a diff keeps it here and moves a line cursor (j/k, arrows).
     // Enter in Files/Changes opens with focus: true, and the content takes the keyboard once loaded.
@@ -56,13 +58,13 @@ export default class Viewer extends View {
 
   // Diff keys: j/k and arrows move the line cursor, page up/down a screen, home/end the ends.
   key(e, cx) {
-    if (this.item()?.kind !== "diff" || !this.rows.length) return;
+    if (this.item()?.kind !== "diff" || !this.view.length) return;
     const k = e.keystroke, page = Math.max(1, Math.floor((this.dscroll.viewport_size().height || 600) / rowHeight(settings().font_size)) - 1);
     const step = { j: 1, down: 1, k: -1, up: -1, pagedown: page, pageup: -page, home: -Infinity, end: Infinity }[k];
     if (step === undefined) return;
-    this.dline = Math.max(0, Math.min(this.rows.length - 1, this.dline + step));
+    this.dline = Math.max(0, Math.min(this.view.length - 1, this.dline + step));
     // Moving up brings the row to the top edge: keep one row clear for the pinned section header.
-    this.dscroll.scroll_to_item(step < 0 && sectionAt(this.rows, this.dline) ? Math.max(0, this.dline - 1) : this.dline);
+    this.dscroll.scroll_to_item(step < 0 && sectionAt(this.view, this.dline) ? Math.max(0, this.dline - 1) : this.dline);
     this.repaintAfterScroll(cx);
     cx.stop_propagation(); cx.notify();
   }
@@ -229,10 +231,19 @@ export default class Viewer extends View {
   setLines(lines) {
     this.rows = diffRows(lines);
     this.longest = Math.max(0, ...this.rows.map(row => displayColumns(row.text)));
-    this.gutterChars = Math.max(4, String(Math.max(0, ...this.rows.map(row => row.number ?? 0))).length);
+    this.gutterChars = Math.max(4, String(Math.max(0, ...this.rows.map(row => Math.max(row.number ?? 0, row.oldNumber ?? 0)))).length);
+    this.split = canSplit(this.rows) ? splitRows(this.rows) : null;
+    this.view = this.rows;
   }
 
+  // Side by side when each half fits at least 48 columns of code with its number and sign (it fits
+  // the usual ~1000px viewer); else inline. Above that the halves share the pane and grow with it.
+  halfWidth(size) { return Math.ceil(48 * charWidth(size)) + this.gutter(size) + this.signWidth(size) + 20; }
+  pickView(size) { return this.split && this.paneWidth >= 2 * this.halfWidth(size) + 1 ? this.split : this.rows; }
+
   gutter(size) { return Math.ceil(this.gutterChars * charWidth(size)) + 2; }
+  // The -/+ column after the line number: a margin decoration, not part of the text.
+  signWidth(size) { return Math.ceil(charWidth(size)); }
 
   // One row; if building it throws, a red row says why rather than the whole list going blank.
   safeRow(row, t, size, cur) {
@@ -240,8 +251,21 @@ export default class Viewer extends View {
     catch (e) { return div().w_full().px(12).h(rowHeight(size)).flex_none().truncate().text_color(t.ansi1).child(`row error: ${String(e)}`); }
   }
 
-  diffRow({ kind, number, text, staged, conflict, label }, t, size, cur) {
+  diffRow({ kind, number, text, staged, conflict, label, left, right }, t, size, cur) {
     const height = rowHeight(size);
+    // Side by side: old file left, new file right. An unpaired line faces a faintly striped empty cell.
+    if (kind === "pair") {
+      const half = (cell) => {
+        if (!cell) return div().flex_1().min_w(0).h_full().overflow_hidden().whitespace_nowrap().bg(tint(t.foreground, "06")).text_color(tint(t.foreground, "1c")).child("╱".repeat(400));
+        const shade = { "+": t.ansi2, "-": t.ansi1 }[cell.kind];
+        return h_flex().flex_1().min_w(0).h_full().gap(10).items_center().when(Boolean(shade), (e) => e.bg(tint(shade, "48")))
+          .child(div().w(this.gutter(size)).flex_none().text_right().text_color(t.dim).child(cell.number === undefined ? "" : String(cell.number)))
+          .child(div().w(this.signWidth(size)).flex_none().text_color(cell.kind === "+" ? t.ansi2 : t.ansi1).child(cell.kind === " " ? "" : cell.kind))
+          .child(div().flex_1().min_w(0).truncate().child(cell.text));
+      };
+      return h_flex().w_full().h(height).flex_none().when(cur, (e) => e.bg(t.selected))
+        .child(half(left)).child(div().w(1).h_full().flex_none().bg(t.border)).child(half(right));
+    }
     // A section header (Staged / Not staged / Conflicted); also drawn pinned at the top while its section scrolls.
     if (kind === "#") return div().w_full().px(12).h(height).flex_none().flex().items_center().bg(cur ? t.selected : t.raised).border_b(1).border_color(t.border)
       .text_color(text.startsWith("Conflicted") ? t.ansi1 : text.startsWith("Resolved") ? t.ansi2 : staged ? t.ansi2 : t.ansi3).child(text);
@@ -254,17 +278,21 @@ export default class Viewer extends View {
       // ======= the split (both colours), >>>>>>> theirs (magenta).
       const c = { ours: t.ansi4, base: t.dim, theirs: t.ansi5, end: t.ansi5 }[label?.side] ?? t.muted;
       const tag = { ours: "current", base: "original", end: "incoming" }[label?.side];
-      const row = h_flex().w_full().h(height).flex_none().gap(10).items_center().bg(cur ? t.selected : tint(c, "30"))
+      // Strong marker rows (like headers around the block) need near-white text; same-hue text vanishes into them.
+      const base = label?.side === "base";
+      const row = h_flex().w_full().h(height).flex_none().gap(10).items_center().bg(cur ? t.selected : tint(c, "b3"))
         .child(div().w(3).h_full().flex_none().bg(label?.side === "theirs" ? t.ansi4 : c))
-        .child(div().w(this.gutter(size) - 13).flex_none().text_right().text_color(t.dim).child(number === undefined ? "" : String(number)))
-        .child(div().flex_none().font_semibold().text_color(c).child(text))
-        .when(Boolean(tag), (e) => e.child(div().flex_1().min_w(0).truncate().text_size(11).text_color(t.dim).child(tag)));
+        .child(div().w(this.gutter(size) - 13).flex_none().text_right().text_color(base ? t.dim : tint(t.foreground, "b3")).child(number === undefined ? "" : String(number)))
+        .child(div().w(this.signWidth(size)).flex_none())
+        .child(div().flex_none().font_semibold().text_color(base ? c : t.foreground).child(text))
+        .when(Boolean(tag), (e) => e.child(div().flex_1().min_w(0).truncate().text_size(11).text_color(base ? t.dim : tint(t.foreground, "cc")).child(tag)));
       return row;
     }
     const shade = { "+": t.ansi2, "-": t.ansi1 }[kind] ?? side ?? null;
-    return h_flex().w_full().h(height).flex_none().gap(10).when(Boolean(shade), (e) => e.bg(tint(shade, side ? "1c" : "18"))).when(kind === "|", (e) => e.text_color(t.dim).italic()).when(cur, (e) => e.bg(t.selected))
+    return h_flex().w_full().h(height).flex_none().gap(10).when(Boolean(shade), (e) => e.bg(tint(shade, side ? "4c" : "48"))).when(kind === "|", (e) => e.text_color(t.dim).italic()).when(cur, (e) => e.bg(t.selected))
       .when(Boolean(side), (e) => e.child(div().w(3).h_full().flex_none().bg(side)))
-      .child(div().w(this.gutter(size) - (side ? 13 : 0)).flex_none().text_right().text_color(t.dim).child(number === undefined ? "" : String(number)))
+      .child(div().w(this.gutter(size) - (side ? 13 : 0)).flex_none().text_right().text_color(side && kind !== "|" ? tint(t.foreground, "b3") : t.dim).child(number === undefined ? "" : String(number)))
+      .child(div().w(this.signWidth(size)).flex_none().text_color(kind === "+" ? t.ansi2 : t.ansi1).child(kind === "+" || kind === "-" ? kind : ""))
       .child(div().flex_1().min_w(0).truncate().child(text));
   }
 
@@ -273,8 +301,8 @@ export default class Viewer extends View {
   blockButtons(it, t, size) {
     if (this.raw === null || it?.on || this.stage !== "conflict") return [];
     const h = rowHeight(size), top = this.dscroll.offset().y, view = this.dscroll.viewport_size().height || 4000, out = [];
-    for (let i = Math.max(0, Math.floor(top / h)); i < this.rows.length && i * h - top < view; i++) {
-      const label = this.rows[i].label;
+    for (let i = Math.max(0, Math.floor(top / h)); i < this.view.length && i * h - top < view; i++) {
+      const label = this.view[i].label;
       if (label?.side !== "ours") continue;
       const y = i * h - top;
       if (y < h) continue; // under the pinned header
@@ -291,8 +319,8 @@ export default class Viewer extends View {
   hunkButtons(it, t, size) {
     if (!this.rows || this.stage === "conflict" || !this.patches) return [];
     const h = rowHeight(size), top = this.dscroll.offset().y, view = this.dscroll.viewport_size().height || 4000, out = [];
-    for (let i = Math.max(0, Math.floor(top / h)); i < this.rows.length && i * h - top < view; i++) {
-      const row = this.rows[i];
+    for (let i = Math.max(0, Math.floor(top / h)); i < this.view.length && i * h - top < view; i++) {
+      const row = this.view[i];
       if (row.kind !== "@" || row.hunk === undefined || !this.patches[row.staged ? "staged" : "unstaged"]?.hunks[row.hunk]) continue;
       const y = i * h - top;
       if (y < h) continue; // under the pinned header
@@ -307,11 +335,13 @@ export default class Viewer extends View {
   }
 
   // The header of the section the top visible row is in.
-  stickyHeader(size) { return sectionAt(this.rows, Math.floor(this.dscroll.offset().y / rowHeight(size))); }
+  stickyHeader(size) { return sectionAt(this.view, Math.floor(this.dscroll.offset().y / rowHeight(size))); }
 
   render(cx) {
     this.sync(cx);
     const t = theme(), it = this.item(), font = settings(), size = font.font_size, focused = this.handle.is_focused();
+    this.view = this.pickView(size); this.dline = Math.min(this.dline, Math.max(0, this.view.length - 1));
+    const split = this.view !== this.rows;
     const header = h_flex().h(30).flex_none().px(12).gap(6).items_center().border_b(1).border_color(t.border).text_size(12)
       .child(div().flex_1().min_w(0).truncate().text_color(t.muted).child(it ? it.rel : ""))
       .when(it?.kind === "diff" && this.stage === "conflict" && !this.ready, el => {
@@ -337,10 +367,12 @@ export default class Viewer extends View {
     if (!it) body = message("Nothing to show · open a file from Files or Changes");
     else if (this.msg) body = message(this.msg);
     else if (it.kind === "file") body = this.code ? Editor.new(this.code).font_family(font.font_family).text_size(size).flex_1().min_h(0) : message("Loading file…");
-    else body = !this.lines ? message("Loading changes…") : div().flex_1().min_h(0).relative().font_family(font.font_family ?? "JetBrains Mono").text_size(size)
+    else body = !this.lines ? message("Loading changes…") : div().id("viewer-body").flex_1().min_h(0).relative().font_family(font.font_family ?? "JetBrains Mono").text_size(size)
+      // The pane's width picks inline or side by side, live as it is resized.
+      .on_size_change((sz, cx) => { if (Math.abs(sz.width - this.paneWidth) >= 1) { this.paneWidth = sz.width; cx.notify(); } })
       .child(div().id("viewer-diff-x").size_full().overflow_x_scrollbar()
-        .child(div().w_full().min_w(Math.max(300, this.longest * charWidth(size) + this.gutter(size) + 20)).h_full().child(v_virtual_list("viewer-diff", this.rows.length, rowHeight(size), (i) => String(i),
-          (range) => this.rows.slice(range.start, range.end).map((row, j) => this.safeRow(row, t, size, focused && range.start + j === this.dline))).track_scroll(this.dscroll).size_full())))
+        .child(div().w_full().min_w(split ? 300 : Math.max(300, this.longest * charWidth(size) + this.gutter(size) + this.signWidth(size) + 30)).h_full().child(v_virtual_list("viewer-diff", this.view.length, rowHeight(size), (i) => String(i),
+          (range) => this.view.slice(range.start, range.end).map((row, j) => this.safeRow(row, t, size, focused && range.start + j === this.dline))).track_scroll(this.dscroll).size_full())))
       .children(this.blockButtons(it, t, size))
       .children(this.hunkButtons(it, t, size))
       .when(this.stickyHeader(size), el => el.child(div().absolute().top_0().left_0().right_0().child(this.diffRow(this.stickyHeader(size), t, size, false))))

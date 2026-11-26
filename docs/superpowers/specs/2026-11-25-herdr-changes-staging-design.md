@@ -227,3 +227,55 @@ Changes mod could silently hide the whole Not staged section.
   real git with two hunks: each button moves only its own hunk.
   **Limit:** the patch is one process argument. Linux caps a single argument at about 128 KB,
   so a huge hunk fails there (shown as an error, nothing lost). macOS allows far more.
+
+## Addendum (2026-11-26): diff signs and colours
+
+### Decided
+- **`-`/`+` signs.** A one-character column between the line number and the code. It's a
+  margin decoration (VS Code style), not part of the text. Red `-` on removed lines, green `+` on added
+  lines (Resolved sections included). It's blank on context lines, `@@` rows, section headers and every
+  conflict row, because a conflict side hasn't been added or removed yet and its side bar
+  already says which side it is. The diff's min width counts the sign column.
+- **Stronger colours.** Phil compared the options side by side, rendered in his theme. A
+  table of alpha values didn't let him judge.
+  - Added and removed rows: `48` (was `18`).
+  - Conflict content rows: `4c` (was `1c`).
+  - Conflict marker rows (`<<<<<<<`, `=======`, `>>>>>>>`): `b3` (was `30`). They act as
+    strong headers around each block.
+- **Contrast rule.** Text on a strongly tinted row must not share the tint's hue. Phil's
+  `ansi4`/`ansi5` are pastel, so blue text on a blue tint, and the dim grey line numbers, both
+  disappeared as the tint grew. On marker rows the text, line numbers and the current/incoming
+  tag are near-white (`t.foreground`, the number at `b3` and the tag at `cc` alpha). Current and
+  incoming content rows get near-white line numbers too. The `|||||||` original marker and its
+  lines stay dim on purpose, so the original recedes.
+
+## Addendum (2026-11-27): side by side when there's room
+
+### Decided
+- **One line-number column, not two.** A build with old and new number columns (GitHub's inline
+  style) was tried and reverted. With the `-`/`+` signs, a second column only adds width and
+  confusion. Inline keeps one column, and deleted rows show their old number.
+- **Side by side (horizontal) when the pane is wide, inline (vertical) when it's narrow.** The
+  switch is automatic, with no toggle, and it happens live as the pane is resized (`on_size_change`
+  on the diff body).
+  - **The threshold** is each half fitting at least 48 columns of code plus its number and sign.
+    That fits the usual ~1000px viewer. Phil compared 48, 64 and 80 rendered at true width. 80 per
+    side needs about 1570px, so it would never have kicked in.
+  - **Above the threshold the halves grow with the pane.** 48 is a minimum, not a fixed width.
+- **Ordinary diffs only.** Staged, Not staged and Resolved sections can split. Conflict files stay
+  inline because their three sides don't map onto two columns (`canSplit`). A file with both a
+  conflict and ordinary changes is a conflict file and stays inline.
+- **Layout** (`splitRows` in `diff.js`, pure and tested):
+  - Old file on the left, new file on the right. Each side has its own line numbers.
+  - Context lines appear on both sides.
+  - A run of removed lines followed by added lines pairs row by row. Extras face a faintly striped
+    empty cell.
+  - Section headers and `@@` rows stay full width and are the same row objects, so `sectionAt`,
+    the sticky header and the hunk overlays still work.
+- **Stage, Unstage and Discard stay at the right end of the full-width `@@` row** in both layouts.
+  They act on the whole hunk, and the button is in the same place whichever layout is showing.
+- **Long lines are truncated with `…`** in side by side. Inline keeps its sideways scroll.
+
+### Later, if needed
+- Synced sideways scrolling of both halves, in place of `…` truncation.
+- The scroll position can shift when the layout flips, because the two views have different row counts.
