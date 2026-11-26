@@ -75,4 +75,6 @@ tests/
 {{ if ne .machine.id "metabox" -}}
 .local/bin/comfyui
 .config/systemd/user/comfyui.service
+.local/bin/comfyui-bridge
+.config/systemd/user/comfyui-bridge.service
 {{ end -}}
